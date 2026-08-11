@@ -112,3 +112,10 @@ built 182 page(s) (182 rendered, 0 cached), copied 3 asset(s) from content -> _s
 Both zeros matter. Unresolved links are internal links pointing at nothing; diagnostics
 are malformed org that degraded rather than failing. With =--strict= neither can reach
 this line, because either would have failed the build.
+
+* After an upgrade
+
+The first build on a new version is worth running with =--no-cache=, so you compare the
+new output to the old rather than to a cache written by both. What a version number
+promises — and what it does not — is in [[file:11-versioning.org][Versioning and
+upgrades]].

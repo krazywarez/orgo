@@ -1,0 +1,72 @@
+#+TITLE: Versioning and upgrades
+#+DESCRIPTION: What a version number promises, what it does not, and how to upgrade safely.
+#+LEDE: The stable surface is what you build a site against, not what the code happens to do.
+
+A generator you point at ten years of writing needs to be boring about compatibility.
+This page says exactly what is promised.
+
+* The stable surface
+
+Changing any of this incompatibly requires a major version.
+
+| Stable | What that covers |
+|--------+------------------|
+| =org-ssg.toml= keys | Their names, types and meaning. |
+| Template context | =page=, =site=, =nav=, =root=, =pages=, =group=, =groups=, =paginator=, =stylesheet=, and the =absolute=, =rfc822= and =truncate= filters. |
+| The CLI | Command names, flags and exit codes. |
+| URLs | How a source path becomes an output path, =#+SLUG:= included. |
+
+*URLs are on that list deliberately.* A generator that quietly moves your pages breaks
+every link anyone has ever made to you, and no upgrade note fixes an inbound link.
+
+Adding things — a new config key, a new template variable — is a minor release. Nothing
+you already wrote stops working.
+
+* What is not stable
+
+Three things move freely, so the list above can hold still.
+
+** The incremental cache
+
+=<output>/.org-ssg-cache.json= is versioned and discards itself on a mismatch. A cache
+format bump means one full rebuild, and nothing else. It is never a correctness
+dependency: a missing, stale or corrupt cache produces exactly the same site, more slowly.
+
+** Rendered HTML details
+
+org-ssg aims at what Emacs exports from the same file, and closing a gap changes markup.
+That is the product working rather than a regression — but it is called out in the
+changelog every time, because your stylesheet is downstream of it.
+
+The class names the documentation names are the ones to write CSS against:
+=post-list=, =post-list-item=, =figure-number=, =table-number=, =section-number-N=,
+=footnote-ref=, =verbatim=, and the =on=/=off=/=trans= classes on checkbox items.
+
+** The Rust API
+
+The crate is on crates.io so the binary can be installed with =cargo install=. The library
+exists to serve the binary, and its types move as the tool does.
+
+* The compiler floor
+
+The MSRV is *1.88*, checked in CI on every change rather than assumed — which is how it
+came to be 1.88 rather than the 1.82 org-ssg's own code needs. The floor is set by
+dependencies, and a dependency raising its own is invisible until someone on an older
+compiler tries to build.
+
+Raising it is a minor version, never a patch.
+
+* Upgrading
+
+#+BEGIN_SRC sh
+cargo install org-ssg          # or download a release binary
+org-ssg build content -o _site --no-cache --strict
+#+END_SRC
+
+=--no-cache= makes the first build after an upgrade a full one, so you are comparing the
+new version's output to the old version's output rather than to a cache written by a
+mixture of both. =--strict= turns a link that stopped resolving into a failure.
+
+If you keep your built site in version control, the diff after that command *is* the
+upgrade report — which is the most useful review a generator can give you, and the reason
+the changelog names behaviour rather than commits.

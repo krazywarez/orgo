@@ -387,7 +387,7 @@ all-of-org. Phase 0 checked this line against a real 179-file corpus and found i
 | **19** | **Export parity: relative heading levels, special strings, sub/superscript, caption numbering, checkbox and counter markup, table marker columns, special blocks** | **done** |
 | **20** | **Correctness debt: org's entity table, table captions, a reported `#+INCLUDE:`, and an oracle that separates deliberate divergence from defects** | **done** |
 | **21** | **Extra asset roots; per-template hashing so one layout edit does not re-render the site** | **done** |
-| 22 | Release engineering: CI, MSRV, published binaries, changelog, a written compatibility promise | 1.0 |
+| **22** | **Release engineering: CI on both platforms, a checked MSRV, release binaries, a changelog, and a written compatibility promise** | **done** |
 
 ### v0.2 in / out
 
@@ -688,6 +688,32 @@ anchored — `:CUSTOM_ID:`/`:ID:` else a slug of its text) and trailing tags; pa
 plain lists (unordered + ordered) with checkboxes; source blocks; inline markup (`*bold*`,
 `/italic/`, `_underline_`, `+strike+`, `=verbatim=`, `~code~`); links and bare URLs.
 
+## Compatibility
+
+Versions mean something as of 1.0. The **stable surface** — changing incompatibly requires
+a major version — is what you actually build a site against:
+
+| Stable | Detail |
+|---|---|
+| `org-ssg.toml` keys | Names, types and meaning. New keys are minor releases; removing one is major. |
+| Template context | `page`, `site`, `nav`, `root`, `pages`, `group`, `groups`, `paginator`, `stylesheet`, and the `absolute` / `rfc822` / `truncate` filters. |
+| CLI | Command names, flags, and exit codes. |
+| URLs | How a source path becomes an output path, including `#+SLUG:`. A generator that moves your URLs breaks every link anyone has to you. |
+
+Explicitly **not stable**, so that the above can be:
+
+- **The incremental cache.** Versioned, discarded on mismatch, never a correctness
+  dependency. It changes whenever it needs to, in any release.
+- **Rendered HTML details.** org-ssg tracks what Emacs exports from the same file, and
+  closing a gap changes markup. Changes that affect output are called out in
+  [CHANGELOG.md](CHANGELOG.md) — the class names the documentation names (`post-list`,
+  `figure-number`, `section-number-N`, `footnote-ref`) are the ones to write CSS against.
+- **The Rust API.** The crate is published so the binary can be installed with
+  `cargo install`; the library exists to serve it, and its types move as the tool does.
+
+The **MSRV is 1.88**, checked in CI on every change. org-ssg's own code compiles on
+1.82; the floor comes from dependencies. Raising it is a minor version, never a patch.
+
 ## Dependencies
 
 Parser is hand-written recursive descent (not `nom`/`chumsky`/`pest` — org is
@@ -702,7 +728,7 @@ development server), `toml` (config), `chrono`, `camino`, `walkdir`, `clap`, `an
 
 ```
 cargo build
-cargo test                                                # 156 tests
+cargo test                                                # 191 tests
 cargo run -- init my-site                                 # scaffold a new site
 cargo run -- build fixtures/minimal.org -o minimal.html   # single file
 cargo run -- build fixtures/site -o _site                 # whole site (incremental)

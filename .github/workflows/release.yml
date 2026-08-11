@@ -1,0 +1,113 @@
+name: Release
+
+# Build binaries for a tag and attach them to a GitHub release.
+#
+# WHY BINARIES AT ALL, given `cargo install org-ssg` exists: installing from source needs
+# a Rust toolchain and about a minute of compiling syntect. Someone evaluating a site
+# generator should be able to download one file and point it at their notes.
+#
+# The tag is the source of truth for the version. The build checks it against Cargo.toml
+# rather than trusting them to match, because a release tagged v0.18.0 containing a binary
+# that reports 0.17.0 is the kind of thing nobody notices for months.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to build (for a re-run of a failed release)"
+        required: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Apple Silicon and Intel Macs, built natively on their own runners so neither
+          # is a cross-compile nobody has run.
+          - { os: macos-latest, target: aarch64-apple-darwin }
+          - { os: macos-13, target: x86_64-apple-darwin }
+          # glibc for ordinary distributions, musl for containers and anything older than
+          # the runner's glibc — a dynamically linked binary is the usual reason a
+          # download does not run.
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu }
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-musl }
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@1ff72ee08e3cb84d84adba594e0a297990fc1ed3 # stable
+        with:
+          toolchain: stable
+          targets: ${{ matrix.target }}
+
+      - name: Install musl tools
+        if: endsWith(matrix.target, '-musl')
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends musl-tools
+
+      - name: Check the tag against Cargo.toml
+        shell: bash
+        run: |
+          tag="${{ github.event.inputs.tag || github.ref_name }}"
+          crate=$(cargo metadata --no-deps --format-version 1 \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin)["packages"][0]["version"])')
+          if [ "$tag" != "v$crate" ]; then
+            echo "tag $tag does not match Cargo.toml version $crate" >&2
+            exit 1
+          fi
+
+      - name: Build
+        run: cargo build --release --locked --target ${{ matrix.target }}
+
+      # A tarball rather than a bare binary: it keeps the executable bit through GitHub's
+      # download path, and carries the licence with the thing it licenses.
+      - name: Package
+        shell: bash
+        run: |
+          staging="org-ssg-${{ github.event.inputs.tag || github.ref_name }}-${{ matrix.target }}"
+          mkdir "$staging"
+          cp "target/${{ matrix.target }}/release/org-ssg" "$staging/"
+          cp README.md LICENSE CHANGELOG.md "$staging/"
+          tar czf "$staging.tar.gz" "$staging"
+          shasum -a 256 "$staging.tar.gz" > "$staging.tar.gz.sha256"
+
+      - name: Upload
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ matrix.target }}
+          path: |
+            *.tar.gz
+            *.tar.gz.sha256
+
+  release:
+    name: publish the release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download every build
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          merge-multiple: true
+
+      # A draft, deliberately. The changelog entry is written by a person, and a release
+      # that publishes itself before anyone has read it cannot be edited quietly.
+      - name: Create the draft release
+        uses: softprops/action-gh-release@72f2c25fcb47643c292f7107632f7a47c1df5cd8 # v2.3.2
+        with:
+          draft: true
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          files: |
+            *.tar.gz
+            *.tar.gz.sha256
