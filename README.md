@@ -1,0 +1,111 @@
+# orgo
+
+Turn a folder of org files into a website.
+
+You write posts the way you already do — an `.org` file per page, in whatever directory
+structure suits you — and orgo builds a complete site from them: pages, navigation, a blog
+index, tags, an RSS feed, syntax-highlighted code. It is one binary with nothing to
+install alongside it, and **you do not need Emacs to build your site**, only to write in a
+format Emacs made.
+
+Org is the source language here, not something to convert away from first. Tools that
+route org through markdown lose what markdown has no words for — property drawers, a
+heading's TODO state and tags, `#+` keywords, ID links, captions on images. orgo keeps all
+of it, and its output is checked page by page against what Emacs' own exporter produces
+from the same file.
+
+**Documentation: <https://ccleberg.github.io/orgo/>** — that site is written in org and
+built by orgo, so it doubles as the longest worked example available.
+
+## Install
+
+You need [Rust](https://rustup.rs) (1.88 or newer). Nothing else — syntax highlighting and
+its themes are compiled in.
+
+```sh
+git clone https://github.com/ccleberg/orgo
+cd orgo
+cargo install --path .
+```
+
+That puts an `orgo` command on your `PATH`. Full notes, including how to run it without
+installing anything: <https://ccleberg.github.io/orgo/install.html>
+
+## Your first site
+
+```sh
+orgo init my-site
+orgo serve my-site -o _site
+```
+
+Open <http://127.0.0.1:3000>. Edit `my-site/index.org`, save, and the page reloads on its
+own — that is the loop you will spend your time in.
+
+`init` writes a starter post, a page layout you can edit, and a config file with every
+setting explained in comments. It never overwrites a file you already have.
+
+## Or point it at writing you already have
+
+```sh
+orgo build ~/notes -o _site
+```
+
+No config file, no templates, no orgo-specific markup in your files. You get a real site:
+every page, links between them resolved, navigation across the top, code highlighted. That
+is a supported way to use it rather than a demo — configuration changes what you get, it
+is never what makes it work.
+
+Nothing that should stay private is published: dot-directories like `.git`, your templates
+and the output folder itself are all skipped.
+
+Want to know what orgo will make of your files before trusting it with them?
+`orgo audit ~/notes` reports which org constructs you use and how each one lands, with
+counts and line numbers — never the text of your writing, so the report is safe to share.
+
+## What you can add when you want it
+
+Each of these is a few lines of config, and each has a page in the guide:
+
+| Add | Documented in |
+|---|---|
+| A blog index, newest first | [Collections](https://ccleberg.github.io/orgo/guide/03-collections.html) |
+| Tag pages, and an index of tags | [Collections](https://ccleberg.github.io/orgo/guide/03-collections.html) |
+| An RSS feed | [Collections](https://ccleberg.github.io/orgo/guide/03-collections.html) |
+| Numbered pages when a list gets long | [Collections](https://ccleberg.github.io/orgo/guide/03-collections.html) |
+| Your own design, in ordinary HTML templates | [Templates](https://ccleberg.github.io/orgo/guide/04-templates.html) |
+| Drafts that stay unpublished until you say so | [Authoring](https://ccleberg.github.io/orgo/guide/06-authoring.html) |
+| A table of contents on long posts | [Authoring](https://ccleberg.github.io/orgo/guide/06-authoring.html) |
+| Clean URLs that survive a renamed file | [Authoring](https://ccleberg.github.io/orgo/guide/06-authoring.html) |
+
+Rebuilds only touch the pages that actually changed, so saving a post on a site with
+hundreds of them stays instant.
+
+## The documentation
+
+<https://ccleberg.github.io/orgo/>
+
+| Page | What is in it |
+|---|---|
+| [Quick start](https://ccleberg.github.io/orgo/quickstart.html) | A working site in two commands, then your own writing, then your own design. |
+| [Install](https://ccleberg.github.io/orgo/install.html) | Getting the binary, and running it without installing anything. |
+| [Commands](https://ccleberg.github.io/orgo/guide/01-cli.html) | Every command and flag, and what each is for. |
+| [Configuration](https://ccleberg.github.io/orgo/guide/02-configuration.html) | Every setting in `orgo.toml`, what it changes, and what it costs. |
+| [Collections](https://ccleberg.github.io/orgo/guide/03-collections.html) | Blog indexes, tag pages, pagination and RSS feeds. |
+| [Templates](https://ccleberg.github.io/orgo/guide/04-templates.html) | Layouts, and every variable a template can use. |
+| [Org support](https://ccleberg.github.io/orgo/guide/05-org-support.html) | Which org syntax is handled, which is not, and how the rest degrades. |
+| [Authoring](https://ccleberg.github.io/orgo/guide/06-authoring.html) | URLs, drafts, excerpts, tables of contents. |
+| [Incremental builds](https://ccleberg.github.io/orgo/guide/07-incremental.html) | How it decides what to rebuild. |
+| [Watching and serving](https://ccleberg.github.io/orgo/guide/08-workflow.html) | The write-save-see loop. |
+| [Auditing](https://ccleberg.github.io/orgo/guide/09-auditing.html) | Reading a corpus before trusting a tool with it. |
+| [Deploying](https://ccleberg.github.io/orgo/guide/10-deploying.html) | Producing a production build, and putting it somewhere. |
+
+## Building from a checkout
+
+```sh
+cargo test                              # includes a differential check against Emacs, when present
+cargo run -- serve docs -o docs/_site   # read the documentation locally
+```
+
+## Licence
+
+[0BSD](LICENSE). Do what you like with it.
