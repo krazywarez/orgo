@@ -1,0 +1,115 @@
+#+TITLE: Incremental builds
+#+DESCRIPTION: How the cache decides what to re-render, and why that shape is the architecture.
+#+LEDE: Editing one post rebuilds four pages, whatever the size of the site.
+
+Incremental rebuilding is not an optimisation bolted on to org-ssg; it is the constraint
+the data model was built around. Parsing is a pure function of one file's bytes, link
+resolution reports the edges it used, and rendering is a pure function of a resolved
+document. Those properties are what make caching sound — and they are also what make the
+build parallel.
+
+You do not have to configure any of this. It is described here because knowing what
+invalidates what explains the behaviour you will see.
+
+* What you observe
+
+#+BEGIN_EXAMPLE
+$ org-ssg build content -o _site
+built 182 page(s) (182 rendered, 0 cached) ...
+
+$ org-ssg build content -o _site
+built 182 page(s) (0 rendered, 182 cached) ...
+
+$ vim content/blog/post.org && org-ssg build content -o _site
+built 182 page(s) (4 rendered, 178 cached) ...
+#+END_EXAMPLE
+
+The four are the post itself, its section index, its tag page, and the tag index whose
+counts changed.
+
+* The render key
+
+Every page has a key composed from four hashes:
+
+| Component | Changes when |
+|-----------+--------------|
+| content | The source file's bytes change. |
+| resolved links | A link's target moves, is renamed, or disappears. |
+| config | =org-ssg.toml= changes, or the shared chrome does. |
+| templates | Any template's source changes. |
+
+If a page's key matches the cached one and its output file still exists, the file on disk
+is already correct and is left untouched.
+
+The cache lives in =<output>/.org-ssg-cache.json= and is tagged with a format version. A
+version mismatch, a missing file or a corrupt file all fall back to a full rebuild — the
+cache is an optimisation, never a correctness dependency. There is a test for each of
+those three fallbacks.
+
+* Link dependencies
+
+Resolution records which targets each page consumed, which gives the build a dependency
+graph. That is what makes renaming a heading work:
+
+#+BEGIN_EXAMPLE
+a.org:  * Target Heading
+b.org:  Jump to [[*Target Heading][there]].
+#+END_EXAMPLE
+
+Rename the heading in =a.org= and *both* pages re-render — =b.org= because the URL it
+emits has changed. Without the graph, =b.html= would keep a link to an anchor that no
+longer exists. On a rebuild the graph is merged with the previous build's, so a target
+that was *removed* still pulls in the pages that linked to it.
+
+* Global chrome
+
+The navigation appears on every page, so a change to it must re-render every page. The
+site-structure hash covers exactly the pages that can appear in the nav — which is why
+the default =nav.mode = "top-level"= matters for more than aesthetics:
+
+- Retitling a *top-level* page changes the nav everywhere, and re-renders the site.
+- Adding a *nested* page cannot change anyone's nav, and re-renders one page.
+
+Turning on =[templates] expose_page_list= widens that hash to every page, because then
+any template can read any page's metadata. That is the documented cost of building an
+index by hand instead of with a collection.
+
+* Generated pages
+
+A listing page has no source file, so it is cached on the thing it actually depends on:
+the entries it lists — their URLs, titles, dates and tags.
+
+- Adding a post re-renders the indexes that list it.
+- Editing a post's *body* changes no listing metadata, so no index is touched.
+- Retitling a post re-renders the listings that display the title.
+
+A tag page depends on its own posts and not on the other groups. That is why the group
+list is given to the tag *index* and not to every tag page: a page that could see every
+group would depend on every group, and one new post would re-render every tag page.
+
+* Byte equivalence
+
+A full build (=--no-cache=) and an incremental rebuild produce *byte-identical* output.
+This is the property everything else rests on, and it is a test rather than an intention:
+the suite builds a site both ways and compares every emitted file.
+
+* Parallelism
+
+Parsing, resolution and rendering run across cores. Measured on a 1,790-page corpus, a
+full build went from 3.98s to 0.82s on 12 cores; the 179-page reference corpus builds in
+0.07s.
+
+Parallelism is not observable in the result. Emitted bytes are unaffected, and the build
+*report* — the order of =rendered= and =skipped= — is assembled sequentially afterwards,
+so a build is reproducible run to run. There is a test for that ordering, because a
+non-deterministic report over a deterministic site would be a confusing thing to debug.
+
+* When to reach for --no-cache
+
+Almost never. Config changes, template edits and cache-format upgrades all invalidate
+correctly on their own. It exists to answer "is the cache lying to me?" — and if it ever
+is, that is a bug worth reporting, with the two builds' output to compare.
+
+#+BEGIN_SRC sh
+org-ssg build content -o _site --no-cache
+#+END_SRC

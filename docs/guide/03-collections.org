@@ -1,0 +1,216 @@
+#+TITLE: Collections
+#+DESCRIPTION: Generated pages — blog indexes, tag pages, pagination and RSS feeds.
+#+LEDE: The one kind of output that is not a translation of some input.
+
+A blog index exists because a set of posts exists, not because someone wrote
+=index.org=. A =[[collections]]= block declares one: a source directory in, an output
+file out, through a template.
+
+Keeping it declarative means an RSS feed is the same mechanism with an XML template
+rather than a second feature.
+
+* A blog index
+
+#+BEGIN_SRC toml
+[[collections]]
+source = "blog"             # directory to list; empty means every page
+output = "blog/index.html"  # where to write it
+template = "list.html"      # template file name
+title = "Blog"
+sort = "date"               # date | title | path
+order = "desc"              # desc | asc
+nav = true                  # put this page in the site nav
+#+END_SRC
+
+The template receives the collection's entries as =pages=, already sorted, plus the usual
+=site=, =nav= and =root=:
+
+#+BEGIN_SRC html
+{% extends "base.html" %}
+{% block content %}
+<ul>
+  {% for post in pages %}
+  <li>
+    <time datetime="{{ post.date_iso }}">{{ post.date_iso }}</time>
+    <a href="{{ root }}{{ post.url }}">{{ post.title }}</a>
+    <p>{{ post.excerpt | truncate(180) }}</p>
+  </li>
+  {% endfor %}
+</ul>
+{% endblock %}
+#+END_SRC
+
+** Sorting
+
+=sort= is =date= (default), =title= or =path=; =order= is =desc= (default) or =asc=.
+
+Date sorting uses =page.date_iso=, the =YYYY-MM-DD= extracted from =#+DATE:= whatever org
+syntax it was written in — =[2025-09-05 Fri 10:21:00]=, =<2024-05-01 Wed>= or a bare
+=2024-05-01= all work.
+
+*Pages with no parseable date sort last in either direction*, so an undated draft never
+leads a dated archive.
+
+** nav = true
+
+The listing page joins the site navigation. This is how a section landing page — =/blog/=,
+=/notes/= — gets into a nav built from top-level pages, and it points at the right thing:
+the section, not any one post in it.
+
+* Tag pages
+
+Add =group_by= and the collection emits one page /per group/ instead of one page total,
+plus an optional index of the groups:
+
+#+BEGIN_SRC toml
+[[collections]]
+source = "blog"
+group_by = "tags"                  # "tags", or any #+KEYWORD: name
+output = "tags/{tag}.html"         # {tag} becomes each group's slug
+template = "tag.html"
+title = "Tagged: {tag}"
+index_output = "tags/index.html"
+index_template = "tags.html"
+index_title = "Tags"
+nav = true                         # adds the *index*, not every tag
+#+END_SRC
+
+A group page receives its own posts as =pages= and itself as =group=:
+
+#+BEGIN_SRC html
+<h1>{{ group.name }} ({{ group.count }})</h1>
+{% for post in pages %}<a href="{{ root }}{{ post.url }}">{{ post.title }}</a>{% endfor %}
+#+END_SRC
+
+The index receives =groups=, sorted by name:
+
+#+BEGIN_SRC html
+<ul>{% for tag in groups %}
+  <li><a href="{{ root }}{{ tag.url }}">{{ tag.name }}</a> ({{ tag.count }})</li>
+{% endfor %}</ul>
+#+END_SRC
+
+** Grouping by anything
+
+=group_by = "tags"= is multi-valued: a post appears under every tag it carries. Any other
+value names a single-valued =#+KEYWORD:=, so =group_by = "category"= buckets pages by
+=#+CATEGORY:= with no extra machinery.
+
+** Two tags that would collide are an error
+
+=web_dev= and =web@dev= both slugify to =web-dev=, so one page would silently overwrite
+the other. That is a build error naming both values.
+
+* Pagination
+
+#+BEGIN_SRC toml
+[[collections]]
+source = "blog"
+output = "blog/index.html"
+paginate = 10
+paginate_output = "blog/page/{n}.html"   # {n} is the 1-based page number
+#+END_SRC
+
+*Page 1 stays at =output=*, so a section's canonical URL never moves as its page count
+changes. Only pages 2..N are named by =paginate_output=.
+
+The template gets a =paginator=:
+
+#+BEGIN_SRC html
+{% if paginator and paginator.total > 1 %}
+<nav>
+  {% if paginator.prev_url %}<a href="{{ paginator.prev_url }}">Newer</a>{% endif %}
+  {% for pg in paginator.pages %}
+    <a href="{{ pg.url }}"{% if pg.current %} aria-current="page"{% endif %}>{{ pg.number }}</a>
+  {% endfor %}
+  {% if paginator.next_url %}<a href="{{ paginator.next_url }}">Older</a>{% endif %}
+</nav>
+{% endif %}
+#+END_SRC
+
+| Field | Meaning |
+|-------+---------|
+| =current=, =total= | This page's number, and how many there are. |
+| =per_page=, =total_entries= | As configured, and across the whole listing. |
+| =prev_url=, =next_url= | =none= at the ends. |
+| =first_url=, =last_url= | Always present. |
+| =pages= | =[{number, url, current}]= for a numbered strip. |
+
+Every URL is relative to the page carrying it, so links work from page 1
+(=page/2.html=) and from page 5 (=../index.html=, =6.html=) without the template knowing
+where it sits. An unpaginated collection has no =paginator= at all, so
+={% if paginator %}= is a reliable test in a shared template.
+
+Grouping and pagination compose: each group paginates independently, which is why
+=paginate_output= needs ={tag}= as well as ={n}= on a grouped collection.
+
+* An RSS feed
+
+A feed is a listing page with an XML template. Templates load by full filename and any
+extension, so:
+
+#+BEGIN_SRC toml
+[[collections]]
+source = "blog"
+output = "feed.xml"
+template = "feed.xml"
+title = "Feed"
+#+END_SRC
+
+#+BEGIN_SRC html
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+<channel>
+  <title>{{ site.title }}</title>
+  <link>{{ "index.html" | absolute }}</link>
+  <atom:link href="{{ page.url | absolute }}" rel="self" type="application/rss+xml"/>
+  {% for post in pages %}
+  <item>
+    <title>{{ post.title }}</title>
+    <link>{{ post.url | absolute }}</link>
+    <guid isPermaLink="true">{{ post.url | absolute }}</guid>
+    <pubDate>{{ post.date_iso | rfc822 }}</pubDate>
+  </item>
+  {% endfor %}
+</channel>
+</rss>
+#+END_SRC
+
+This needs =site.base_url=, because a feed with relative links is invalid everywhere it
+is read. =org-ssg init= writes this template and leaves the collection commented out
+until there is a base URL to make absolute links from.
+
+* Every setting
+
+| Key | Default | Meaning |
+|-----+---------+---------|
+| =source= | ="" | Directory to list. Empty means every page. |
+| =output= | ="index.html"= | Where to write. Needs ={tag}= when grouped. |
+| =template= | ="list.html"= | Template file name. |
+| =title= | ="Index"= | ={{ page.title }}=. ={tag}= is substituted when grouped. |
+| =group_by= | ="" | ="tags"=, or a =#+KEYWORD:= name. Empty means one page. |
+| =index_output= | ="" | Where to write the group index. Empty means none. |
+| =index_template= | ="tags.html"= | Template for the group index. |
+| =index_title= | ="Tags"= | Title for the group index. |
+| =sort= | ="date"= | =date=, =title= or =path=. |
+| =order= | ="desc"= | =desc= or =asc=. |
+| =paginate= | =0= | Entries per page. =0= means no pagination. |
+| =paginate_output= | ="" | Where pages 2..N go. Needs ={n}=. |
+| =nav= | =false= | Add this page — or its index, when grouped — to the nav. |
+
+* Incremental behaviour
+
+A listing page is cached on the entries it lists, so:
+
+- Adding a post re-renders that post, its section index, its tag pages and the tag index
+  whose counts changed. Nothing else.
+- Editing a post's *body* changes no listing metadata, so the index is not touched at
+  all.
+- Retitling a post does re-render the listings that display the title.
+
+A tag page depends on its own posts and not on the other groups, which is why =groups= is
+given to the index and not to every group page: a page that can see every group would
+depend on every group, and one new post would re-render every tag page.
+
+When a collection shrinks below a page boundary, the pages that no longer exist are
+deleted rather than left serving stale content.

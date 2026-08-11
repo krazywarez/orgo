@@ -1,0 +1,115 @@
+#+TITLE: Watching and serving
+#+DESCRIPTION: The write-save-see loop, and what the development server does and does not do.
+#+LEDE: Filesystem events, debounced rebuilds, and a browser that reloads itself.
+
+* serve
+
+#+BEGIN_SRC sh
+org-ssg serve content -o _site
+#+END_SRC
+
+Builds, watches, serves at [[http://127.0.0.1:3000][127.0.0.1:3000]], and reloads the
+browser when a rebuild lands. This is the command to leave running while you write.
+
+Add =--drafts= to see work in progress, =--port= to move it, and =--host 0.0.0.0= to
+reach it from another device.
+
+** It binds loopback deliberately
+
+A development server serves unreviewed drafts off your laptop. Exposing that to whatever
+network you are on — a café, a conference, an office — should be something you ask for,
+so the default is =127.0.0.1= and =--host= is the way out.
+
+** The reload script never reaches disk
+
+The script is injected into HTML *responses*, not into the built files. What you deploy
+is the site as built, with no development machinery in it. If you are curious, compare a
+served page with the file in your output directory.
+
+** How reload works
+
+The page carries the build generation it was rendered from, and asks the server "anything
+newer than N?". The server holds that request open until there is, then answers — so a
+reload is immediate rather than polled, but the mechanism is ordinary HTTP with no
+WebSocket.
+
+Baking the generation into the page closes a race: if a rebuild lands between a page
+being served and its first request going out, the server answers at once instead of the
+tab sitting on stale content until your *next* edit.
+
+A reload only follows a *successful* rebuild. Reloading onto an unchanged page because
+the build just failed tells you nothing — the error is already on your terminal.
+
+* watch
+
+#+BEGIN_SRC sh
+org-ssg watch content -o _site
+#+END_SRC
+
+The same rebuilding without the server, for when something else already serves the output.
+
+* What counts as a change
+
+Rebuilds are driven by OS filesystem events, so nothing happens while nothing happens.
+The rule for what triggers one is deliberately *not* the rule the build uses to find
+content — the question is "would this change the site?", not "is this a page?".
+
+*Triggers a rebuild:* any =.org= file, any asset, =org-ssg.toml=, and anything in the
+templates directory. The last two are skipped by the build when looking for content, but
+both change the output.
+
+*Does not:*
+
+- The output directory. Without this the build's own writes would raise events that
+  trigger a rebuild, forever.
+- Dot-directories. =.git= churns on every command, and rebuilding a site because git
+  wrote an index lock would make watching useless in a repository.
+- Editor scratch files: =file.org~=, =#file.org#=, =.#file.org=, =*.swp=, =*.tmp=. Emacs'
+  backup files matter here — they do not start with a dot, so they would otherwise look
+  exactly like content.
+
+* Debouncing
+
+Saving a file is rarely one event: an editor writes a temp file, renames it over the
+original, and touches the directory. Events are collected for 120ms of quiet before a
+rebuild starts, so one save is one rebuild.
+
+* Rebuild failures do not stop the session
+
+A build that fails prints the error and keeps watching. The usual cause is a half-saved
+file, and the next keystroke fixes it. Nothing needs restarting.
+
+#+BEGIN_EXAMPLE
+blog/post.org changed: build failed: parsing blog/post.org: ...
+blog/post.org changed: 2 rendered, 180 cached
+#+END_EXAMPLE
+
+* Where native watching is unavailable
+
+Some network and container filesystems have no event API. org-ssg falls back to polling
+every two seconds and says so, rather than failing:
+
+#+BEGIN_EXAMPLE
+note: native file watching unavailable (...); polling every 2s
+#+END_EXAMPLE
+
+* Serving details
+
+- =/= and any directory URL serve =index.html=.
+- Content types are set by extension; unknown extensions are served as binary.
+- Everything is sent =Cache-Control: no-store=, because a cached dev response makes an
+  edit look like it did not land.
+- URL resolution refuses to leave the output directory. =..=, percent-encoded =..=,
+  backslashes, absolute paths and embedded NULs all resolve to nothing.
+
+* A typical session
+
+#+BEGIN_SRC sh
+# One terminal, left running.
+org-ssg serve content -o _site --drafts
+
+# Write. The browser keeps up.
+
+# Before publishing, check what a real build says.
+org-ssg build content -o _site --strict
+#+END_SRC

@@ -1,0 +1,146 @@
+#+TITLE: Authoring
+#+DESCRIPTION: URLs, drafts, excerpts, tables of contents — the metadata that shapes a page.
+#+LEDE: What to put at the top of a file, and what each keyword buys you.
+
+* URLs
+
+By default a source path becomes the matching output path: =blog/post.org= →
+=blog/post.html=.
+
+=#+SLUG:= overrides the *filename*, never the directory:
+
+#+BEGIN_SRC org
+,#+TITLE: AES Encryption
+,#+SLUG: aes-encryption
+#+END_SRC
+
+=blog/2018-11-28-aes-encryption.org= now publishes at =blog/aes-encryption.html=. This is
+how a date-prefixed filename — useful for sorting in a file manager — becomes a clean
+address.
+
+Slugs are reduced to a single safe path component, so a slug cannot escape the output
+directory however it was written. Two pages claiming one URL is a build error rather than
+one silently overwriting the other.
+
+Links follow slugs automatically: =[[file:blog/2018-11-28-aes-encryption.org]]= resolves
+to =blog/aes-encryption.html=.
+
+* Drafts
+
+#+BEGIN_SRC org
+,#+DRAFT: t
+#+END_SRC
+
+The page is not written at all, and is absent from listings, tag pages and navigation —
+not merely unlinked.
+
+It is also out of the symbol table, so a link *to* a draft is reported as a broken link.
+That is deliberate: it is what that link would be on the published site, and better found
+now than by a reader.
+
+#+BEGIN_SRC sh
+org-ssg serve content -o _site --drafts
+#+END_SRC
+
+The keyword is read forgivingly. =t=, =yes=, =1= and a bare =#+DRAFT:= all mean draft,
+because writing the keyword at all is the signal. Only an explicit =nil=, =false=, =no=,
+=0= or =off= means published — publishing someone's unfinished post because they typed
+=yes= instead of =t= is the wrong way to be strict.
+
+* Dates
+
+#+BEGIN_SRC org
+,#+DATE: <2026-02-02 Mon>
+,#+DATE: [2025-09-05 Fri 10:21:00]
+,#+DATE: 2024-05-01
+#+END_SRC
+
+All three work. =page.date= keeps what you wrote, and =page.date_iso= is the
+=YYYY-MM-DD= inside it — the value listings sort on and templates usually print.
+
+A page with no parseable date sorts *last* in a dated listing, in either direction, so a
+draft with no date never leads an archive.
+
+* Excerpts
+
+=page.excerpt= is =#+DESCRIPTION:= when the page sets one, and its first paragraph
+otherwise:
+
+#+BEGIN_SRC org
+,#+DESCRIPTION: How the borrow checker thinks about lifetimes.
+#+END_SRC
+
+The fallback matters more than the keyword: it means a listing has something to show
+whether or not the author ever thought about summaries. Use =truncate= in the template to
+cut a long paragraph to size.
+
+* Reading time
+
+=page.word_count= and =page.reading_time= (minutes at 200 wpm, rounded up) count *prose
+only*. Source and example blocks are excluded, because a post that is mostly a shell
+transcript should not read as an hour's work. =#+TITLE:= is metadata rendered as chrome,
+so it is not counted either.
+
+* Tags
+
+#+BEGIN_SRC org
+,#+FILETAGS: :rust:web:
+#+END_SRC
+
+Available as =page.tags=, and the input to tag pages — see
+[[file:03-collections.org][Collections]].
+
+* Table of contents
+
+Every page's heading tree is available as =page.toc= without any markup in the file. Turn
+it off for one document the way org already does:
+
+#+BEGIN_SRC org
+,#+OPTIONS: toc:nil
+#+END_SRC
+
+Or site-wide with =[html] toc = false=. Rendering it is the template's business; see
+[[file:04-templates.org][Templates]].
+
+* Section numbers
+
+Off by default, unlike Emacs. Turn them on for one document:
+
+#+BEGIN_SRC org
+,#+OPTIONS: num:t
+#+END_SRC
+
+Or site-wide with =[html] section_numbers = true=.
+
+* Your own metadata
+
+Every =#+KEYWORD:= reaches templates under its lowercased name:
+
+#+BEGIN_SRC org
+,#+SUBTITLE: A closer look
+,#+REVIEWED_BY: someone
+#+END_SRC
+
+#+BEGIN_SRC html
+{% if page.keywords.subtitle %}<p class="subtitle">{{ page.keywords.subtitle }}</p>{% endif %}
+#+END_SRC
+
+Nothing needs to be registered, and org-ssg needs no release to support a keyword you
+invented.
+
+* Assets
+
+Any non-=.org= file in the source directory is copied to the output, preserving layout:
+=content/img/diagram.png= → =_site/img/diagram.png=. Reference it from a page with an
+ordinary relative link, and from a template with ={{ root }}img/diagram.png=.
+
+Four things are *never* published:
+
+- Dot-entries such as =.git= and =.env=. A source directory is often a repository, and
+  publishing its history next to the homepage is a real way to leak a project.
+- =org-ssg.toml=, which is a build input.
+- The templates directory, likewise.
+- The output directory, when it lives inside the source — so =org-ssg build . -o _site=
+  does the obvious thing rather than copying its own output back into itself.
+
+Note that excluding dot-entries also means =.well-known/= cannot be published.

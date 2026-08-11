@@ -1,0 +1,114 @@
+#+TITLE: Deploying
+#+DESCRIPTION: Producing a production build, and putting it somewhere.
+#+LEDE: The output is a directory of files. Everything after that is your host's problem.
+
+* The production build
+
+#+BEGIN_SRC sh
+org-ssg build content -o _site --strict
+#+END_SRC
+
+Two differences from the build you run while writing:
+
+- =--strict= turns broken internal links and parse diagnostics into a non-zero exit, so a
+  bad build fails rather than shipping.
+- No =--drafts=, so pages marked =#+DRAFT:= stay out.
+
+Everything in =_site= is the site: HTML, the generated =syntax.css=, and every asset
+copied from the source. There is no runtime, no server requirement and no build step
+downstream.
+
+* Set base_url for production
+
+#+BEGIN_SRC toml
+[site]
+base_url = "https://example.com"
+#+END_SRC
+
+Relative URLs work anywhere, which is why the default is empty — but two things need
+absolute ones: *feeds*, because a feed is read away from the site that served it, and
+*canonical links*. Without a base URL the =absolute= filter is an error rather than a
+quietly relative link, so a feed template will tell you.
+
+No trailing slash.
+
+* One thing to exclude
+
+The build writes =.org-ssg-cache.json= into the output directory. It is a dot-file, so
+most static hosts ignore it, but it is not part of the site — exclude it if your host
+uploads everything:
+
+#+BEGIN_SRC sh
+rsync -a --delete --exclude '.org-ssg-cache.json' _site/ user@host:/var/www/site/
+#+END_SRC
+
+Keeping the cache *between* deploys, where the CI runner can see it, is what makes CI
+builds incremental. Keeping it on the *server* achieves nothing.
+
+* Continuous integration
+
+#+BEGIN_SRC yaml
+name: build
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo install --path .
+      - run: org-ssg build content -o _site --strict
+      - uses: actions/upload-artifact@v4
+        with:
+          name: site
+          path: _site
+#+END_SRC
+
+=--strict= is the point of running this in CI at all: it turns a broken link into a
+failed build.
+
+** Caching between runs
+
+Cache =_site/.org-ssg-cache.json= *and* =_site= together, or not at all. The manifest
+describes files it expects to find; a cache without its outputs simply triggers a full
+rebuild, which is correct but pointless.
+
+Given how fast a full build is — a 179-page site in well under a second — caching CI
+builds is rarely worth the configuration.
+
+* Static hosts
+
+Nothing here is org-ssg-specific; a built site is ordinary static files.
+
+- *Netlify, Vercel, Cloudflare Pages*: publish directory =_site=, build command
+  =cargo install --path . && org-ssg build content -o _site --strict=.
+- *GitHub Pages*: upload =_site= as the Pages artifact.
+- *Any web server*: copy =_site= to the document root.
+
+** URLs end in .html
+
+org-ssg writes =blog/post.html= and links to it that way, so the site works with no
+server configuration at all — including opening it from a filesystem path.
+
+If you prefer extensionless URLs, that is a server-side rewrite, and you should also set
+=base_url= and check that your rewrite rules do not break the relative links in the pages.
+
+* Checking a build before shipping
+
+#+BEGIN_SRC sh
+org-ssg build content -o _site --strict
+org-ssg serve content -o _site
+#+END_SRC
+
+Serving the production build locally is the last check worth doing: it catches a missing
+asset or a broken relative link in the browser, where you would notice.
+
+* What a clean build looks like
+
+#+BEGIN_EXAMPLE
+built 182 page(s) (182 rendered, 0 cached), copied 3 asset(s) from content -> _site (0 unresolved link(s), 0 diagnostic(s))
+#+END_EXAMPLE
+
+Both zeros matter. Unresolved links are internal links pointing at nothing; diagnostics
+are malformed org that degraded rather than failing. With =--strict= neither can reach
+this line, because either would have failed the build.

@@ -1,0 +1,96 @@
+#+TITLE: Install
+#+DESCRIPTION: Build org-ssg from source, put it on your PATH, and check that it works.
+#+LEDE: One Rust toolchain, one command, no runtime dependencies.
+
+* Requirements
+
+- *Rust 1.82 or newer.* Install from [[https://rustup.rs][rustup.rs]] if you do not have it. There is no other
+  runtime requirement: the binary is self-contained, with syntax definitions and
+  highlighting themes compiled in.
+- *Emacs (optional).* Only the differential test suite uses it, to compare output against
+  org's own exporter. Nothing about building a site needs Emacs.
+
+* From source
+
+#+BEGIN_SRC sh
+git clone <repository-url> org-ssg
+cd org-ssg
+cargo build --release
+#+END_SRC
+
+The binary lands at =target/release/org-ssg=. Copy it somewhere on your =PATH=:
+
+#+BEGIN_SRC sh
+cp target/release/org-ssg ~/.local/bin/
+#+END_SRC
+
+Or let cargo do it, which puts it in =~/.cargo/bin=:
+
+#+BEGIN_SRC sh
+cargo install --path .
+#+END_SRC
+
+* Running without installing
+
+Every command in this documentation works through cargo if you would rather not install
+anything. Replace =org-ssg= with =cargo run --= and add =--release= for a fast build:
+
+#+BEGIN_SRC sh
+cargo run --release -- build my-site -o _site
+#+END_SRC
+
+The debug build is fine for small sites and noticeably slower on large ones, because
+syntax highlighting dominates and is not optimised in a debug profile.
+
+* Check that it works
+
+#+BEGIN_SRC sh
+org-ssg --version
+org-ssg init /tmp/org-ssg-check
+org-ssg build /tmp/org-ssg-check -o /tmp/org-ssg-check/_site
+#+END_SRC
+
+You should see a line reporting the pages built:
+
+#+BEGIN_EXAMPLE
+built 5 page(s) (5 rendered, 0 cached), copied 0 asset(s) ... (0 unresolved link(s), 0 diagnostic(s))
+#+END_EXAMPLE
+
+Open =/tmp/org-ssg-check/_site/index.html= in a browser, or serve it properly:
+
+#+BEGIN_SRC sh
+org-ssg serve /tmp/org-ssg-check -o /tmp/org-ssg-check/_site
+#+END_SRC
+
+* Running the test suite
+
+#+BEGIN_SRC sh
+cargo test
+#+END_SRC
+
+152 tests, covering the parser, the renderer, configuration, generated pages, the
+incremental cache, the watcher and the development server.
+
+The oracle suite is part of that run and compares output against Emacs:
+
+#+BEGIN_SRC sh
+cargo test --test oracle
+#+END_SRC
+
+It *skips cleanly* when there is no =emacs= on your =PATH=, so a machine without Emacs
+still gets a green test run — it simply measures one thing less.
+
+* Upgrading
+
+org-ssg stores an incremental cache in =<output>/.org-ssg-cache.json=, tagged with a
+format version. A newer binary that changes how output is produced bumps that version,
+and a version it does not recognise is discarded in favour of a full rebuild. You never
+need to clear the cache by hand after an upgrade — but if you want to:
+
+#+BEGIN_SRC sh
+org-ssg clean _site
+#+END_SRC
+
+* Next
+
+[[file:quickstart.org][Quick start]] builds a real site and puts your own writing into it.

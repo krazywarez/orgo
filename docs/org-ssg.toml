@@ -1,0 +1,44 @@
+# Configuration for the org-ssg documentation site.
+#
+# This site is built by org-ssg itself, so this file doubles as a worked example: every
+# setting here is one the docs describe, used the way the docs recommend.
+
+[site]
+title = "org-ssg"
+description = "An org-mode static site generator, in Rust."
+language = "en"
+# Left empty so the docs build with relative URLs and open from the filesystem. Set it to
+# your real origin to enable canonical links and feeds.
+base_url = ""
+
+[nav]
+# Explicit, because the header already links home: listing index.org here as well would
+# repeat the site title in the nav directly beside itself. The guide reaches the nav as a
+# collection below, since it lives in a subdirectory rather than at the top level.
+mode = "explicit"
+pages = ["install.org", "quickstart.org"]
+
+[templates]
+dir = "templates"
+
+[highlight]
+# A dark theme, with code blocks styled dark in both colour schemes. syntax.css is
+# generated from a single syntect theme and cannot respond to prefers-color-scheme, so
+# the page CSS matches the theme rather than leaving code unreadable in one of them.
+theme = "base16-ocean.dark"
+
+[html]
+# The layout renders the page title as <h1>, so document headings start at <h2>.
+heading_offset = 1
+toc = true
+section_numbers = false
+
+# The guide's contents page, listing every chapter in reading order rather than by date.
+[[collections]]
+source = "guide"
+output = "guide/index.html"
+template = "list.html"
+title = "Guide"
+sort = "path"
+order = "asc"
+nav = true

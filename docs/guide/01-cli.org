@@ -1,0 +1,122 @@
+#+TITLE: Command reference
+#+DESCRIPTION: Every command and flag, and what each is actually for.
+#+LEDE: Six commands: build, serve, watch, audit, init, clean.
+
+* build
+
+#+BEGIN_SRC sh
+org-ssg build <INPUT> -o <OUTPUT> [--no-cache] [--strict] [--drafts] [--config FILE]
+#+END_SRC
+
+If =INPUT= is a directory, it is walked and built into a linked site at =OUTPUT=. If it
+is a single =.org= file, one HTML file is written — useful for one-off conversions,
+though with no other documents to resolve against, internal links keep a best-effort URL.
+
+| Flag | Effect |
+|------+--------|
+| =-o, --output= | Output directory (or =.html= file for single-file input). Required for a site. |
+| =--no-cache= | Ignore the incremental cache and re-render every page. |
+| =--strict= | Broken internal links and parse diagnostics become a non-zero exit. |
+| =--drafts= | Include pages marked =#+DRAFT:=. |
+| =--config FILE= | Use this config instead of =org-ssg.toml= in the source directory. |
+
+The summary line reports what happened:
+
+#+BEGIN_EXAMPLE
+built 182 page(s) (4 rendered, 178 cached), copied 3 asset(s) from src -> _site (0 unresolved link(s), 0 diagnostic(s))
+#+END_EXAMPLE
+
+=rendered= is the invalidation set — the pages that actually needed rewriting. On a
+second build with nothing changed it is zero.
+
+** --strict is for CI
+
+Without it, a broken link is a warning and the build succeeds. With it, the build fails
+and names every problem. Use it wherever a bad build should not ship:
+
+#+BEGIN_SRC sh
+org-ssg build content -o _site --strict
+#+END_SRC
+
+* serve
+
+#+BEGIN_SRC sh
+org-ssg serve <INPUT> -o <OUTPUT> [-p PORT] [--host HOST] [--drafts] [--config FILE]
+#+END_SRC
+
+Builds, watches, serves, and reloads the browser when a rebuild lands. This is the
+command to use while writing.
+
+| Flag | Default | Effect |
+|------+---------+--------|
+| =-p, --port= | =3000= | Port to listen on. |
+| =--host= | =127.0.0.1= | Address to bind. |
+| =--drafts= | off | Include =#+DRAFT:= pages, so you can see what you are writing. |
+
+*It binds loopback on purpose.* A development server serves unreviewed drafts off your
+laptop, so reaching the local network is something you ask for:
+
+#+BEGIN_SRC sh
+org-ssg serve content -o _site --host 0.0.0.0
+#+END_SRC
+
+The live-reload script is injected into responses and never written to disk, so what you
+deploy stays clean. Details in [[file:../guide/08-workflow.org][Watching and serving]].
+
+* watch
+
+#+BEGIN_SRC sh
+org-ssg watch <INPUT> -o <OUTPUT> [--no-cache] [--strict] [--drafts] [--config FILE]
+#+END_SRC
+
+Rebuilds on filesystem events with no server — for when something else is already serving
+the output, or you just want the build to keep up as you write.
+
+* audit
+
+#+BEGIN_SRC sh
+org-ssg audit <INPUT>
+#+END_SRC
+
+Reports which org constructs a corpus uses and how they land against what org-ssg
+supports, plus a census of every keyword, block type, drawer and link scheme seen. Point
+it at your notes before trusting a tool with them. See [[file:../guide/09-auditing.org][Auditing a corpus]].
+
+It prints names, counts and =file:line= locations — never document text — so an audit of
+private notes is safe to share.
+
+* init
+
+#+BEGIN_SRC sh
+org-ssg init [DIRECTORY]
+#+END_SRC
+
+Scaffolds a working site: a fully commented config, an editable copy of the built-in
+layout, listing and tag templates, an RSS template, a home page and a first post.
+Defaults to the current directory.
+
+Only files that do not already exist are written, so it is safe to run inside a directory
+that already has content — it fills in what is missing and leaves the rest alone.
+
+* clean
+
+#+BEGIN_SRC sh
+org-ssg clean <OUTPUT>
+#+END_SRC
+
+Removes the output directory, including the incremental cache manifest inside it. You
+rarely need this: the cache is versioned and discards itself when it stops being valid.
+
+* Exit codes
+
+| Code | Meaning |
+|------+---------|
+| =0= | Success. Warnings may still have been printed. |
+| =1= | The build failed, or =--strict= found problems. |
+
+Diagnostics are printed as =file:line: message=, the form an editor can jump to:
+
+#+BEGIN_EXAMPLE
+warning: blog/post.org:42: unterminated `#+BEGIN_SRC` block (no `#+END_SRC`); everything to the end of the file was read as block content
+warning: index.org: unresolved link [[#setup]]
+#+END_EXAMPLE

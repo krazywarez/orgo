@@ -1,0 +1,80 @@
+#+TITLE: org-ssg
+#+DESCRIPTION: An org-mode static site generator in Rust, where the org element tree is the document model.
+#+LEDE: Org is the source language, not an inconvenient input to be normalised into markdown.
+#+OPTIONS: toc:nil
+
+org-ssg turns a directory of =.org= files into a static website. It treats org as the
+*source language*: the org element tree — headings, drawers, blocks, links with their
+org-specific semantics — /is/ the document model, and that tree is rendered straight to
+HTML. There is no markdown-shaped intermediate representation, because the point is to
+preserve what markdown cannot express.
+
+#+BEGIN_SRC sh
+cargo run -- init my-site
+cargo run -- serve my-site -o _site
+#+END_SRC
+
+Open [[http://127.0.0.1:3000][127.0.0.1:3000]], edit any =.org= file, and the browser reloads itself.
+
+* Start here
+
+- [[file:install.org][Install]] — get the binary built and on your PATH.
+- [[file:quickstart.org][Quick start]] — a working site in two commands, then your own content.
+- [[file:guide/01-cli.org][The guide]] — every command, setting, template variable and org construct.
+
+* What you get with no configuration at all
+
+Point it at a directory of org files and you get a complete site: pages, navigation,
+syntax-highlighted code, and the stylesheet that colours it. Nothing about your files has
+to change, and no =org-ssg.toml= is required.
+
+#+BEGIN_SRC sh
+org-ssg build ~/notes -o _site
+#+END_SRC
+
+Configuration changes what you get. It is never what makes it work.
+
+* What it does that is unusual
+
+** Incremental builds are the architecture
+
+Every page has a render key composed from its content, its resolved links, the site
+config and the templates. Editing one post re-renders that post, its section index, its
+tag pages, and the tag index whose counts changed — four pages, whatever the size of the
+site. A full build and an incremental build produce byte-identical output, and a test
+proves it.
+
+** It is measured against Emacs
+
+=cargo test --test oracle= exports each test fixture with org's own HTML exporter through
+=emacs --batch= and records the disagreement. Heading structure, list nesting and
+source-block text match exactly. Everything that still differs is a deliberate choice,
+listed in [[file:guide/05-org-support.org][Org support]].
+
+** It tells you what your corpus actually uses
+
+#+BEGIN_SRC sh
+org-ssg audit ~/notes
+#+END_SRC
+
+The audit reports which org constructs appear in a corpus, how often, and whether each is
+supported — so you can find out before you trust a tool with your writing. It reports
+names, counts and =file:line= locations only, never document text, so auditing private
+notes stays safe to paste into an issue.
+
+* Feature summary
+
+| Area | What is there |
+|------+---------------|
+| Org syntax | headings with TODO/priority/tags, lists (nested, description, checkboxes), tables, source blocks, quote/center/example/export blocks, footnotes, timestamps, links, images with captions |
+| Output | syntax highlighting via syntect, table of contents, section numbers, heading anchors |
+| Structure | =#+SLUG:= URLs, drafts, generated listing pages, tag pages and tag indexes, pagination, RSS feeds |
+| Templates | minijinja layouts with inheritance, rich page metadata, custom filters |
+| Workflow | incremental rebuilds, =watch= on filesystem events, =serve= with live reload |
+| Confidence | 152 tests, an =emacs --batch= differential oracle, a corpus audit tool |
+
+* Status
+
+This documentation site is itself an org-ssg site — the sources are in =docs/= and it is
+built with the command in [[file:quickstart.org][Quick start]]. If a feature is described here, it is being used
+to render the page describing it.

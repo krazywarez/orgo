@@ -1,0 +1,165 @@
+#+TITLE: Quick start
+#+DESCRIPTION: A working site in two commands, then your own writing, then your own design.
+#+LEDE: Five minutes from nothing to a site that reloads as you type.
+
+* Two commands
+
+#+BEGIN_SRC sh
+org-ssg init my-site
+org-ssg serve my-site -o _site
+#+END_SRC
+
+Open [[http://127.0.0.1:3000][127.0.0.1:3000]]. Edit =my-site/index.org= in your editor, save, and the page reloads
+on its own.
+
+=init= writes only files that do not already exist, so running it inside a directory that
+already has content is safe and additive.
+
+** What init created
+
+#+BEGIN_EXAMPLE
+my-site/
+  org-ssg.toml            every setting, at its default, commented
+  index.org               the home page
+  blog/first-post.org     a post, to show the collection working
+  templates/
+    base.html             the page layout — edit this
+    list.html             the blog index
+    tags.html             the tag index
+    feed.xml              an RSS feed
+#+END_EXAMPLE
+
+* Or skip all of that
+
+You do not need =init=, a config file, or templates. Point the builder at org files you
+already have:
+
+#+BEGIN_SRC sh
+org-ssg build ~/notes -o _site
+#+END_SRC
+
+You get a complete site with a built-in layout, navigation across your top-level pages,
+and syntax highlighting. Nothing in your files has to change.
+
+Before trusting it with a large collection, ask what it makes of your writing:
+
+#+BEGIN_SRC sh
+org-ssg audit ~/notes
+#+END_SRC
+
+That reports which org constructs appear, how often, and whether each is supported. See
+[[file:guide/09-auditing.org][Auditing a corpus]].
+
+* Write a page
+
+Any =.org= file under the source directory becomes a page at the matching path.
+=notes/rust/borrowing.org= becomes =notes/rust/borrowing.html=.
+
+#+BEGIN_SRC org
+,#+TITLE: Borrowing
+,#+DATE: <2026-02-02 Mon>
+,#+FILETAGS: :rust:notes:
+,#+DESCRIPTION: How the borrow checker thinks about lifetimes.
+
+An opening paragraph, which becomes the excerpt in listings when there is no
+description.
+
+,* A heading
+
+Ordinary org: *bold*, /italic/, ~code~, [[https://orgmode.org][links]], and lists.
+
+,#+BEGIN_SRC rust
+fn main() {}
+,#+END_SRC
+#+END_SRC
+
+The keywords are all optional. =#+TITLE:= names the page, =#+DATE:= orders it in
+listings, =#+FILETAGS:= groups it on tag pages, and =#+DESCRIPTION:= is its summary.
+
+** Control the URL
+
+By default the filename decides the URL. =#+SLUG:= overrides it, which is how a
+date-prefixed filename becomes a clean address:
+
+#+BEGIN_SRC org
+,#+TITLE: Borrowing
+,#+SLUG: borrowing-explained
+#+END_SRC
+
+=2026-02-02-borrowing.org= now publishes as =borrowing-explained.html=.
+
+** Keep something unfinished out of the build
+
+#+BEGIN_SRC org
+,#+DRAFT: t
+#+END_SRC
+
+The page is not written, and does not appear in listings or navigation. Preview it while
+you work with =--drafts=:
+
+#+BEGIN_SRC sh
+org-ssg serve my-site -o _site --drafts
+#+END_SRC
+
+* Change the design
+
+Everything visual lives in =templates/base.html=. It is an ordinary
+[[https://docs.rs/minijinja][minijinja]] (Jinja2) template, and replacing it replaces the
+whole layout:
+
+#+BEGIN_SRC html
+<!DOCTYPE html>
+<html lang="{{ site.language }}">
+<head>
+  <meta charset="utf-8">
+  <title>{{ page.title }} — {{ site.title }}</title>
+  <link rel="stylesheet" href="{{ root }}style.css">
+</head>
+<body>
+  <nav>{% for item in nav %}<a href="{{ item.url }}">{{ item.title }}</a>{% endfor %}</nav>
+  <h1>{{ page.title }}</h1>
+  {{ body | safe }}
+</body>
+</html>
+#+END_SRC
+
+=root= is the =../= prefix back to the site root, so the same template works at any
+depth. Any other file in the source directory — =style.css=, images, fonts — is copied to
+the output untouched.
+
+Editing a template rebuilds every page that uses it, so the browser reloads while you are
+still looking at it. The full list of variables is in [[file:guide/04-templates.org][Templates]].
+
+* Add a blog index
+
+Listing pages have no source file; they are declared in =org-ssg.toml=:
+
+#+BEGIN_SRC toml
+[[collections]]
+source = "blog"
+output = "blog/index.html"
+template = "list.html"
+title = "Blog"
+sort = "date"
+order = "desc"
+nav = true
+#+END_SRC
+
+That is also how you get tag pages, pagination and an RSS feed — same mechanism, more
+settings. See [[file:guide/03-collections.org][Collections]].
+
+* Build for real
+
+#+BEGIN_SRC sh
+org-ssg build my-site -o _site --strict
+#+END_SRC
+
+=--strict= turns broken internal links and parse diagnostics into a non-zero exit, which
+is what you want in CI. Deployment is just copying =_site= somewhere; see
+[[file:guide/10-deploying.org][Deploying]].
+
+* Next
+
+- [[file:guide/01-cli.org][Command reference]] — every command and flag.
+- [[file:guide/02-configuration.org][Configuration]] — every setting in =org-ssg.toml=.
+- [[file:guide/05-org-support.org][Org support]] — exactly which org syntax is handled.

@@ -13,6 +13,13 @@ hashing**, treated as a first-class architectural concern from day one. The disc
 it imposes on the data model — pure, hashable, dependency-tracked units — is the real
 deliverable, even while the corpus is small enough that a full rebuild is instant.
 
+**Full documentation is in [`docs/`](docs/)** — a site written in org and built by
+org-ssg itself. Build and read it with:
+
+```bash
+cargo run -- serve docs -o docs/_site
+```
+
 ## Quick start
 
 ```bash

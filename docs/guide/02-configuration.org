@@ -1,0 +1,185 @@
+#+TITLE: Configuration
+#+DESCRIPTION: Every setting in org-ssg.toml, what it changes, and what it costs.
+#+LEDE: All of it optional. A missing config is a valid config.
+
+org-ssg looks for =org-ssg.toml= in the source directory. Pass a different path with
+=--config=. Every field has a default, so a directory of org files with no config still
+builds a complete site.
+
+A *missing* config is normal and silent. A *malformed* one is an error, and an unknown
+key is rejected by name — a misspelled setting that silently does nothing is how people
+lose an afternoon.
+
+* The whole file
+
+#+BEGIN_SRC toml
+[site]
+title = "org-ssg site"
+base_url = ""
+description = ""
+language = "en"
+
+[nav]
+mode = "top-level"
+# pages = ["index.org", "about.org"]
+
+[templates]
+dir = "templates"
+expose_page_list = false
+
+[highlight]
+theme = "InspiredGitHub"
+
+[build]
+drafts = false
+
+[html]
+heading_offset = 1
+toc = true
+section_numbers = false
+#+END_SRC
+
+Plus any number of =[[collections]]= blocks, documented in [[file:03-collections.org][Collections]].
+
+* [site]
+
+| Key | Default | Meaning |
+|-----+---------+---------|
+| =title= | ="org-ssg site"= | Site name. Available as ={{ site.title }}=. |
+| =base_url= | ="" | Absolute origin, *no trailing slash*. |
+| =description= | ="" | Available as ={{ site.description }}=. |
+| =language= | ="en"= | Goes in =<html lang>= in the built-in layout. |
+
+** base_url
+
+Leave it empty and the site is built entirely with relative URLs, which means it works
+from a subdirectory, from a filesystem path, and from any origin. That portability is why
+it is the default.
+
+Set it when you need absolute URLs, which two things require: *feeds*, because a feed is
+read away from the site that served it, and *canonical links*. The =absolute= template
+filter turns a site-root-relative path into a full URL, and errors if there is no base
+URL to build one from — rather than quietly emitting a relative URL that would make the
+feed invalid everywhere while looking fine.
+
+A trailing slash is rejected, because =https://example.com/= plus =blog/x.html= is
+=https://example.com//blog/x.html=.
+
+* [nav]
+
+The navigation shared by every page.
+
+| =mode= | Includes |
+|--------+----------|
+| ="top-level"= (default) | Pages at the site root. |
+| ="all"= | Every page. |
+| ="explicit"= | Only =nav.pages=, in the order listed. |
+| ="none"= | Nothing. |
+
+*"all" makes output quadratic.* Each of /n/ pages carries /n/ links, so total output
+grows with the square of the site. On a 1,790-page site that was 284 MB of mostly
+navigation. It is fine for a handful of pages and a trap beyond that.
+
+="top-level"= keeps the nav a map of the site's top level rather than an index of its
+contents, so nav size does not depend on how much you write.
+
+** explicit
+
+#+BEGIN_SRC toml
+[nav]
+mode = "explicit"
+pages = ["index.org", "about.org", "uses.org"]
+#+END_SRC
+
+Paths are *source* paths relative to the source root, and the order given is the order
+rendered — a hand-written nav is a designed sequence, not an alphabetical one. Naming a
+page that does not exist is an error, because a silently shorter nav is a poor way to
+learn about a typo.
+
+** Section landing pages in the nav
+
+If your sections live in subdirectories, none of them are top-level pages. Put the
+section's *generated* index in the nav instead, with =nav = true= on its collection —
+that is the page a nav entry should point at anyway.
+
+* [templates]
+
+| Key | Default | Meaning |
+|-----+---------+---------|
+| =dir= | ="templates"= | Directory of templates, relative to the source root. |
+| =expose_page_list= | =false= | Give every template a =pages= list of all page metadata. |
+
+** expose_page_list costs incremental precision
+
+With it on, any page can read every page's metadata — so adding one page can change any
+page's output, and the whole site must re-render on every add, rename or retitle. That is
+the trade for building an index by hand in a template. Most people want a
+[[file:03-collections.org][collection]] instead, which gets the same result while keeping
+adding a post a one-page rebuild.
+
+* [highlight]
+
+| Key | Default |
+|-----+---------|
+| =theme= | ="InspiredGitHub"= |
+
+Any theme syntect ships: =InspiredGitHub=, =Solarized (dark)=, =Solarized (light)=,
+=base16-ocean.dark=, =base16-ocean.light=, =base16-eighties.dark=, =base16-mocha.dark=.
+An unknown name is an error listing the valid ones.
+
+Highlighting emits *CSS classes*, never inline styles, so themes live in a stylesheet.
+Each build writes =syntax.css= into the output and every page links it.
+
+* [build]
+
+| Key | Default | Meaning |
+|-----+---------+---------|
+| =drafts= | =false= | Include pages marked =#+DRAFT:=. |
+
+=--drafts= on the command line turns this on for one run. The flag can only turn drafts
+on; it never turns off a config that asked for them.
+
+* [html]
+
+| Key | Default | Meaning |
+|-----+---------+---------|
+| =heading_offset= | =1= | Added to every org heading level. |
+| =toc= | =true= | Make =page.toc= available to templates. |
+| =section_numbers= | =false= | Number headings =1.=, =1.1.=, … |
+
+** heading_offset
+
+A level-1 org heading renders as =<h2>= by default, because the layout supplies the page
+title as the =<h1>=. This matches Emacs, whose =org-html-toplevel-hlevel= is 2 for the
+same reason.
+
+Set it to =0= if your template renders no title of its own — otherwise the document
+starts at =<h2>= with nothing above it.
+
+** section_numbers differs from Emacs on purpose
+
+=org-export-with-section-numbers= is on in Emacs, so an org-published site inherits
+numbered headings whether or not anyone chose them. Most sites do not want them, so the
+default here is the taste rather than the inheritance. Turning it on emits Emacs' own
+=section-number-N= classes.
+
+* Per-file overrides
+
+Org's own =#+OPTIONS:= switches override the site setting for one document:
+
+#+BEGIN_SRC org
+,#+OPTIONS: toc:nil num:t
+#+END_SRC
+
+| Switch | Overrides |
+|--------+-----------|
+| =toc:nil= / =toc:t= | =[html] toc= |
+| =num:t= / =num:nil= | =[html] section_numbers= |
+
+Off is spelled =nil=, =false=, =no=, =0= or =off=; anything else is on.
+
+* Configuration is a cache input
+
+The resolved config is hashed into every page's render key, so editing =org-ssg.toml=
+re-renders exactly the pages it affects — which for most settings is all of them. You
+never need =--no-cache= after a config change.

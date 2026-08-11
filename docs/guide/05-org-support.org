@@ -1,0 +1,172 @@
+#+TITLE: Org support
+#+DESCRIPTION: Exactly which org syntax is handled, which is not, and how the rest degrades.
+#+LEDE: A deliberate subset, with the boundary enforced by tests rather than by hope.
+
+org-ssg parses a defined slice of org. The boundary is not aspirational: every supported
+construct has a golden-file test, and every excluded one has a test asserting how it
+degrades. That is what stops the parser drifting toward all-of-org.
+
+* Supported
+
+** Headings
+
+Nesting by star count, with TODO keywords, priority cookies and tags:
+
+#+BEGIN_SRC org
+,* TODO [#A] Write the parser                                        :work:rust:
+,:PROPERTIES:
+,:CUSTOM_ID: write-parser
+,:END:
+#+END_SRC
+
+The keyword set is Emacs' default — =TODO= and =DONE= — matched on a word boundary, so a
+heading beginning "TODOs are great" is a plain title. Keyword and priority markup uses
+Emacs' own export classes.
+
+Every heading gets an =id=: its =:CUSTOM_ID:= if it has one, else its =:ID:=, else a slug
+of its text.
+
+** Text and inline markup
+
+=*bold*=, =/italic/=, =_underline_=, =+strike+=, ~=verbatim=~ and =~code~=. Links in
+every org form — external, =[[*Heading]]=, =[[#custom-id]]=, =[[id:...]]=,
+=[[file:other.org]]= — plus bare URLs in running text.
+
+Timestamps, active and inactive, with times and ranges, render as =<time>= with a
+machine-readable =datetime=.
+
+** Lists
+
+Unordered, ordered and description lists, nested by indentation, with checkboxes and
+multi-paragraph items:
+
+#+BEGIN_SRC org
+- outer item
+  - inner item
+- [X] a checked item
+- term :: definition
+#+END_SRC
+
+** Blocks
+
+=SRC= (syntax highlighted), =EXAMPLE=, =QUOTE=, =CENTER= and =EXPORT=. A source block
+inside a quote block works, because block ends match their own kind.
+
+An =html= export block passes through verbatim; every other backend is dropped, because
+emitting LaTeX into an HTML page is worse than emitting nothing.
+
+An unknown block type keeps its content as an example block rather than vanishing.
+
+*** Which languages highlight
+
+Highlighting uses the syntax definitions [[https://docs.rs/syntect][syntect]] bundles.
+A language it does not know is not an error — the block renders as escaped
+=<pre><code class="language-…">= with its content intact, just uncoloured.
+
+Recognised, among others: =bash= / =sh=, =c=, =c++=, =css=, =clojure=, =diff=, =erlang=,
+=go=, =haskell=, =html=, =java=, =javascript=, =json=, =latex=, =lisp=, =lua=,
+=makefile=, =markdown=, =matlab=, =objective-c=, =ocaml=, =perl=, =php=, =python=, =r=,
+=ruby=, =rust=, =scala=, =sql=, =tcl=, =xml=, =yaml=.
+
+*Not* bundled, and worth knowing before you write a page full of them: *TOML*, *INI*,
+*Org* and *Emacs Lisp*. The pages of this documentation are a live example — its
+=#+BEGIN_SRC toml= blocks are readable but uncoloured.
+
+** Tables and footnotes
+
+Pipe tables, with the rule row establishing a header band. Footnotes in all three forms —
+=[fn:1]= references, =[fn:1]= definitions and =[fn:1:inline text]= — rendered as a
+numbered, back-linked notes section.
+
+** Images
+
+A description-less link to an image file renders as =<img>=. With an affiliated
+=#+CAPTION:= or =#+ATTR_HTML:= it becomes a =<figure>= with the caption as both
+=<figcaption>= and alt text:
+
+#+BEGIN_SRC org
+,#+CAPTION: The pipeline, end to end
+,#+ATTR_HTML: :width 640 :class diagram
+[[file:pipeline.svg]]
+#+END_SRC
+
+Links to non-=.org= files are understood as asset links: neither resolved nor reported as
+broken.
+
+* Keywords with meaning
+
+| Keyword | Effect |
+|---------+--------|
+| =#+TITLE:= | Page title. Falls back to the filename stem. |
+| =#+DATE:= | Sorts listings. Any org date syntax. |
+| =#+DESCRIPTION:= | The excerpt shown in listings. |
+| =#+FILETAGS:= | Tags, for grouping and =page.tags=. |
+| =#+SLUG:= | Sets the output filename. |
+| =#+DRAFT:= | Keeps the page out of the build. |
+| =#+OPTIONS:= | Per-file export switches. |
+| =#+CAPTION:=, =#+ATTR_HTML:= | Attach to the image below them. |
+
+Every other =#+KEYWORD:= is available to templates as
+={{ page.keywords.that_keyword }}=, so metadata org-ssg has never heard of still reaches
+your layout.
+
+* Not supported, and what happens instead
+
+The contract is not that these work — it is that they degrade predictably and never crash
+a build.
+
+| Construct | What happens |
+|-----------+--------------|
+| Babel execution, =:results= | The source block renders as code. A checked-in =#+RESULTS:= block is *dropped*. |
+| =#+TBLFM:= | Inert. The table renders with the values as written. |
+| =#+INCLUDE:= | Never expanded. Captured as an inert keyword. |
+| LaTeX, MathJax | Survives as the literal text you typed. |
+| Macros ={{{name}}}=, radio targets | Literal text. |
+| Drawers other than =PROPERTIES= | Captured and dropped, including =LOGBOOK=. |
+| Non-HTML export blocks | Dropped entirely. |
+| Entities =\alpha= | Literal text. |
+| =#+TODO:= sequences | Not read; the default keyword set is used. |
+| Planning lines, =: = fixed-width | Render as ordinary paragraphs. |
+
+** Why #+RESULTS: is dropped rather than rendered
+
+Babel is never executed, so a checked-in results block is output from someone else's
+Emacs session at some other time. Emitting it would put unverifiable content on the page
+dressed as real content. The source block renders; its stale output does not.
+
+* Diagnostics
+
+Malformed input degrades rather than failing — but not *silently*, because the worst
+cases are severe. An unterminated =#+BEGIN_SRC= reads the rest of the file as block
+content, and an unterminated drawer does the same but renders to nothing, so one missing
+line can delete most of a page.
+
+#+BEGIN_EXAMPLE
+warning: post.org:42: unterminated `#+BEGIN_SRC` block (no `#+END_SRC`); everything to
+the end of the file was read as block content
+#+END_EXAMPLE
+
+Diagnostics carry exact line numbers through arbitrarily nested constructs, and
+=--strict= turns them into a non-zero exit.
+
+* Measured against Emacs
+
+=cargo test --test oracle= exports each fixture with org's own exporter via
+=emacs --batch= and snapshots the disagreement. Heading structure, list nesting and
+source-block text are asserted to match exactly.
+
+The rest differs deliberately:
+
+| | org-ssg | Emacs |
+|-+---------+-------|
+| emphasis | =<em>= / =<strong>= | =<i>= / =<b>= |
+| captioned image | =<figure>= / =<figcaption>= | =<p>= + "Figure 1: …" |
+| timestamp | =<time datetime="…">= | literal =<2024-01-15 Mon>= |
+| footnotes | =<section><ol>= | =<h2>Footnotes:</h2>= |
+| heading anchor | slug of the text | =org1a2b3c4= |
+| code | =<pre><code>= | =<pre>= |
+
+One genuine semantic difference: org treats a single blank line between a =1.= list and a
+following =-= list as *one* list, keeping the first item's bullet type. org-ssg starts a
+second list. That was kept on measurement — the pattern occurred zero times across a
+179-file reference corpus — rather than on taste.

@@ -1,0 +1,175 @@
+#+TITLE: Templates
+#+DESCRIPTION: Layouts, inheritance, every variable and filter available to a template.
+#+LEDE: minijinja layouts loaded from disk, hashed into the cache, replaceable entirely.
+
+Templates live in the directory named by =[templates] dir=, default =templates/=. They
+are [[https://docs.rs/minijinja][minijinja]] templates — Jinja2 syntax — loaded at build
+time, so editing one and rebuilding is the whole edit cycle.
+
+* base.html replaces the layout
+
+A file called =base.html= becomes the page layout. Without one, a built-in layout is used
+— which is what makes a bare directory of org files build into a real site.
+
+#+BEGIN_SRC html
+<!DOCTYPE html>
+<html lang="{{ site.language }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ page.title }} — {{ site.title }}</title>
+  <link rel="stylesheet" href="{{ root }}style.css">
+  {% if stylesheet %}<link rel="stylesheet" href="{{ stylesheet }}">{% endif %}
+</head>
+<body>
+  <nav>{% for item in nav %}<a href="{{ item.url }}">{{ item.title }}</a>{% endfor %}</nav>
+  <main>
+    <h1>{{ page.title }}</h1>
+    {{ body | safe }}
+  </main>
+</body>
+</html>
+#+END_SRC
+
+A template that does not compile is a *build error*, not a fallback to the default —
+someone editing a layout should see the mistake, not output that looks like their edit
+did nothing.
+
+* Names are full filenames
+
+Templates are registered under their full relative filename: =base.html=,
+=partials/head.html=, =feed.xml=. That is what ={% extends "base.html" %}= names, and it
+is why a template can have any extension — which is how an RSS feed is just a listing
+page.
+
+#+BEGIN_SRC html
+{% extends "base.html" %}
+{% block content %}<p>Only this part differs.</p>{% endblock %}
+#+END_SRC
+
+Subdirectories work, so ={% include "partials/header.html" %}= does what you expect.
+
+* Variables
+
+** body
+
+The rendered page HTML. Always use ={{ body | safe }}= — it is already HTML, and
+escaping it would print tags at the reader.
+
+Empty on generated pages, which build their content from =pages= or =groups= instead.
+
+** page
+
+| Field | Meaning |
+|-------+---------|
+| =title= | =#+TITLE:=, or the filename stem. |
+| =url= | Output path relative to the site root, e.g. =blog/post.html=. |
+| =source= | Source path relative to the source root, e.g. =blog/post.org=. |
+| =date= | =#+DATE:= verbatim, in whatever org syntax was written. |
+| =date_iso= | The =YYYY-MM-DD= inside it, or =none=. |
+| =tags= | =#+FILETAGS:=, split. |
+| =excerpt= | =#+DESCRIPTION:=, or the first paragraph. |
+| =word_count= | Words of prose, excluding code blocks. |
+| =reading_time= | Minutes at 200 wpm, rounded up. |
+| =toc= | The heading tree. See below. |
+| =keywords= | *Every* =#+KEYWORD:=, by lowercased name. |
+
+=page.keywords= is the escape hatch: =#+CUSTOM_THING: x= is
+={{ page.keywords.custom_thing }}=, so your own metadata works without org-ssg knowing it
+exists.
+
+** site
+
+=site.title=, =site.base_url=, =site.description=, =site.language= — straight from
+=[site]= in the config.
+
+** nav
+
+A list of ={title, url}=, with URLs relative to the current page.
+
+** root
+
+The =../= prefix back to the site root from this page: empty at the top level, =../= one
+level down. Prefix it to any site-root-relative path so the same template works at any
+depth:
+
+#+BEGIN_SRC html
+<link rel="stylesheet" href="{{ root }}style.css">
+<a href="{{ root }}{{ post.url }}">{{ post.title }}</a>
+#+END_SRC
+
+** stylesheet
+
+URL of the generated =syntax.css=, relative to this page. Link it or code blocks are
+unstyled.
+
+** pages, group, groups, paginator
+
+Present on generated pages; see [[file:03-collections.org][Collections]]. =pages= is also
+available on every page when =[templates] expose_page_list = true=.
+
+** page.toc
+
+The page's headings as a *tree* — a table of contents is one, and rebuilding a tree from
+a flat list of levels inside a template is what Jinja is worst at.
+
+Each entry has =title=, =anchor=, =level= and =children=:
+
+#+BEGIN_SRC html
+{% macro toc_list(entries) %}
+<ul>{% for e in entries %}
+  <li><a href="#{{ e.anchor }}">{{ e.title }}</a>
+  {%- if e.children %}{{ toc_list(e.children) }}{% endif %}</li>
+{% endfor %}</ul>
+{% endmacro %}
+
+{% if page.toc | length > 1 %}{{ toc_list(page.toc) }}{% endif %}
+#+END_SRC
+
+Anchors come from the same function that emits heading =id= attributes, so a TOC link
+cannot drift from the heading it points at. The tree is empty when the page has no
+headings, when =[html] toc = false=, or when the document says =#+OPTIONS: toc:nil=.
+
+* Filters
+
+Beyond minijinja's built-ins:
+
+| Filter | Does |
+|--------+------|
+| =absolute= | Site-root-relative path → absolute URL, using =site.base_url=. |
+| =rfc822= | Any org or ISO date → the format RSS =pubDate= requires. |
+| =truncate(n)= | Shorten to at most /n/ characters on a word boundary, with an ellipsis. |
+
+** absolute
+
+#+BEGIN_SRC html
+<link>{{ post.url | absolute }}</link>
+#+END_SRC
+
+Apply it to the *site-root-relative* values — =page.url=, =pages[].url=, =group.url= —
+and not to =nav[].url=, =paginator.*_url=, =stylesheet= or =root=, which are relative to
+the page carrying them and already correct there.
+
+An already-absolute URL passes through, so a template can apply it uniformly to internal
+paths and external links. With no =base_url= it is an *error* naming the setting, rather
+than a relative URL that would make a feed invalid.
+
+** truncate
+
+minijinja ships no truncate, and an excerpt is usually a whole paragraph — so without one
+a listing's only options are the full paragraph or nothing.
+
+* Escaping
+
+Output is HTML-escaped by default, because titles and text are author content.
+={{ body | safe }}= is the deliberate exception.
+
+Unlike stock minijinja, =/= is *not* escaped. Escaping it is a defence for values
+interpolated into JavaScript, and since =<= is escaped anyway it buys nothing in an HTML
+document — while making every URL read =..&#x2f;index.html=. Templates emit a lot of
+URLs.
+
+* Templates are a cache input
+
+Every template's source is hashed, so editing a layout re-renders the pages that use it.
+A design change never leaves a site half-updated.
