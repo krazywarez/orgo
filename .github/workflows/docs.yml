@@ -1,0 +1,75 @@
+name: Docs
+
+# Publish the documentation site to GitHub Pages.
+#
+# The site is fifteen org files under docs/, built by the tool they document — so this
+# job is also the most honest smoke test in the repository: if orgo cannot build its own
+# documentation, the deploy fails and says so.
+#
+# `--strict` makes a broken internal link a build failure. Docs rot by having their links
+# quietly stop resolving, and that is exactly the failure a static site generator is
+# supposed to be able to catch.
+
+on:
+  push:
+    branches: [main]
+    # Templates and the config shape the pages as much as the prose does, and a change to
+    # the renderer changes every page. Anything else — a test, a fixture — cannot.
+    paths:
+      - "docs/**"
+      - "src/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+
+# Read the repository, write a Pages deployment. Nothing else.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time, and let a newer commit win: a queue of doc builds racing each
+# other to publish is worse than the last one arriving late.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@1ff72ee08e3cb84d84adba594e0a297990fc1ed3 # stable
+        with:
+          toolchain: stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2.8.0
+
+      - name: Configure Pages
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
+
+      # Built with the release profile: the docs deploy is also the only place a release
+      # build runs outside a tag, so a break in it surfaces here rather than at release.
+      - name: Build the site
+        run: cargo run --release --locked -- build docs -o docs/_site --strict
+
+      - name: Upload the artifact
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v3.0.1
+        with:
+          path: docs/_site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
