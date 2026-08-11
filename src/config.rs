@@ -439,6 +439,11 @@ drafts = false
 # The default of 1 matches Emacs, and assumes your layout renders the page title as the
 # <h1>. Set to 0 if your template renders no title of its own.
 heading_offset = 1
+# Make page.toc available to templates. A document opts out with `#+OPTIONS: toc:nil`.
+toc = true
+# Number headings (1., 1.1., …). Emacs defaults this on; most sites do not.
+# A document overrides with `#+OPTIONS: num:t`.
+section_numbers = false
 
 # Generated listing pages: output files with no source .org behind them. Repeat the
 # [[collections]] block for each one. A feed is the same thing with an XML template.
