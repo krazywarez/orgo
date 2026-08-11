@@ -14,7 +14,7 @@ heading's TODO state and tags, `#+` keywords, ID links, captions on images. orgo
 of it, and its output is checked page by page against what Emacs' own exporter produces
 from the same file.
 
-**Documentation: <https://ccleberg.github.io/orgo/>** — that site is written in org and
+**Documentation: <https://krazywarez.github.io/orgo/>** — that site is written in org and
 built by orgo, so it doubles as the longest worked example available.
 
 ## Install
@@ -23,13 +23,13 @@ You need [Rust](https://rustup.rs) (1.88 or newer). Nothing else — syntax high
 its themes are compiled in.
 
 ```sh
-git clone https://github.com/ccleberg/orgo
+git clone https://github.com/krazywarez/orgo
 cd orgo
 cargo install --path .
 ```
 
 That puts an `orgo` command on your `PATH`. Full notes, including how to run it without
-installing anything: <https://ccleberg.github.io/orgo/install.html>
+installing anything: <https://krazywarez.github.io/orgo/install.html>
 
 ## Your first site
 
@@ -68,36 +68,36 @@ Each of these is a few lines of config, and each has a page in the guide:
 
 | Add | Documented in |
 |---|---|
-| A blog index, newest first | [Collections](https://ccleberg.github.io/orgo/guide/03-collections.html) |
-| Tag pages, and an index of tags | [Collections](https://ccleberg.github.io/orgo/guide/03-collections.html) |
-| An RSS feed | [Collections](https://ccleberg.github.io/orgo/guide/03-collections.html) |
-| Numbered pages when a list gets long | [Collections](https://ccleberg.github.io/orgo/guide/03-collections.html) |
-| Your own design, in ordinary HTML templates | [Templates](https://ccleberg.github.io/orgo/guide/04-templates.html) |
-| Drafts that stay unpublished until you say so | [Authoring](https://ccleberg.github.io/orgo/guide/06-authoring.html) |
-| A table of contents on long posts | [Authoring](https://ccleberg.github.io/orgo/guide/06-authoring.html) |
-| Clean URLs that survive a renamed file | [Authoring](https://ccleberg.github.io/orgo/guide/06-authoring.html) |
+| A blog index, newest first | [Collections](https://krazywarez.github.io/orgo/guide/03-collections.html) |
+| Tag pages, and an index of tags | [Collections](https://krazywarez.github.io/orgo/guide/03-collections.html) |
+| An RSS feed | [Collections](https://krazywarez.github.io/orgo/guide/03-collections.html) |
+| Numbered pages when a list gets long | [Collections](https://krazywarez.github.io/orgo/guide/03-collections.html) |
+| Your own design, in ordinary HTML templates | [Templates](https://krazywarez.github.io/orgo/guide/04-templates.html) |
+| Drafts that stay unpublished until you say so | [Authoring](https://krazywarez.github.io/orgo/guide/06-authoring.html) |
+| A table of contents on long posts | [Authoring](https://krazywarez.github.io/orgo/guide/06-authoring.html) |
+| Clean URLs that survive a renamed file | [Authoring](https://krazywarez.github.io/orgo/guide/06-authoring.html) |
 
 Rebuilds only touch the pages that actually changed, so saving a post on a site with
 hundreds of them stays instant.
 
 ## The documentation
 
-<https://ccleberg.github.io/orgo/>
+<https://krazywarez.github.io/orgo/>
 
 | Page | What is in it |
 |---|---|
-| [Quick start](https://ccleberg.github.io/orgo/quickstart.html) | A working site in two commands, then your own writing, then your own design. |
-| [Install](https://ccleberg.github.io/orgo/install.html) | Getting the binary, and running it without installing anything. |
-| [Commands](https://ccleberg.github.io/orgo/guide/01-cli.html) | Every command and flag, and what each is for. |
-| [Configuration](https://ccleberg.github.io/orgo/guide/02-configuration.html) | Every setting in `orgo.toml`, what it changes, and what it costs. |
-| [Collections](https://ccleberg.github.io/orgo/guide/03-collections.html) | Blog indexes, tag pages, pagination and RSS feeds. |
-| [Templates](https://ccleberg.github.io/orgo/guide/04-templates.html) | Layouts, and every variable a template can use. |
-| [Org support](https://ccleberg.github.io/orgo/guide/05-org-support.html) | Which org syntax is handled, which is not, and how the rest degrades. |
-| [Authoring](https://ccleberg.github.io/orgo/guide/06-authoring.html) | URLs, drafts, excerpts, tables of contents. |
-| [Incremental builds](https://ccleberg.github.io/orgo/guide/07-incremental.html) | How it decides what to rebuild. |
-| [Watching and serving](https://ccleberg.github.io/orgo/guide/08-workflow.html) | The write-save-see loop. |
-| [Auditing](https://ccleberg.github.io/orgo/guide/09-auditing.html) | Reading a corpus before trusting a tool with it. |
-| [Deploying](https://ccleberg.github.io/orgo/guide/10-deploying.html) | Producing a production build, and putting it somewhere. |
+| [Quick start](https://krazywarez.github.io/orgo/quickstart.html) | A working site in two commands, then your own writing, then your own design. |
+| [Install](https://krazywarez.github.io/orgo/install.html) | Getting the binary, and running it without installing anything. |
+| [Commands](https://krazywarez.github.io/orgo/guide/01-cli.html) | Every command and flag, and what each is for. |
+| [Configuration](https://krazywarez.github.io/orgo/guide/02-configuration.html) | Every setting in `orgo.toml`, what it changes, and what it costs. |
+| [Collections](https://krazywarez.github.io/orgo/guide/03-collections.html) | Blog indexes, tag pages, pagination and RSS feeds. |
+| [Templates](https://krazywarez.github.io/orgo/guide/04-templates.html) | Layouts, and every variable a template can use. |
+| [Org support](https://krazywarez.github.io/orgo/guide/05-org-support.html) | Which org syntax is handled, which is not, and how the rest degrades. |
+| [Authoring](https://krazywarez.github.io/orgo/guide/06-authoring.html) | URLs, drafts, excerpts, tables of contents. |
+| [Incremental builds](https://krazywarez.github.io/orgo/guide/07-incremental.html) | How it decides what to rebuild. |
+| [Watching and serving](https://krazywarez.github.io/orgo/guide/08-workflow.html) | The write-save-see loop. |
+| [Auditing](https://krazywarez.github.io/orgo/guide/09-auditing.html) | Reading a corpus before trusting a tool with it. |
+| [Deploying](https://krazywarez.github.io/orgo/guide/10-deploying.html) | Producing a production build, and putting it somewhere. |
 
 ## Building from a checkout
 
