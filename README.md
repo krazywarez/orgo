@@ -80,6 +80,25 @@ Each of these is a few lines of config, and each has a page in the guide:
 Rebuilds only touch the pages that actually changed, so saving a post on a site with
 hundreds of them stays instant.
 
+## Speed
+
+Publishing one real site — 178 org files, ~180 pages — with the generator it uses today
+and with orgo. Median of three runs each, same machine, same moment:
+
+| | Time | |
+|---|---|---|
+| weblorg (`emacs --script publish.el`) | 50.1s | |
+| orgo, cold build | **0.21s** | 239× faster |
+| orgo, nothing changed since last build | **0.13s** | 385× faster |
+
+Read that with three things in mind. The weblorg figure includes Emacs starting up and
+loading its packages, which you pay on every publish and cannot avoid. orgo emits 13 pages
+weblorg does not (one per tag), so it is doing slightly more work. And the two do not
+produce byte-identical output — the differences are deliberate and listed under
+[Org support](https://krazywarez.github.io/orgo/guide/05-org-support.html).
+
+Apple M2 Pro, 12 cores, macOS 26.6, Emacs 30.2, orgo built with `--release`.
+
 ## The documentation
 
 <https://krazywarez.github.io/orgo/>
