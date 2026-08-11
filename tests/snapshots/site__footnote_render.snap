@@ -1,0 +1,16 @@
+---
+source: tests/site.rs
+expression: "render_fragment(\"footnote.org\")"
+---
+<p>Text with a reference.<sup class="footnote-ref"><a id="fnr-1" href="#fn-1">1</a></sup> And a second one.<sup class="footnote-ref"><a id="fnr-2" href="#fn-2">2</a></sup></p>
+<p>An inline footnote.<sup class="footnote-ref"><a id="fnr-3" href="#fn-3">3</a></sup></p>
+<section class="footnotes">
+<hr>
+<ol>
+<li id="fn-1"><p>The first definition.</p>
+ <a class="footnote-back" href="#fnr-1">&#8617;</a></li>
+<li id="fn-2"><p>The second definition, with <em>emphasis</em>.</p>
+ <a class="footnote-back" href="#fnr-2">&#8617;</a></li>
+<li id="fn-3">defined right here <a class="footnote-back" href="#fnr-3">&#8617;</a></li>
+</ol>
+</section>

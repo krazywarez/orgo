@@ -1,0 +1,13 @@
+---
+source: tests/site.rs
+expression: "render_fragment(\"table.org\")"
+---
+<table>
+<thead>
+<tr><th>Name</th><th>Score</th></tr>
+</thead>
+<tbody>
+<tr><td>alpha</td><td>10</td></tr>
+<tr><td>beta</td><td>20</td></tr>
+</tbody>
+</table>

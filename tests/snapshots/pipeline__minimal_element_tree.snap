@@ -1,0 +1,180 @@
+---
+source: tests/pipeline.rs
+expression: "parse_fixture(\"minimal.org\").root"
+---
+{
+  "heading": null,
+  "content": [
+    {
+      "Paragraph": [
+        {
+          "Text": "A single paragraph of preamble text before any heading."
+        }
+      ]
+    }
+  ],
+  "children": [
+    {
+      "heading": {
+        "level": 1,
+        "todo": null,
+        "priority": null,
+        "title": [
+          {
+            "Text": "First Heading"
+          }
+        ],
+        "tags": [],
+        "properties": {
+          "entries": [
+            [
+              "CUSTOM_ID",
+              "first"
+            ]
+          ]
+        },
+        "id": null,
+        "custom_id": "first"
+      },
+      "content": [
+        {
+          "Paragraph": [
+            {
+              "Text": "Some body text with "
+            },
+            {
+              "Bold": [
+                {
+                  "Text": "bold"
+                }
+              ]
+            },
+            {
+              "Text": ", "
+            },
+            {
+              "Italic": [
+                {
+                  "Text": "italic"
+                }
+              ]
+            },
+            {
+              "Text": ", and "
+            },
+            {
+              "Verbatim": "verbatim"
+            },
+            {
+              "Text": "."
+            }
+          ]
+        }
+      ],
+      "children": [
+        {
+          "heading": {
+            "level": 2,
+            "todo": null,
+            "priority": null,
+            "title": [
+              {
+                "Text": "A Subheading"
+              }
+            ],
+            "tags": [
+              "tag1",
+              "tag2"
+            ],
+            "properties": {
+              "entries": []
+            },
+            "id": null,
+            "custom_id": null
+          },
+          "content": [
+            {
+              "List": {
+                "kind": "Unordered",
+                "items": [
+                  {
+                    "bullet": "Dash",
+                    "checkbox": null,
+                    "term": null,
+                    "content": [
+                      {
+                        "Paragraph": [
+                          {
+                            "Text": "an unordered item"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "bullet": "Dash",
+                    "checkbox": null,
+                    "term": null,
+                    "content": [
+                      {
+                        "Paragraph": [
+                          {
+                            "Text": "another with a checkbox [ ]"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "heading": {
+        "level": 1,
+        "todo": null,
+        "priority": null,
+        "title": [
+          {
+            "Text": "Second Heading"
+          }
+        ],
+        "tags": [],
+        "properties": {
+          "entries": []
+        },
+        "id": null,
+        "custom_id": null
+      },
+      "content": [
+        {
+          "Paragraph": [
+            {
+              "Text": "See "
+            },
+            {
+              "Link": {
+                "target": {
+                  "CustomId": "first"
+                },
+                "description": [
+                  {
+                    "Text": "the first heading"
+                  }
+                ]
+              }
+            },
+            {
+              "Text": "."
+            }
+          ]
+        }
+      ],
+      "children": []
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+---
+source: tests/harness.rs
+expression: tree
+---
+[
+  {
+    "Text": "see "
+  },
+  {
+    "Bold": [
+      {
+        "Text": "bold"
+      }
+    ]
+  },
+  {
+    "Link": {
+      "target": {
+        "CustomId": "first"
+      },
+      "description": [
+        {
+          "Text": "the first heading"
+        }
+      ]
+    }
+  }
+]

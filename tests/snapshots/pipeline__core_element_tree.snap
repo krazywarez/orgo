@@ -1,0 +1,200 @@
+---
+source: tests/pipeline.rs
+expression: "parse_fixture(\"core.org\").root"
+---
+{
+  "heading": null,
+  "content": [
+    {
+      "Paragraph": [
+        {
+          "Text": "Intro paragraph with a bare URL "
+        },
+        {
+          "Link": {
+            "target": {
+              "External": "https://example.com"
+            },
+            "description": null
+          }
+        },
+        {
+          "Text": " and some "
+        },
+        {
+          "Code": "inline code"
+        },
+        {
+          "Text": "."
+        }
+      ]
+    }
+  ],
+  "children": [
+    {
+      "heading": {
+        "level": 1,
+        "todo": null,
+        "priority": null,
+        "title": [
+          {
+            "Text": "Ordered and checked"
+          }
+        ],
+        "tags": [],
+        "properties": {
+          "entries": []
+        },
+        "id": null,
+        "custom_id": null
+      },
+      "content": [
+        {
+          "List": {
+            "kind": "Ordered",
+            "items": [
+              {
+                "bullet": {
+                  "Ordered": 1
+                },
+                "checkbox": null,
+                "term": null,
+                "content": [
+                  {
+                    "Paragraph": [
+                      {
+                        "Text": "first item"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "bullet": {
+                  "Ordered": 2
+                },
+                "checkbox": null,
+                "term": null,
+                "content": [
+                  {
+                    "Paragraph": [
+                      {
+                        "Text": "second item with "
+                      },
+                      {
+                        "Italic": [
+                          {
+                            "Text": "emphasis"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "List": {
+            "kind": "Unordered",
+            "items": [
+              {
+                "bullet": "Dash",
+                "checkbox": "Off",
+                "term": null,
+                "content": [
+                  {
+                    "Paragraph": [
+                      {
+                        "Text": "todo item"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "bullet": "Dash",
+                "checkbox": "On",
+                "term": null,
+                "content": [
+                  {
+                    "Paragraph": [
+                      {
+                        "Text": "done item"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "children": []
+    },
+    {
+      "heading": {
+        "level": 1,
+        "todo": null,
+        "priority": null,
+        "title": [
+          {
+            "Text": "Links and code"
+          }
+        ],
+        "tags": [],
+        "properties": {
+          "entries": []
+        },
+        "id": null,
+        "custom_id": null
+      },
+      "content": [
+        {
+          "Paragraph": [
+            {
+              "Text": "An external "
+            },
+            {
+              "Link": {
+                "target": {
+                  "External": "https://example.org"
+                },
+                "description": [
+                  {
+                    "Text": "site"
+                  }
+                ]
+              }
+            },
+            {
+              "Text": " and a bare "
+            },
+            {
+              "Link": {
+                "target": {
+                  "External": "https://bare.example"
+                },
+                "description": null
+              }
+            },
+            {
+              "Text": "."
+            }
+          ]
+        },
+        {
+          "SrcBlock": {
+            "lang": "rust",
+            "params": {
+              "raw": ""
+            },
+            "code": "fn main() {\n    println!(\"hello\");\n}"
+          }
+        }
+      ],
+      "children": []
+    }
+  ]
+}

@@ -1,0 +1,3 @@
+#+TITLE: About
+
+This site is built by org-ssg. Back to [[file:index.org][home]].

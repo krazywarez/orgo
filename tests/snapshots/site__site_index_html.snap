@@ -1,0 +1,24 @@
+---
+source: tests/site.rs
+expression: "page(&pages, \"index.org\").html"
+---
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Home</title>
+</head>
+<body>
+<nav>
+<a href="about.html">About</a>
+<a href="guide.html">Guide</a>
+<a href="#">Home</a>
+</nav>
+<main>
+<p>Welcome. See the <a href="guide.html">guide</a> and jump straight to its <a href="guide.html#setup">setup section</a> across files.</p>
+<p>Also see <a href="#overview">Overview</a> further down this page.</p>
+<h1 id="overview">Overview</h1>
+<p>The overview lives on the home page.</p>
+</main>
+</body>
+</html>

@@ -1,0 +1,9 @@
+#+TITLE: Home
+
+Welcome. See the [[file:guide.org][guide]] and jump straight to its
+[[#setup][setup section]] across files.
+
+Also see [[*Overview]] further down this page.
+
+* Overview
+The overview lives on the home page.

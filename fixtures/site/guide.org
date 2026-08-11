@@ -1,0 +1,17 @@
+#+TITLE: Guide
+
+* Setup
+  :PROPERTIES:
+  :CUSTOM_ID: setup
+  :END:
+
+Install the steps in order.[fn:1] Then return [[file:index.org][home]].
+
+[fn:1] Read the manual before you begin.
+
+* Data
+
+| Name  | Score |
+|-------+-------|
+| alpha |    10 |
+| beta  |    20 |
