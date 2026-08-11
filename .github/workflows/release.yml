@@ -77,7 +77,7 @@ jobs:
           staging="orgo-${{ github.event.inputs.tag || github.ref_name }}-${{ matrix.target }}"
           mkdir "$staging"
           cp "target/${{ matrix.target }}/release/orgo" "$staging/"
-          cp README.org LICENSE CHANGELOG.org "$staging/"
+          cp README.org LICENSE "$staging/"
           tar czf "$staging.tar.gz" "$staging"
           shasum -a 256 "$staging.tar.gz" > "$staging.tar.gz.sha256"
 
@@ -101,7 +101,7 @@ jobs:
         with:
           merge-multiple: true
 
-      # A draft, deliberately. The changelog entry is written by a person, and a release
+      # A draft, deliberately. The release notes are written by a person, and a release
       # that publishes itself before anyone has read it cannot be edited quietly.
       - name: Create the draft release
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2

@@ -35,8 +35,8 @@ dependency: a missing, stale or corrupt cache produces exactly the same site, mo
 ** Rendered HTML details
 
 orgo aims at what Emacs exports from the same file, and closing a gap changes markup.
-That is the product working rather than a regression — but it is called out in the
-changelog every time, because your stylesheet is downstream of it.
+That is the product working rather than a regression — but it is called out in the release
+notes every time, because your stylesheet is downstream of it.
 
 The class names the documentation names are the ones to write CSS against:
 =post-list=, =post-list-item=, =figure-number=, =table-number=, =section-number-N=,
@@ -68,5 +68,4 @@ new version's output to the old version's output rather than to a cache written 
 mixture of both. =--strict= turns a link that stopped resolving into a failure.
 
 If you keep your built site in version control, the diff after that command *is* the
-upgrade report — which is the most useful review a generator can give you, and the reason
-the changelog names behaviour rather than commits.
+upgrade report, and the most useful review a generator can give you.
