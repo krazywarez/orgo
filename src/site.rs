@@ -28,7 +28,10 @@ use crate::parser::parse;
 use crate::render::{self, render_with, Html, RenderOptions, SyntectHighlighter};
 use crate::resolve::resolve;
 use crate::config::{self, Config, NavMode, SortKey, SortOrder};
-use crate::template::{GroupContext, NavItem, PageContext, RenderContext, SiteContext, Templater};
+use crate::template::{
+    GroupContext, NavItem, PageContext, Paginator, PaginatorPage, RenderContext, SiteContext,
+    Templater,
+};
 use crate::util::{output_path, output_url, relative_root, slugify};
 
 /// A fully built page: source and output paths (relative to their roots) and its
@@ -117,6 +120,91 @@ struct Listing {
     /// Every group of the owning collection. The content of a group index, and context
     /// for a group page.
     groups: Vec<GroupContext>,
+    /// Set when this is one page of a paginated listing.
+    paginator: Option<Paginator>,
+}
+
+/// Split one listing's entries across numbered pages, appending each as its own
+/// [`Listing`].
+///
+/// Page 1 keeps `output`, so a section's canonical URL never moves as its page count
+/// changes — only pages 2..N are named by `paginate_output`. An empty listing still
+/// emits page 1, because a section that exists but has nothing in it should be a page
+/// saying so rather than a 404.
+fn push_paginated(
+    listings: &mut Vec<Listing>,
+    collection: &config::Collection,
+    output: Utf8PathBuf,
+    title: String,
+    entries: Vec<PageContext>,
+    group: Option<GroupContext>,
+    groups: Vec<GroupContext>,
+) {
+    let per_page = collection.paginate;
+    if per_page == 0 {
+        listings.push(Listing {
+            output,
+            template: collection.template.clone(),
+            title,
+            entries,
+            group,
+            groups,
+            paginator: None,
+        });
+        return;
+    }
+
+    let total_entries = entries.len();
+    let total = entries.len().div_ceil(per_page).max(1);
+    let slug = group.as_ref().map(|g| g.slug.clone()).unwrap_or_default();
+    let page_output = |n: usize| -> Utf8PathBuf {
+        if n == 1 {
+            return output.clone();
+        }
+        Utf8PathBuf::from(
+            collection
+                .paginate_output
+                .as_str()
+                .replace(config::GROUP_PLACEHOLDER, &slug)
+                .replace(config::PAGE_PLACEHOLDER, &n.to_string()),
+        )
+    };
+    let outputs: Vec<Utf8PathBuf> = (1..=total).map(page_output).collect();
+
+    for (idx, chunk) in entries.chunks(per_page).chain(
+        // `chunks` yields nothing for an empty slice; page 1 still has to exist.
+        std::iter::once(&[][..]).take(usize::from(total_entries == 0)),
+    ) .enumerate()
+    {
+        let current = idx + 1;
+        let here = &outputs[idx];
+        let url_to = |n: usize| output_url(here, &outputs[n - 1], None);
+        listings.push(Listing {
+            output: here.clone(),
+            template: collection.template.clone(),
+            title: title.clone(),
+            entries: chunk.to_vec(),
+            group: group.clone(),
+            groups: groups.clone(),
+            paginator: Some(Paginator {
+                current,
+                total,
+                per_page,
+                total_entries,
+                prev_url: (current > 1).then(|| url_to(current - 1)),
+                next_url: (current < total).then(|| url_to(current + 1)),
+                first_url: url_to(1),
+                last_url: url_to(total),
+                pages: (1..=total)
+                    .map(|n| PaginatorPage {
+                        number: n,
+                        url: url_to(n),
+                        current: n == current,
+                    })
+                    .collect(),
+            }),
+        });
+    }
 }
 
 /// The `YYYY-MM-DD` inside an org date, if there is one. Org dates arrive as
@@ -173,14 +261,15 @@ fn build_listings(config: &Config, preps: &[PagePrep]) -> Result<Vec<Listing>> {
         }
 
         if collection.group_by.is_empty() {
-            listings.push(Listing {
-                output: collection.output.clone(),
-                template: collection.template.clone(),
-                title: collection.title.clone(),
+            push_paginated(
+                &mut listings,
+                collection,
+                collection.output.clone(),
+                collection.title.clone(),
                 entries,
-                group: None,
-                groups: Vec::new(),
-            });
+                None,
+                Vec::new(),
+            );
             continue;
         }
 
@@ -237,21 +326,22 @@ fn build_listings(config: &Config, preps: &[PagePrep]) -> Result<Vec<Listing>> {
 
         if !collection.output.as_str().is_empty() {
             for group in &groups {
-                listings.push(Listing {
-                    output: Utf8PathBuf::from(&group.url),
-                    template: collection.template.clone(),
-                    title: collection
+                push_paginated(
+                    &mut listings,
+                    collection,
+                    Utf8PathBuf::from(&group.url),
+                    collection
                         .title
                         .replace(config::GROUP_PLACEHOLDER, &group.name),
-                    entries: members.get(&group.name).cloned().unwrap_or_default(),
-                    group: Some(group.clone()),
+                    members.get(&group.name).cloned().unwrap_or_default(),
+                    Some(group.clone()),
                     // Deliberately not the whole group list. A page that can see every
                     // group depends on every group, so one new post would re-render every
                     // tag page — cost that scales with tag count, to support a tag cloud
                     // nobody has asked for. A tag page depends on its own posts, and the
                     // group index is where the group list belongs.
-                    groups: Vec::new(),
-                });
+                    Vec::new(),
+                );
             }
         }
         if !collection.index_output.as_str().is_empty() {
@@ -262,6 +352,7 @@ fn build_listings(config: &Config, preps: &[PagePrep]) -> Result<Vec<Listing>> {
                 entries: Vec::new(),
                 group: None,
                 groups: groups.clone(),
+                paginator: None,
             });
         }
     }
@@ -335,6 +426,12 @@ fn listing_entries_hash(listing: &Listing) -> Hash {
                 .iter()
                 .map(|g| (g.url.clone(), format!("{}\u{0}{}", g.name, g.count))),
         )
+        .chain(listing.paginator.iter().map(|p| {
+            (
+                format!("{}/{}", p.current, p.total),
+                format!("{:?}|{:?}", p.prev_url, p.next_url),
+            )
+        }))
         .chain([(listing.title.clone(), listing.template.clone())])
         .collect();
     // Entry *order* is meaningful in a listing, so this hashes the sorted-by-us sequence
@@ -804,6 +901,7 @@ pub fn build_site(src: &Utf8Path, out: &Utf8Path, opts: &BuildOptions) -> Result
             ctx.pages = Some(&listing.entries);
             ctx.group = listing.group.as_ref();
             ctx.groups = &listing.groups;
+            ctx.paginator = listing.paginator.as_ref();
             let html = templater
                 .render(&listing.template, &ctx)
                 .with_context(|| {

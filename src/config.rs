@@ -70,6 +70,15 @@ pub struct Collection {
     pub index_title: String,
     pub sort: SortKey,
     pub order: SortOrder,
+    /// Entries per page. `0` means no pagination — the whole collection on one page.
+    ///
+    /// Page 1 stays at `output`, so the canonical URL of a section never moves when the
+    /// number of pages changes. Pages 2 and up go to `paginate_output`.
+    pub paginate: usize,
+    /// Where pages 2..N are written. Must contain `{n}`, the 1-based page number, and
+    /// `{tag}` as well when the collection is grouped — otherwise page 2 of one group
+    /// would overwrite page 2 of another.
+    pub paginate_output: Utf8PathBuf,
     /// Add this listing page to the site navigation. This is how a section landing page
     /// — `/blog/`, `/notes/` — gets into a nav built from top-level pages.
     pub nav: bool,
@@ -88,6 +97,8 @@ impl Default for Collection {
             index_title: "Tags".to_string(),
             sort: SortKey::default(),
             order: SortOrder::default(),
+            paginate: 0,
+            paginate_output: Utf8PathBuf::new(),
             nav: false,
         }
     }
@@ -95,6 +106,8 @@ impl Default for Collection {
 
 /// The `{tag}` placeholder in a grouped collection's `output` and `title`.
 pub const GROUP_PLACEHOLDER: &str = "{tag}";
+/// The page-number placeholder in `paginate_output`.
+pub const PAGE_PLACEHOLDER: &str = "{n}";
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -302,6 +315,32 @@ impl Config {
                     collection.index_output
                 );
             }
+            if collection.paginate > 0 {
+                let pattern = collection.paginate_output.as_str();
+                if pattern.is_empty() {
+                    anyhow::bail!(
+                        "collection output {} sets `paginate` but no `paginate_output`;                          pages 2 and up need somewhere to go, e.g. \"blog/page/{PAGE_PLACEHOLDER}.html\"",
+                        collection.output
+                    );
+                }
+                if !pattern.contains(PAGE_PLACEHOLDER) {
+                    anyhow::bail!(
+                        "collection `paginate_output` {pattern} has no {PAGE_PLACEHOLDER},                          so every page after the first would overwrite the same file"
+                    );
+                }
+                if grouped && !pattern.contains(GROUP_PLACEHOLDER) {
+                    anyhow::bail!(
+                        "collection `paginate_output` {pattern} groups by \"{}\" but has no                          {GROUP_PLACEHOLDER}, so page 2 of one group would overwrite page 2                          of another",
+                        collection.group_by
+                    );
+                }
+            }
+            if collection.paginate == 0 && !collection.paginate_output.as_str().is_empty() {
+                anyhow::bail!(
+                    "collection sets `paginate_output` {} but `paginate` is 0, so it would                      never be used; set `paginate` to a page size",
+                    collection.paginate_output
+                );
+            }
             for path in [&collection.output, &collection.index_output] {
                 if path.as_str().is_empty() || path.as_str().contains(GROUP_PLACEHOLDER) {
                     continue;
@@ -376,6 +415,8 @@ title = "Blog"
 sort = "date"              # date | title | path
 order = "desc"             # desc | asc
 nav = true                 # put this listing page in the site nav
+# paginate = 10            # entries per page; page 1 stays at `output`
+# paginate_output = "blog/page/{n}.html"   # where pages 2..N go; needs {n}
 
 # One page per tag, plus an index of all tags. `{tag}` in `output`/`title` is replaced
 # by each tag; the index gets `groups` instead of `pages`.

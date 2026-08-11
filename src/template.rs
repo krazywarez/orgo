@@ -202,6 +202,7 @@ impl Templater {
             pages => ctx.pages,
             group => ctx.group,
             groups => ctx.groups,
+            paginator => ctx.paginator,
         })
         .map_err(|e| TemplateError::Render(render_error_detail(e)))
     }
@@ -226,6 +227,37 @@ pub struct GroupContext {
     pub count: usize,
 }
 
+/// One page of a paginated listing, exposed to templates as `paginator`.
+///
+/// Every URL here is relative to the page being rendered, so a template can emit them
+/// directly however deep the page sits.
+#[derive(Debug, Clone, Serialize)]
+pub struct Paginator {
+    /// 1-based number of this page.
+    pub current: usize,
+    /// How many pages the listing splits into.
+    pub total: usize,
+    /// Entries per page, as configured.
+    pub per_page: usize,
+    /// Entries across the whole listing, not just this page.
+    pub total_entries: usize,
+    pub prev_url: Option<String>,
+    pub next_url: Option<String>,
+    pub first_url: String,
+    pub last_url: String,
+    /// Every page, for a numbered strip.
+    pub pages: Vec<PaginatorPage>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct PaginatorPage {
+    pub number: usize,
+    pub url: String,
+    /// True for the page currently being rendered, so a template can mark it without
+    /// comparing numbers itself.
+    pub current: bool,
+}
+
 /// Everything a template can see. A struct rather than a dozen positional arguments,
 /// because the list grows every time templates learn something new.
 pub struct RenderContext<'a> {
@@ -246,6 +278,8 @@ pub struct RenderContext<'a> {
     /// Every group of a grouped collection — the group index's content. Empty on a
     /// per-group page, which depends on its own entries and not on the other groups.
     pub groups: &'a [GroupContext],
+    /// Present only on a page of a paginated listing.
+    pub paginator: Option<&'a Paginator>,
 }
 
 impl<'a> RenderContext<'a> {
@@ -267,6 +301,7 @@ impl<'a> RenderContext<'a> {
             pages: None,
             group: None,
             groups: &[],
+            paginator: None,
         }
     }
 }
@@ -339,6 +374,17 @@ pub const STARTER_LIST_TEMPLATE: &str = r#"<!DOCTYPE html>
 </li>
 {%- endfor %}
 </ul>
+{%- if paginator and paginator.total > 1 %}
+<nav class="pagination">
+{%- if paginator.prev_url %}
+<a rel="prev" href="{{ paginator.prev_url }}">Newer</a>
+{%- endif %}
+<span>Page {{ paginator.current }} of {{ paginator.total }}</span>
+{%- if paginator.next_url %}
+<a rel="next" href="{{ paginator.next_url }}">Older</a>
+{%- endif %}
+</nav>
+{%- endif %}
 </main>
 </body>
 </html>

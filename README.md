@@ -120,6 +120,45 @@ written in — `[2025-09-05 Fri 10:21:00]`, `<2024-05-01 Wed>` or bare `2024-05-
 also the sort key; pages without a parseable date sort last, so an undated draft never
 leads a dated archive.
 
+#### Pagination
+
+Set `paginate` to split a long listing across numbered pages:
+
+```toml
+[[collections]]
+source = "blog"
+output = "blog/index.html"
+paginate = 10
+paginate_output = "blog/page/{n}.html"   # {n} is the 1-based page number
+```
+
+Page 1 stays at `output`, so a section's canonical URL never moves as its page count
+changes; only pages 2..N are named by `paginate_output`. The template gets a `paginator`:
+
+```jinja
+{% if paginator and paginator.total > 1 %}
+<nav>
+  {% if paginator.prev_url %}<a href="{{ paginator.prev_url }}">Newer</a>{% endif %}
+  {% for pg in paginator.pages %}
+    <a href="{{ pg.url }}"{% if pg.current %} aria-current="page"{% endif %}>{{ pg.number }}</a>
+  {% endfor %}
+  {% if paginator.next_url %}<a href="{{ paginator.next_url }}">Older</a>{% endif %}
+</nav>
+{% endif %}
+```
+
+`paginator` carries `current`, `total`, `per_page`, `total_entries`, `prev_url`,
+`next_url`, `first_url`, `last_url`, and `pages`. Every URL is relative to the page
+carrying it, so links work from page 1 (`page/2.html`) and from page 5 (`../index.html`,
+`6.html`) without the template knowing where it sits. An unpaginated collection has no
+`paginator` at all, so `{% if paginator %}` is a reliable test in a shared template.
+
+Grouping and pagination compose: each group paginates independently, which is why
+`paginate_output` needs `{tag}` as well as `{n}` on a grouped collection. An empty
+collection still emits page 1 — a section that exists but has nothing in it should say so
+rather than 404. When the entry count shrinks, pages that no longer exist are deleted
+instead of being left serving stale posts.
+
 #### Tag pages
 
 Add `group_by` and the collection emits one page *per group* instead of one page total,
@@ -238,6 +277,7 @@ all-of-org. Phase 0 checked this line against a real 179-file corpus and found i
 | **8** | **General use: config file, user templates, nav modes, `init` scaffold, safe discovery** | **done** |
 | **9** | **Generated listing pages: `[[collections]]`, sorted indexes, feeds via XML templates** | **done** |
 | **10** | **Grouped collections: one page per tag plus a tag index — full parity with the incumbent** | **done** |
+| **11** | **Pagination: numbered pages with a `paginator` context, composing with grouping** | **done** |
 
 ### v0.2 in / out
 
@@ -501,7 +541,7 @@ PARSE/RESOLVE/RENDER), `chrono`, `camino`, `walkdir`, `clap`, `anyhow`/`thiserro
 
 ```
 cargo build
-cargo test                                                # 107 tests
+cargo test                                                # 115 tests
 cargo run -- init my-site                                 # scaffold a new site
 cargo run -- build fixtures/minimal.org -o minimal.html   # single file
 cargo run -- build fixtures/site -o _site                 # whole site (incremental)

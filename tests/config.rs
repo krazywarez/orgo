@@ -1058,3 +1058,242 @@ fn tags_that_collide_in_a_url_are_rejected() {
     let message = format!("{err:#}");
     assert!(message.contains("web_dev") && message.contains("web@dev"), "{message}");
 }
+
+// ---------------------------------------------------------------------------
+// Pagination
+// ---------------------------------------------------------------------------
+
+/// A blog of `count` dated posts with a paginating collection over them.
+fn write_paginated_blog(src: &Utf8PathBuf, count: usize, extra: &str) {
+    std::fs::create_dir_all(src.join("blog")).unwrap();
+    std::fs::create_dir_all(src.join("templates")).unwrap();
+    std::fs::write(src.join("index.org"), "#+TITLE: Home\n\nWelcome.\n").unwrap();
+    for i in 0..count {
+        std::fs::write(
+            src.join(format!("blog/p{i:02}.org")),
+            format!(
+                "#+TITLE: Post {i:02}\n#+DATE: 2024-01-{:02}\n\nBody.\n",
+                i + 1
+            ),
+        )
+        .unwrap();
+    }
+    std::fs::write(
+        src.join("templates/list.html"),
+        "<html><body><h1>{{ page.title }}</h1>\
+         <ul>{% for p in pages %}<li>{{ p.title }}</li>{% endfor %}</ul>\
+         {% if paginator %}<p>page {{ paginator.current }}/{{ paginator.total }} \
+         of {{ paginator.total_entries }}</p>\
+         {% if paginator.prev_url %}<a id=\"prev\" href=\"{{ paginator.prev_url }}\">p</a>{% endif %}\
+         {% if paginator.next_url %}<a id=\"next\" href=\"{{ paginator.next_url }}\">n</a>{% endif %}\
+         <nav>{% for pg in paginator.pages %}<a href=\"{{ pg.url }}\"{% if pg.current %} \
+         class=\"here\"{% endif %}>{{ pg.number }}</a>{% endfor %}</nav>{% endif %}</body></html>",
+    )
+    .unwrap();
+    std::fs::write(
+        src.join("org-ssg.toml"),
+        format!(
+            "[[collections]]\nsource = \"blog\"\noutput = \"blog/index.html\"\n\
+             template = \"list.html\"\ntitle = \"Blog\"\n{extra}"
+        ),
+    )
+    .unwrap();
+}
+
+/// Page 1 keeps the collection's `output`, so a section's canonical URL never moves as
+/// its page count changes.
+#[test]
+fn pagination_splits_entries_and_keeps_page_one_canonical() {
+    let root = tmpdir("paginate");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_paginated_blog(&src, 7, "paginate = 3\npaginate_output = \"blog/page/{n}.html\"\n");
+    let out = root.join("out");
+    build(&src, &out);
+
+    assert!(out.join("blog/index.html").exists(), "page 1 is the canonical URL");
+    for n in [2, 3] {
+        assert!(out.join(format!("blog/page/{n}.html")).exists(), "page {n} exists");
+    }
+    assert!(!out.join("blog/page/4.html").exists(), "7 entries at 3/page is 3 pages");
+    assert!(!out.join("blog/page/1.html").exists(), "page 1 is not duplicated");
+
+    // Newest first, so page 1 holds posts 06, 05, 04.
+    let first = page(&out, "blog/index.html");
+    assert!(first.contains("page 1/3 of 7"), "paginator counts:\n{first}");
+    assert!(first.contains("Post 06") && first.contains("Post 04"));
+    assert!(!first.contains("Post 03"), "page 1 holds only its own slice:\n{first}");
+
+    let last = page(&out, "blog/page/3.html");
+    assert!(last.contains("Post 00"), "the remainder lands on the last page:\n{last}");
+    assert_eq!(last.matches("<li>").count(), 1, "7 = 3 + 3 + 1");
+}
+
+/// Paginator URLs have to be relative to the page carrying them, and pages 2..N sit at a
+/// different depth than page 1.
+#[test]
+fn paginator_urls_resolve_from_each_pages_own_depth() {
+    let root = tmpdir("pageurls");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_paginated_blog(&src, 7, "paginate = 3\npaginate_output = \"blog/page/{n}.html\"\n");
+    let out = root.join("out");
+    build(&src, &out);
+
+    let first = page(&out, "blog/index.html");
+    assert!(first.contains("id=\"next\" href=\"page/2.html\""), "down a level:\n{first}");
+    assert!(!first.contains("id=\"prev\""), "page 1 has no previous");
+
+    let middle = page(&out, "blog/page/2.html");
+    assert!(middle.contains("id=\"prev\" href=\"../index.html\""), "back up:\n{middle}");
+    assert!(middle.contains("id=\"next\" href=\"3.html\""), "sideways:\n{middle}");
+
+    let last = page(&out, "blog/page/3.html");
+    assert!(!last.contains("id=\"next\""), "the last page has no next:\n{last}");
+}
+
+/// The numbered strip marks the page it is on, so a template does not compare numbers.
+#[test]
+fn the_paginator_exposes_a_numbered_page_list() {
+    let root = tmpdir("pagenums");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_paginated_blog(&src, 7, "paginate = 3\npaginate_output = \"blog/page/{n}.html\"\n");
+    let out = root.join("out");
+    build(&src, &out);
+
+    let second = page(&out, "blog/page/2.html");
+    assert!(second.contains(">1</a>") && second.contains(">3</a>"), "all pages listed");
+    assert!(
+        second.contains("class=\"here\">2</a>"),
+        "the current page is marked:\n{second}"
+    );
+}
+
+/// An unpaginated collection must not grow a paginator, so `{% if paginator %}` is a
+/// reliable test in a shared template.
+#[test]
+fn an_unpaginated_collection_has_no_paginator() {
+    let root = tmpdir("nopaginator");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_paginated_blog(&src, 4, "");
+    let out = root.join("out");
+    build(&src, &out);
+
+    let listing = page(&out, "blog/index.html");
+    assert!(!listing.contains("page 1/"), "no paginator block:\n{listing}");
+    assert_eq!(listing.matches("<li>").count(), 4, "everything on one page");
+}
+
+/// A section with nothing in it should be a page saying so, not a 404.
+#[test]
+fn an_empty_paginated_collection_still_emits_page_one() {
+    let root = tmpdir("pageempty");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_paginated_blog(&src, 0, "paginate = 3\npaginate_output = \"blog/page/{n}.html\"\n");
+    let out = root.join("out");
+    build(&src, &out);
+
+    let listing = page(&out, "blog/index.html");
+    assert!(listing.contains("page 1/1 of 0"), "one empty page:\n{listing}");
+    assert!(!out.join("blog/page/2.html").exists());
+}
+
+/// Grouped and paginated together: each group paginates independently, which is why
+/// `paginate_output` needs both placeholders.
+#[test]
+fn groups_paginate_independently() {
+    let root = tmpdir("pagegroups");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_paginated_blog(&src, 0, "");
+    for (name, tag, n) in [("a", "rust", 0), ("b", "rust", 1), ("c", "rust", 2), ("d", "web", 3)] {
+        std::fs::write(
+            src.join(format!("blog/{name}.org")),
+            format!("#+TITLE: Post {name}\n#+DATE: 2024-01-0{}\n#+FILETAGS: :{tag}:\n\nBody.\n", n + 1),
+        )
+        .unwrap();
+    }
+    std::fs::write(
+        src.join("org-ssg.toml"),
+        "[[collections]]\nsource = \"blog\"\ngroup_by = \"tags\"\n\
+         output = \"tags/{tag}.html\"\ntemplate = \"list.html\"\ntitle = \"{tag}\"\n\
+         paginate = 2\npaginate_output = \"tags/{tag}/page/{n}.html\"\n",
+    )
+    .unwrap();
+    let out = root.join("out");
+    build(&src, &out);
+
+    assert!(out.join("tags/rust.html").exists(), "3 rust posts, page 1");
+    assert!(out.join("tags/rust/page/2.html").exists(), "3 rust posts at 2/page needs page 2");
+    assert!(out.join("tags/web.html").exists(), "1 web post");
+    assert!(
+        !out.join("tags/web/page/2.html").exists(),
+        "one post needs no second page — groups paginate independently"
+    );
+}
+
+/// A `paginate_output` without `{n}` would have every page overwrite one file; without
+/// `{tag}` on a grouped collection, page 2 of one group would overwrite page 2 of
+/// another.
+#[test]
+fn pagination_placeholders_are_validated() {
+    let root = tmpdir("pagevalidate");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+
+    let cases = [
+        ("paginate = 3\n", "paginate_output"),
+        ("paginate = 3\npaginate_output = \"blog/more.html\"\n", "{n}"),
+        ("paginate_output = \"blog/page/{n}.html\"\n", "paginate"),
+    ];
+    for (extra, expect) in cases {
+        write_paginated_blog(&src, 4, extra);
+        let err = build_site(&src, &root.join("out"), &BuildOptions::default())
+            .expect_err("invalid pagination config must fail");
+        let message = format!("{err:#}");
+        assert!(message.contains(expect), "expected {expect:?} in: {message}");
+    }
+
+    // Grouped without {tag} in the page pattern.
+    std::fs::write(
+        src.join("org-ssg.toml"),
+        "[[collections]]\nsource = \"blog\"\ngroup_by = \"tags\"\n\
+         output = \"tags/{tag}.html\"\ntemplate = \"list.html\"\n\
+         paginate = 2\npaginate_output = \"tags/page/{n}.html\"\n",
+    )
+    .unwrap();
+    let err = build_site(&src, &root.join("out2"), &BuildOptions::default())
+        .expect_err("grouped pagination without {tag} must fail");
+    assert!(format!("{err:#}").contains("{tag}"), "{err:#}");
+}
+
+/// Adding a post shifts every entry across page boundaries, so all pages of that
+/// collection change — but nothing else does. And when the count shrinks, the pages that
+/// no longer exist have to be deleted rather than left serving stale content.
+#[test]
+fn page_count_changes_add_and_remove_page_files() {
+    let root = tmpdir("pageshrink");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_paginated_blog(&src, 7, "paginate = 3\npaginate_output = \"blog/page/{n}.html\"\n");
+    let out = root.join("out");
+    build(&src, &out);
+    assert!(build(&src, &out).rendered.is_empty(), "unchanged rebuild renders nothing");
+    assert!(out.join("blog/page/3.html").exists());
+
+    // Drop below two pages' worth.
+    for i in 2..7 {
+        std::fs::remove_file(src.join(format!("blog/p{i:02}.org"))).unwrap();
+    }
+    build(&src, &out);
+
+    assert!(
+        !out.join("blog/page/2.html").exists() && !out.join("blog/page/3.html").exists(),
+        "pages that no longer exist are deleted, not left serving stale posts"
+    );
+    let first = page(&out, "blog/index.html");
+    assert!(first.contains("page 1/1 of 2"), "the paginator reflects the new size:\n{first}");
+}
