@@ -372,7 +372,8 @@ pub const STARTER_CONFIG: &str = r#"# org-ssg configuration. Every setting here 
 
 [site]
 title = "org-ssg site"
-# Absolute base URL, no trailing slash. Leave empty to build with relative URLs only.
+# Absolute base URL, no trailing slash. Needed for feeds and canonical links, which
+# cannot be relative — set it and uncomment the [[collections]] feed block below.
 base_url = ""
 description = ""
 language = "en"
@@ -417,6 +418,14 @@ order = "desc"             # desc | asc
 nav = true                 # put this listing page in the site nav
 # paginate = 10            # entries per page; page 1 stays at `output`
 # paginate_output = "blog/page/{n}.html"   # where pages 2..N go; needs {n}
+
+# An RSS feed is a listing page with an XML template. It needs site.base_url above,
+# because a feed is read away from the site that served it and relative links break.
+# [[collections]]
+# source = "blog"
+# output = "feed.xml"
+# template = "feed.xml"
+# title = "Feed"
 
 # One page per tag, plus an index of all tags. `{tag}` in `output`/`title` is replaced
 # by each tag; the index gets `groups` instead of `pages`.

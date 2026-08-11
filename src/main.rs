@@ -132,7 +132,9 @@ fn main() -> Result<()> {
 /// in a directory that has content is safe and additive rather than destructive.
 fn init(dir: &Utf8Path) -> Result<()> {
     use org_ssg::config::{CONFIG_FILE, STARTER_CONFIG};
-    use org_ssg::template::{starter_template, STARTER_LIST_TEMPLATE, STARTER_TAGS_TEMPLATE};
+    use org_ssg::template::{
+        starter_template, STARTER_FEED_TEMPLATE, STARTER_LIST_TEMPLATE, STARTER_TAGS_TEMPLATE,
+    };
 
     fs::create_dir_all(dir).with_context(|| format!("creating {dir}"))?;
     fs::create_dir_all(dir.join("templates")).with_context(|| format!("creating {dir}/templates"))?;
@@ -165,11 +167,12 @@ fn init(dir: &Utf8Path) -> Result<()> {
         "in org-ssg.toml, newest first.\n",
     );
 
-    let files: [(Utf8PathBuf, &str); 6] = [
+    let files: [(Utf8PathBuf, &str); 7] = [
         (dir.join(CONFIG_FILE), STARTER_CONFIG),
         (dir.join("templates/base.html"), starter_template()),
         (dir.join("templates/list.html"), STARTER_LIST_TEMPLATE),
         (dir.join("templates/tags.html"), STARTER_TAGS_TEMPLATE),
+        (dir.join("templates/feed.xml"), STARTER_FEED_TEMPLATE),
         (dir.join("index.org"), index),
         (dir.join("blog/first-post.org"), post),
     ];
@@ -272,7 +275,7 @@ fn build_file(input: &Utf8Path, output: &Utf8Path) -> Result<()> {
     let dir = input.parent().unwrap_or_else(|| Utf8Path::new("."));
     let config = Config::load(dir)?;
     config.validate()?;
-    let templater = Templater::load(Some(&dir.join(&config.templates.dir)))?;
+    let templater = Templater::load(Some(&dir.join(&config.templates.dir)), &config.site.base_url)?;
     let css_text = render::syntax_css(&config.highlight.theme).ok_or_else(|| {
         anyhow::anyhow!(
             "unknown highlight.theme {:?}. Available: {}",

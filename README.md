@@ -43,7 +43,7 @@ value below is the default.
 ```toml
 [site]
 title = "org-ssg site"
-base_url = ""          # absolute URL, no trailing slash; empty = relative URLs only
+base_url = ""          # absolute URL, no trailing slash; needed for feeds/canonical links
 description = ""
 language = "en"
 
@@ -200,9 +200,32 @@ changed — four pages, not one per tag. That precision is why `groups` is given
 index and not to every group page: a page that can see every group depends on every
 group.
 
+#### Feeds and absolute URLs
+
 **A feed is a listing page with an XML template**, not a separate feature — templates are
 loaded by full filename and any extension, so `output = "feed.xml"` with
-`template = "feed.xml"` is all it takes.
+`template = "feed.xml"` is all it takes. `org-ssg init` writes a working RSS template.
+
+A feed is read away from the site that served it, so relative links in one are simply
+broken. Set `site.base_url` and use the `absolute` filter:
+
+```jinja
+<link>{{ post.url | absolute }}</link>
+<pubDate>{{ post.date_iso | rfc822 }}</pubDate>
+```
+
+| Filter | Does |
+|---|---|
+| `absolute` | site-root-relative path → absolute URL; already-absolute URLs pass through |
+| `rfc822` | any org or ISO date → the format RSS `pubDate` requires |
+
+Apply `absolute` to the site-root-relative values — `page.url`, `pages[].url`,
+`group.url` — and not to `nav[].url`, `paginator.*_url`, `stylesheet` or `root`, which
+are relative to the page carrying them and already correct there.
+
+With no `base_url`, `absolute` is an **error** naming the setting, rather than quietly
+emitting a relative URL that would make the feed invalid everywhere while looking fine.
+The default layout also emits `<link rel="canonical">` when a base URL is set.
 
 Listing pages are cached on the entries they list, so adding a post re-renders that
 section's index and nothing else.
@@ -278,6 +301,7 @@ all-of-org. Phase 0 checked this line against a real 179-file corpus and found i
 | **9** | **Generated listing pages: `[[collections]]`, sorted indexes, feeds via XML templates** | **done** |
 | **10** | **Grouped collections: one page per tag plus a tag index — full parity with the incumbent** | **done** |
 | **11** | **Pagination: numbered pages with a `paginator` context, composing with grouping** | **done** |
+| **12** | **`base_url`: `absolute`/`rfc822` filters, a valid RSS feed in the scaffold, canonical links** | **done** |
 
 ### v0.2 in / out
 
@@ -541,7 +565,7 @@ PARSE/RESOLVE/RENDER), `chrono`, `camino`, `walkdir`, `clap`, `anyhow`/`thiserro
 
 ```
 cargo build
-cargo test                                                # 115 tests
+cargo test                                                # 122 tests
 cargo run -- init my-site                                 # scaffold a new site
 cargo run -- build fixtures/minimal.org -o minimal.html   # single file
 cargo run -- build fixtures/site -o _site                 # whole site (incremental)

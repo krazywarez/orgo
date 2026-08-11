@@ -66,6 +66,9 @@ const BASE_TEMPLATE: &str = r#"<!DOCTYPE html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{ page.title }} &middot; {{ site.title }}</title>
+{%- if site.base_url %}
+<link rel="canonical" href="{{ page.url | absolute }}">
+{%- endif %}
 {%- if page.description %}
 <meta name="description" content="{{ page.description }}">
 {%- endif %}
@@ -118,7 +121,7 @@ impl Templater {
     /// exists but contains a template that does not compile is an error: it means
     /// someone is actively editing their layout, and rendering the built-in default
     /// instead would look like their edit silently did nothing.
-    pub fn load(dir: Option<&Utf8Path>) -> Result<Self> {
+    pub fn load(dir: Option<&Utf8Path>, base_url: &str) -> Result<Self> {
         let mut sources: Vec<(String, String)> = Vec::new();
 
         if let Some(dir) = dir.filter(|d| d.is_dir()) {
@@ -156,6 +159,7 @@ impl Templater {
 
         let mut env = Environment::new();
         env.set_formatter(html_formatter);
+        add_filters(&mut env, base_url);
         for (name, source) in &sources {
             // `Environment<'static>` needs owned sources; leaking is bounded by the
             // template count and lives as long as the build anyway.
@@ -388,6 +392,93 @@ pub const STARTER_LIST_TEMPLATE: &str = r#"<!DOCTYPE html>
 </main>
 </body>
 </html>
+"#;
+
+/// Filters a template can use beyond minijinja's built-ins.
+///
+/// Both exist for the same reason: a syndication feed has requirements an HTML page does
+/// not, and satisfying them by hand in a template is the kind of thing that produces a
+/// feed which *looks* right and fails validation.
+fn add_filters(env: &mut Environment<'static>, base_url: &str) {
+    let base = base_url.trim_end_matches('/').to_string();
+
+    // `absolute`: a site-root-relative path → an absolute URL.
+    //
+    // Feeds are read away from the site that served them, so relative links in one are
+    // simply broken. Applies to the site-root-relative paths — `page.url`, `pages[].url`,
+    // `group.url` — and not to `nav[].url`, `paginator.*_url`, `stylesheet` or `root`,
+    // which are relative to the page carrying them and already correct in a page.
+    env.add_filter(
+        "absolute",
+        move |path: &str| -> Result<String, minijinja::Error> {
+            if base.is_empty() {
+                // Returning the relative path would produce a feed that validates
+                // nowhere and looks fine everywhere. Say what is missing instead.
+                return Err(minijinja::Error::new(
+                    minijinja::ErrorKind::InvalidOperation,
+                    "the `absolute` filter needs site.base_url, which is empty; \
+                     set it in org-ssg.toml (e.g. base_url = \"https://example.com\")",
+                ));
+            }
+            if path.starts_with("http://") || path.starts_with("https://") {
+                return Ok(path.to_string());
+            }
+            Ok(format!("{base}/{}", path.trim_start_matches('/')))
+        },
+    );
+
+    // `rfc822`: an org or ISO date → the format RSS `pubDate` requires.
+    env.add_filter("rfc822", |raw: &str| -> Result<String, minijinja::Error> {
+        let iso = crate::util::iso_date(raw).ok_or_else(|| {
+            minijinja::Error::new(
+                minijinja::ErrorKind::InvalidOperation,
+                format!("cannot read a date out of {raw:?} for an RSS pubDate"),
+            )
+        })?;
+        let date = chrono::NaiveDate::parse_from_str(&iso, "%Y-%m-%d").map_err(|e| {
+            minijinja::Error::new(
+                minijinja::ErrorKind::InvalidOperation,
+                format!("{iso} is not a valid date: {e}"),
+            )
+        })?;
+        // Org dates carry no timezone, so midnight UTC is the honest reading of one.
+        Ok(date
+            .and_hms_opt(0, 0, 0)
+            .expect("midnight is a valid time")
+            .format("%a, %d %b %Y %H:%M:%S +0000")
+            .to_string())
+    });
+}
+
+/// The starter RSS feed written by `org-ssg init`. A listing page with an XML template:
+/// no feed-specific machinery, just `absolute` and `rfc822` doing what syndication needs.
+///
+/// Emitted commented-out guidance rather than a broken feed when `site.base_url` is
+/// unset — see the `init` scaffold, which leaves the feed collection commented out until
+/// there is a base URL to make absolute links from.
+pub const STARTER_FEED_TEMPLATE: &str = r#"<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+<channel>
+<title>{{ site.title }}</title>
+<link>{{ "index.html" | absolute }}</link>
+<description>{{ site.description }}</description>
+<language>{{ site.language }}</language>
+<atom:link href="{{ page.url | absolute }}" rel="self" type="application/rss+xml"/>
+{%- for post in pages %}
+<item>
+<title>{{ post.title }}</title>
+<link>{{ post.url | absolute }}</link>
+<guid isPermaLink="true">{{ post.url | absolute }}</guid>
+{%- if post.date_iso %}
+<pubDate>{{ post.date_iso | rfc822 }}</pubDate>
+{%- endif %}
+{%- for tag in post.tags %}
+<category>{{ tag }}</category>
+{%- endfor %}
+</item>
+{%- endfor %}
+</channel>
+</rss>
 "#;
 
 /// HTML-escape template output, escaping the same characters Jinja2 does.

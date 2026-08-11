@@ -164,3 +164,23 @@ pub fn normalize_link_path(from_rel: &Utf8Path, path: &Utf8Path) -> Utf8PathBuf 
     }
     Utf8PathBuf::from(stack.join("/"))
 }
+
+/// The `YYYY-MM-DD` inside an org date, if there is one. Org dates arrive as
+/// `[2025-09-05 Fri 10:21:00]`, `<2024-05-01 Wed>` or bare `2024-05-01`, and a listing
+/// needs one key it can sort on.
+pub fn iso_date(raw: &str) -> Option<String> {
+    let bytes = raw.as_bytes();
+    for i in 0..bytes.len().saturating_sub(9) {
+        let window = &bytes[i..i + 10];
+        let digits = |r: std::ops::Range<usize>| window[r].iter().all(u8::is_ascii_digit);
+        if digits(0..4) && window[4] == b'-' && digits(5..7) && window[7] == b'-' && digits(8..10) {
+            // Must not be part of a longer number, or `123-45-6789` would parse.
+            let before_ok = i == 0 || !bytes[i - 1].is_ascii_digit();
+            let after_ok = i + 10 >= bytes.len() || !bytes[i + 10].is_ascii_digit();
+            if before_ok && after_ok {
+                return Some(raw[i..i + 10].to_string());
+            }
+        }
+    }
+    None
+}

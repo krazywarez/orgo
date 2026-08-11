@@ -1297,3 +1297,175 @@ fn page_count_changes_add_and_remove_page_files() {
     let first = page(&out, "blog/index.html");
     assert!(first.contains("page 1/1 of 2"), "the paginator reflects the new size:\n{first}");
 }
+
+// ---------------------------------------------------------------------------
+// base_url and absolute URLs
+// ---------------------------------------------------------------------------
+
+/// A site with a feed collection, optionally with a base URL configured.
+fn write_feed_site(src: &Utf8PathBuf, base_url: &str) {
+    std::fs::create_dir_all(src.join("blog")).unwrap();
+    std::fs::create_dir_all(src.join("templates")).unwrap();
+    std::fs::write(src.join("index.org"), "#+TITLE: Home\n\nWelcome.\n").unwrap();
+    std::fs::write(
+        src.join("blog/post.org"),
+        "#+TITLE: A Post\n#+DATE: [2026-02-02 Mon 09:15:00]\n#+FILETAGS: :rust:\n\nBody.\n",
+    )
+    .unwrap();
+    std::fs::write(
+        src.join("templates/feed.xml"),
+        "<?xml version=\"1.0\"?><rss version=\"2.0\"><channel>\
+         <link>{{ \"index.html\" | absolute }}</link>\
+         {% for p in pages %}<item><link>{{ p.url | absolute }}</link>\
+         <pubDate>{{ p.date_iso | rfc822 }}</pubDate></item>{% endfor %}\
+         </channel></rss>",
+    )
+    .unwrap();
+    std::fs::write(
+        src.join("org-ssg.toml"),
+        format!(
+            "[site]\nbase_url = \"{base_url}\"\n\n\
+             [[collections]]\nsource = \"blog\"\noutput = \"feed.xml\"\n\
+             template = \"feed.xml\"\ntitle = \"Feed\"\n"
+        ),
+    )
+    .unwrap();
+}
+
+/// A feed is read away from the site that served it, so its links have to be absolute.
+#[test]
+fn a_feed_gets_absolute_urls_from_base_url() {
+    let root = tmpdir("feedabs");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_feed_site(&src, "https://example.com");
+    let out = root.join("out");
+    build(&src, &out);
+
+    let feed = page(&out, "feed.xml");
+    assert!(
+        feed.contains("<link>https://example.com/blog/post.html</link>"),
+        "entry links are absolute:\n{feed}"
+    );
+    assert!(
+        feed.contains("<link>https://example.com/index.html</link>"),
+        "a literal path can be made absolute too:\n{feed}"
+    );
+    assert!(!feed.contains("<link>blog/"), "no relative link survives:\n{feed}");
+}
+
+/// RSS `pubDate` has a required format, and org dates are not in it.
+#[test]
+fn dates_convert_to_rfc822_for_rss() {
+    let root = tmpdir("feedrfc");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_feed_site(&src, "https://example.com");
+    let out = root.join("out");
+    build(&src, &out);
+
+    assert!(
+        page(&out, "feed.xml").contains("<pubDate>Mon, 02 Feb 2026 00:00:00 +0000</pubDate>"),
+        "an org timestamp becomes an RSS date:\n{}",
+        page(&out, "feed.xml")
+    );
+}
+
+/// Falling back to a relative URL would produce a feed that validates nowhere and looks
+/// fine everywhere. The error has to name the setting and the fix.
+#[test]
+fn absolute_without_a_base_url_is_an_error_that_says_what_to_set() {
+    let root = tmpdir("feednobase");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_feed_site(&src, "");
+
+    let err = build_site(&src, &root.join("out"), &BuildOptions::default())
+        .expect_err("absolute with no base_url must fail");
+    let message = format!("{err:#}");
+    assert!(message.contains("base_url"), "names the setting: {message}");
+    assert!(message.contains("org-ssg.toml"), "names where to set it: {message}");
+    assert!(message.contains("feed.xml"), "names the template: {message}");
+}
+
+/// A base URL with a trailing slash would produce `https://example.com//blog/x.html`.
+#[test]
+fn a_trailing_slash_on_base_url_is_rejected() {
+    let mut config = Config::default();
+    config.site.base_url = "https://example.com/".to_string();
+    let err = config.validate().expect_err("trailing slash must fail");
+    assert!(format!("{err:#}").contains("slash"), "{err:#}");
+}
+
+/// An already-absolute URL passes through, so a template can apply the filter uniformly
+/// to a mix of internal paths and external links.
+#[test]
+fn absolute_leaves_existing_absolute_urls_alone() {
+    let root = tmpdir("feedpass");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_feed_site(&src, "https://example.com");
+    std::fs::write(
+        src.join("templates/feed.xml"),
+        "<x>{{ \"https://other.example/a.html\" | absolute }}</x>",
+    )
+    .unwrap();
+    let out = root.join("out");
+    build(&src, &out);
+
+    assert_eq!(page(&out, "feed.xml"), "<x>https://other.example/a.html</x>");
+}
+
+/// Canonical links need an absolute URL, so the default layout emits one only when there
+/// is a base URL to build it from.
+#[test]
+fn the_default_layout_emits_a_canonical_link_only_with_a_base_url() {
+    for (base, expect) in [("https://example.com", true), ("", false)] {
+        let root = tmpdir("canonical");
+        let src = root.join("src");
+        std::fs::create_dir_all(&src).unwrap();
+        write_site(&src);
+        std::fs::write(
+            src.join("org-ssg.toml"),
+            format!("[site]\nbase_url = \"{base}\"\n"),
+        )
+        .unwrap();
+        let out = root.join("out");
+        build(&src, &out);
+
+        let html = page(&out, "blog/post.html");
+        assert_eq!(
+            html.contains("<link rel=\"canonical\" href=\"https://example.com/blog/post.html\">"),
+            expect,
+            "base_url {base:?} canonical presence:\n{html}"
+        );
+    }
+}
+
+/// `base_url` changes every absolute URL on the site, so it has to invalidate the cache
+/// like any other config change.
+#[test]
+fn changing_base_url_re_renders_the_site() {
+    let root = tmpdir("basehash");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_site(&src);
+    std::fs::write(
+        src.join("org-ssg.toml"),
+        "[site]\nbase_url = \"https://example.com\"\n",
+    )
+    .unwrap();
+    let out = root.join("out");
+    build(&src, &out);
+    assert!(build(&src, &out).rendered.is_empty(), "unchanged rebuild renders nothing");
+
+    std::fs::write(
+        src.join("org-ssg.toml"),
+        "[site]\nbase_url = \"https://moved.example\"\n",
+    )
+    .unwrap();
+    let report = build(&src, &out);
+
+    assert_eq!(report.rendered.len(), 3, "every page carries the base URL");
+    assert!(page(&out, "index.html").contains("https://moved.example/index.html"));
+}

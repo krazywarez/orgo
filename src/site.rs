@@ -32,7 +32,7 @@ use crate::template::{
     GroupContext, NavItem, PageContext, Paginator, PaginatorPage, RenderContext, SiteContext,
     Templater,
 };
-use crate::util::{output_path, output_url, relative_root, slugify};
+use crate::util::{iso_date, output_path, output_url, relative_root, slugify};
 
 /// A fully built page: source and output paths (relative to their roots) and its
 /// final templated HTML.
@@ -205,26 +205,6 @@ fn push_paginated(
             }),
         });
     }
-}
-
-/// The `YYYY-MM-DD` inside an org date, if there is one. Org dates arrive as
-/// `[2025-09-05 Fri 10:21:00]`, `<2024-05-01 Wed>` or bare `2024-05-01`, and a listing
-/// needs one key it can sort on.
-pub fn iso_date(raw: &str) -> Option<String> {
-    let bytes = raw.as_bytes();
-    for i in 0..bytes.len().saturating_sub(9) {
-        let window = &bytes[i..i + 10];
-        let digits = |r: std::ops::Range<usize>| window[r].iter().all(u8::is_ascii_digit);
-        if digits(0..4) && window[4] == b'-' && digits(5..7) && window[7] == b'-' && digits(8..10) {
-            // Must not be part of a longer number, or `123-45-6789` would parse.
-            let before_ok = i == 0 || !bytes[i - 1].is_ascii_digit();
-            let after_ok = i + 10 >= bytes.len() || !bytes[i + 10].is_ascii_digit();
-            if before_ok && after_ok {
-                return Some(raw[i..i + 10].to_string());
-            }
-        }
-    }
-    None
 }
 
 /// Build the listing pages a config asks for, each with its entries sorted.
@@ -637,7 +617,7 @@ pub fn render_site(src: &Utf8Path) -> Result<(Vec<BuiltPage>, BrokenLinks)> {
     config.validate()?;
     let (preps, _symbols) = prepare_pages(src, &config, None)?;
     let highlighter = SyntectHighlighter::new();
-    let templater = Templater::load(Some(&src.join(&config.templates.dir)))?;
+    let templater = Templater::load(Some(&src.join(&config.templates.dir)), &config.site.base_url)?;
     let site = site_context(&config);
     let listing = page_listing(&config, &preps);
     let render_opts = render_options(&config);
@@ -724,7 +704,7 @@ pub fn build_site(src: &Utf8Path, out: &Utf8Path, opts: &BuildOptions) -> Result
     let (_org_rel, assets) = discover(src, &cfg, Some(out))?;
     let (preps, symbols) = prepare_pages(src, &cfg, Some(out))?;
 
-    let templater = Templater::load(Some(&src.join(&cfg.templates.dir)))?;
+    let templater = Templater::load(Some(&src.join(&cfg.templates.dir)), &cfg.site.base_url)?;
     let syntax_css = render::syntax_css(&cfg.highlight.theme).ok_or_else(|| {
         anyhow::anyhow!(
             "unknown highlight.theme {:?}. Available: {}",
