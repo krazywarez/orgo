@@ -1,32 +1,28 @@
-# Security Policy
-
-## Supported Versions
-
-| Version | Supported |
-|---------|-----------|
-| latest release | yes |
-| anything older | no |
+* Security Policy
+** Supported Versions
+| Version        | Supported |
+|—————-+———--|
+| latest release | yes       |
+| anything older | no        |
 
 Fixes land in a new release rather than as patches to an old one.
 
-## Reporting
-
-Email <hello@cleberg.net>, or open a private advisory through GitHub's *Security* tab.
+** Reporting
+Email [[mailto:hello@cleberg.net][hello@cleberg.net]], or open a private advisory through GitHub's /Security/ tab.
 Please do not open a public issue for something exploitable.
 
-## What is worth reporting
-
-orgo reads org files and writes HTML, so the interesting cases are about what a *document*
+** What is worth reporting
+orgo reads org files and writes HTML, so the interesting cases are about what a /document/
 can make it do:
 
 - Content from a source file escaping into HTML unescaped — a page that can inject script
   into the site it is published on.
 - A path in a document or config that writes outside the output directory.
-- The `serve` development server reachable, or made reachable, beyond loopback, or serving
+- The =serve= development server reachable, or made reachable, beyond loopback, or serving
   files from outside the output directory.
 - A crash, hang or unbounded allocation triggered by a crafted org file. A build that
   refuses a file is fine; one that never finishes is not.
 
-Out of scope: `--strict` not catching something, an unhandled org construct rendering
+Out of scope: =--strict= not catching something, an unhandled org construct rendering
 oddly, and anything requiring you to run orgo against files you already do not trust while
 also deploying the result unread.
