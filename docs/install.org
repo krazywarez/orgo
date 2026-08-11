@@ -10,6 +10,14 @@
 - *Emacs (optional).* Only the differential test suite uses it, to compare output against
   org's own exporter. Nothing about building a site needs Emacs.
 
+* From crates.io
+
+#+BEGIN_SRC sh
+cargo install orgo
+#+END_SRC
+
+That is the whole thing: cargo builds it and puts =orgo= in =~/.cargo/bin=.
+
 * From source
 
 #+BEGIN_SRC sh
