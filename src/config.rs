@@ -200,7 +200,7 @@ pub enum SortOrder {
     Asc,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Build {
     /// Include pages marked `#+DRAFT:` in the build.
@@ -217,6 +217,23 @@ pub struct Build {
     /// does: weblorg publishes `theme/static/` to `/`, and a repository migrating from it
     /// should not have to move `robots.txt` next to its blog posts to keep the URL.
     pub assets: Vec<Utf8PathBuf>,
+    /// Write `sitemap.xml` listing every published page.
+    ///
+    /// On, but a sitemap requires absolute URLs — the format has nowhere to put a
+    /// relative one — so nothing is written until `site.base_url` is set. That is why a
+    /// zero-config build produces no sitemap and no complaint: there is no URL to give a
+    /// search engine yet.
+    pub sitemap: bool,
+}
+
+impl Default for Build {
+    fn default() -> Self {
+        Build {
+            drafts: false,
+            assets: Vec::new(),
+            sitemap: true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -585,6 +602,9 @@ drafts = false
 # source directory. `assets = ["../theme/static"]` publishes that directory's contents at
 # `/`, not at `/static/`.
 assets = []
+# Write sitemap.xml. Needs site.base_url — a sitemap has nowhere to put a relative URL —
+# so nothing is written until you set one.
+sitemap = true
 
 [html]
 # How far to push heading levels down: a level-1 org heading becomes <h(1 + offset)>.
