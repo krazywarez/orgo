@@ -7,7 +7,7 @@ use camino::{Utf8Path, Utf8PathBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::model::{Document, Section};
-use crate::util::{output_path, plain_text, slugify};
+use crate::util::{heading_anchor, output_path, plain_text};
 
 /// Identity of a link target. A target is owned by exactly one file (spec §4.3).
 ///
@@ -119,11 +119,7 @@ fn index_section(
     targets: &mut HashMap<TargetId, TargetLocation>,
 ) {
     if let Some(h) = &section.heading {
-        let anchor = h
-            .custom_id
-            .clone()
-            .or_else(|| h.id.clone())
-            .unwrap_or_else(|| slugify(&plain_text(&h.title)));
+        let anchor = heading_anchor(h);
         let mut record = |id: TargetId, anchor: Option<String>| {
             targets.insert(
                 id,

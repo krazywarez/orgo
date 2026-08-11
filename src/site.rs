@@ -33,8 +33,8 @@ use crate::template::{
     Templater,
 };
 use crate::util::{
-    document_text, first_paragraph, is_draft, iso_date, output_path, output_url, relative_root,
-    slugify,
+    document_text, first_paragraph, is_draft, iso_date, option_enabled, output_path, output_url,
+    relative_root, slugify, table_of_contents,
 };
 
 /// Reading speed for [`PageContext::reading_time`]. 200 wpm is the conventional figure
@@ -481,6 +481,7 @@ fn listing_context(listing: &Listing) -> PageContext {
         word_count: 0,
         reading_time: 0,
         keywords: Default::default(),
+        toc: Vec::new(),
     }
 }
 
@@ -613,7 +614,7 @@ fn prepare_pages(
             .collect();
 
             PagePrep {
-                context: page_context(doc, &output),
+                context: page_context(doc, &output, config),
                 source: doc.source_path.clone(),
                 output,
                 title: page_title(doc),
@@ -641,7 +642,6 @@ pub fn render_site(src: &Utf8Path) -> Result<(Vec<BuiltPage>, BrokenLinks)> {
     let templater = Templater::load(Some(&src.join(&config.templates.dir)), &config.site.base_url)?;
     let site = site_context(&config);
     let listing = page_listing(&config, &preps);
-    let render_opts = render_options(&config);
 
     let mut pages = Vec::new();
     let mut broken = Vec::new();
@@ -649,7 +649,7 @@ pub fn render_site(src: &Utf8Path) -> Result<(Vec<BuiltPage>, BrokenLinks)> {
         for t in &p.broken {
             broken.push((p.source.clone(), t.clone()));
         }
-        let html = render_page(&templater, &highlighter, &site, listing.as_deref(), &render_opts, p)?;
+        let html = render_page(&templater, &highlighter, &site, listing.as_deref(), &config, p)?;
         pages.push(BuiltPage {
             source: p.source.clone(),
             output: p.output.clone(),
@@ -660,9 +660,12 @@ pub fn render_site(src: &Utf8Path) -> Result<(Vec<BuiltPage>, BrokenLinks)> {
     Ok((pages, broken))
 }
 
-fn render_options(config: &Config) -> RenderOptions {
+/// Render options for one page: the site's settings, with the document's own
+/// `#+OPTIONS:` switches applied on top.
+fn render_options(config: &Config, keywords: &crate::model::Keywords) -> RenderOptions {
     RenderOptions {
         heading_offset: config.html.heading_offset,
+        section_numbers: option_enabled(keywords, "num", config.html.section_numbers),
     }
 }
 
@@ -691,10 +694,13 @@ fn render_page(
     highlighter: &SyntectHighlighter,
     site: &SiteContext,
     pages: Option<&[PageContext]>,
-    render_opts: &RenderOptions,
+    config: &Config,
     p: &PagePrep,
 ) -> Result<String> {
-    let Html(fragment) = render_with(&p.resolved, highlighter, render_opts);
+    // Options are resolved per page, because `#+OPTIONS:` is a per-document override of
+    // the site setting.
+    let opts = render_options(config, &p.resolved.document.keywords);
+    let Html(fragment) = render_with(&p.resolved, highlighter, &opts);
     // Relative to the *output* path, since `#+SLUG:` can move a page between depths.
     let root = relative_root(&p.output);
     let stylesheet = format!("{root}{SYNTAX_STYLESHEET}");
@@ -833,7 +839,6 @@ pub fn build_site(src: &Utf8Path, out: &Utf8Path, opts: &BuildOptions) -> Result
     let highlighter = SyntectHighlighter::new();
     let site = site_context(&cfg);
     let listing = page_listing(&cfg, &preps);
-    let render_opts = render_options(&cfg);
     let mut report = SiteReport::default();
 
     // RENDER + TEMPLATE + EMIT, in parallel. This is where a build's time actually goes
@@ -855,7 +860,7 @@ pub fn build_site(src: &Utf8Path, out: &Utf8Path, opts: &BuildOptions) -> Result
             if let Some(parent) = dest.parent() {
                 fs::create_dir_all(parent).with_context(|| format!("creating {parent}"))?;
             }
-            let html = render_page(&templater, &highlighter, &site, listing.as_deref(), &render_opts, p)?;
+            let html = render_page(&templater, &highlighter, &site, listing.as_deref(), &cfg, p)?;
             fs::write(&dest, &html).with_context(|| format!("writing {dest}"))?;
             Ok(true)
         })
@@ -1163,7 +1168,7 @@ fn is_top_level(output: &Utf8Path) -> bool {
 /// Everything a template can know about one page. Every `#+KEYWORD:` is passed through
 /// under its lowercased name, so a template can use metadata this crate has never heard
 /// of without the crate needing a release to support it.
-fn page_context(doc: &Document, output: &Utf8Path) -> PageContext {
+fn page_context(doc: &Document, output: &Utf8Path, config: &Config) -> PageContext {
     let words = document_text(&doc.root).split_whitespace().count();
     let keyword = |name: &str| {
         doc.keywords
@@ -1184,6 +1189,11 @@ fn page_context(doc: &Document, output: &Utf8Path) -> PageContext {
             .unwrap_or_default(),
         word_count: words,
         reading_time: words.div_ceil(WORDS_PER_MINUTE).max(usize::from(words > 0)),
+        toc: if option_enabled(&doc.keywords, "toc", config.html.toc) {
+            table_of_contents(&doc.root)
+        } else {
+            Vec::new()
+        },
         tags: keyword("FILETAGS")
             .unwrap_or_default()
             .split(':')

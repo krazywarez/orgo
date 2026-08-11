@@ -21,6 +21,13 @@ expression: "page(&pages, \"guide.org\").html"
 </header>
 <main>
 <h1>Guide</h1>
+<nav class="toc" aria-label="Table of contents">
+<h2>Contents</h2>
+<ul>
+<li><a href="#setup">Setup</a></li>
+<li><a href="#data">Data</a></li>
+</ul>
+</nav>
 <h2 id="setup">Setup</h2>
 <p>Install the steps in order.<sup class="footnote-ref"><a id="fnr-1" href="#fn-1">1</a></sup> Then return <a href="index.html">home</a>.</p>
 <h2 id="data">Data</h2>

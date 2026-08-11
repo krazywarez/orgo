@@ -1690,3 +1690,189 @@ fn draft_truthiness_is_forgiving_but_respects_an_explicit_negative() {
         "no keyword at all means published"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Table of contents, section numbers, and #+OPTIONS:
+// ---------------------------------------------------------------------------
+
+/// A page with nested headings, one of which sets its own `:CUSTOM_ID:`.
+fn write_toc_site(src: &Utf8PathBuf, options: &str, config: &str) {
+    std::fs::create_dir_all(src.join("templates")).unwrap();
+    std::fs::write(
+        src.join("index.org"),
+        format!(
+            "#+TITLE: Contents\n{options}\n\nIntro.\n\n\
+             * First\nBody.\n** Nested\nBody.\n\
+             * Second\n:PROPERTIES:\n:CUSTOM_ID: chosen-id\n:END:\nBody.\n"
+        ),
+    )
+    .unwrap();
+    std::fs::write(
+        src.join("templates/base.html"),
+        "<html><body>{% macro walk(es) %}<ul>{% for e in es %}\
+         <li>{{ e.level }}:{{ e.title }}@{{ e.anchor }}{% if e.children %}{{ walk(e.children) }}\
+         {% endif %}</li>{% endfor %}</ul>{% endmacro %}\
+         <nav>{{ walk(page.toc) }}</nav>{{ body | safe }}</body></html>",
+    )
+    .unwrap();
+    std::fs::write(src.join("org-ssg.toml"), config).unwrap();
+}
+
+/// A table of contents is a tree, and reconstructing one from a flat list of levels
+/// inside a template is the kind of thing Jinja is bad at.
+#[test]
+fn the_table_of_contents_mirrors_the_heading_tree() {
+    let root = tmpdir("toc");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_toc_site(&src, "", "");
+    let out = root.join("out");
+    build(&src, &out);
+
+    let html = page(&out, "index.html");
+    assert!(html.contains("<li>1:First@first"), "top level:\n{html}");
+    assert!(
+        html.contains("<li>1:First@first<ul><li>2:Nested@nested</li></ul></li>"),
+        "a child nests inside its parent's item:\n{html}"
+    );
+}
+
+/// The TOC links into the page, so its anchors must be the ones the headings actually
+/// carry — including a heading that chose its own `:CUSTOM_ID:`.
+#[test]
+fn toc_anchors_match_the_ids_the_headings_are_emitted_with() {
+    let root = tmpdir("tocanchor");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_toc_site(&src, "", "");
+    std::fs::write(
+        src.join("templates/base.html"),
+        "<html><body>{% for e in page.toc %}<a href=\"#{{ e.anchor }}\">x</a>{% endfor %}\
+         {{ body | safe }}</body></html>",
+    )
+    .unwrap();
+    let out = root.join("out");
+    build(&src, &out);
+
+    let html = page(&out, "index.html");
+    let links: Vec<&str> = html.matches("href=\"#").map(|_| "").collect();
+    assert_eq!(links.len(), 2, "one link per top-level heading");
+    assert!(html.contains("href=\"#chosen-id\""), ":CUSTOM_ID: wins:\n{html}");
+    assert!(
+        html.contains("<h2 id=\"chosen-id\">"),
+        "and the heading carries that same id:\n{html}"
+    );
+}
+
+/// Org's own per-file switch. 4 of the reference corpus's 179 files use exactly this to
+/// turn the table of contents off for one document.
+#[test]
+fn options_toc_nil_turns_the_toc_off_for_one_document() {
+    let root = tmpdir("tocnil");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_toc_site(&src, "#+OPTIONS: toc:nil", "");
+    let out = root.join("out");
+    build(&src, &out);
+
+    let html = page(&out, "index.html");
+    assert!(html.contains("<nav><ul></ul></nav>"), "the toc is empty:\n{html}");
+    assert!(html.contains("First"), "the page itself still renders:\n{html}");
+}
+
+/// The site-wide switch, for someone who never wants one.
+#[test]
+fn the_toc_can_be_disabled_site_wide() {
+    let root = tmpdir("tocoff");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_toc_site(&src, "", "[html]\ntoc = false\n");
+    let out = root.join("out");
+    build(&src, &out);
+
+    assert!(page(&out, "index.html").contains("<nav><ul></ul></nav>"));
+}
+
+/// Numbering is off by default — which differs from Emacs deliberately — and
+/// `#+OPTIONS: num:t` gets Emacs' behaviour back for a document.
+#[test]
+fn section_numbers_are_off_by_default_and_enabled_per_document() {
+    let root = tmpdir("secnum");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_toc_site(&src, "", "");
+    let out = root.join("out");
+    build(&src, &out);
+    assert!(
+        !page(&out, "index.html").contains("section-number"),
+        "no numbers unless asked for"
+    );
+
+    write_toc_site(&src, "#+OPTIONS: num:t", "");
+    let out2 = root.join("out2");
+    build(&src, &out2);
+    let html = page(&out2, "index.html");
+    // Emacs' own class names, so output stays diffable against the oracle.
+    assert!(html.contains("<span class=\"section-number-2\">1.</span> First"), "{html}");
+    assert!(html.contains("<span class=\"section-number-3\">1.1.</span> Nested"), "{html}");
+    assert!(html.contains("<span class=\"section-number-2\">2.</span> Second"), "{html}");
+}
+
+/// Deeper levels have to reset when a shallower one advances, or the second chapter's
+/// first section is numbered 1.3.
+#[test]
+fn section_numbering_resets_at_each_level() {
+    let root = tmpdir("secreset");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    std::fs::write(
+        src.join("index.org"),
+        "#+TITLE: T\n#+OPTIONS: num:t\n\n\
+         * One\n** A\n** B\n* Two\n** C\n*** Deep\n* Three\n",
+    )
+    .unwrap();
+    std::fs::write(src.join("org-ssg.toml"), "").unwrap();
+    let out = root.join("out");
+    build(&src, &out);
+
+    let html = page(&out, "index.html");
+    for (number, title) in [
+        ("1.", "One"),
+        ("1.1.", "A"),
+        ("1.2.", "B"),
+        ("2.", "Two"),
+        ("2.1.", "C"),
+        ("2.1.1.", "Deep"),
+        ("3.", "Three"),
+    ] {
+        assert!(
+            html.contains(&format!("</span> {title}</h")),
+            "{title} should be numbered:\n{html}"
+        );
+        assert!(html.contains(&format!(">{number}</span> {title}")), "{title} = {number}:\n{html}");
+    }
+}
+
+/// `#+OPTIONS:` is a space-separated list of switches, and org spells "off" several ways.
+#[test]
+fn export_options_parse_as_org_writes_them() {
+    use org_ssg::model::Keywords;
+    use org_ssg::util::option_enabled;
+    let keywords = |v: &str| Keywords {
+        entries: vec![("OPTIONS".to_string(), v.to_string())],
+    };
+
+    assert!(!option_enabled(&keywords("toc:nil num:t"), "toc", true));
+    assert!(option_enabled(&keywords("toc:nil num:t"), "num", false));
+    assert!(
+        option_enabled(&keywords("toc:nil"), "num", true),
+        "a switch the document does not mention keeps the site default"
+    );
+    assert!(
+        !option_enabled(&Keywords::default(), "toc", false),
+        "no #+OPTIONS: at all keeps the site default"
+    );
+    for off in ["nil", "false", "no", "0", "off"] {
+        assert!(!option_enabled(&keywords(&format!("toc:{off}")), "toc", true), "{off}");
+    }
+}

@@ -63,12 +63,15 @@ pub struct PageContext {
     /// Every `#+KEYWORD:` in the file, keyed by lowercased name, so a template can use
     /// project-specific metadata this crate has never heard of.
     pub keywords: BTreeMap<String, String>,
+    /// The page's headings as a tree. Empty when the page has none, when the site turns
+    /// `html.toc` off, or when the document opts out with `#+OPTIONS: toc:nil`.
+    pub toc: Vec<crate::util::TocEntry>,
 }
 
 /// The built-in layout, used when the templates directory has no `base.html`.
 /// Deliberately plain: it should be a working starting point and an obvious thing to
 /// replace, not a design anyone has to live with.
-const BASE_TEMPLATE: &str = r#"<!DOCTYPE html>
+const BASE_TEMPLATE: &str = r##"<!DOCTYPE html>
 <html lang="{{ site.language }}">
 <head>
 <meta charset="utf-8">
@@ -100,10 +103,24 @@ const BASE_TEMPLATE: &str = r#"<!DOCTYPE html>
 {%- if page.date %}
 <p class="page-date">{{ page.date }}</p>
 {%- endif %}
+{%- if page.toc | length > 1 %}
+{%- macro toc_list(entries) %}
+<ul>
+{%- for entry in entries %}
+<li><a href="#{{ entry.anchor }}">{{ entry.title }}</a>
+{%- if entry.children %}{{ toc_list(entry.children) }}{% endif %}</li>
+{%- endfor %}
+</ul>
+{%- endmacro %}
+<nav class="toc" aria-label="Table of contents">
+<h2>Contents</h2>
+{{- toc_list(page.toc) }}
+</nav>
+{%- endif %}
 {{ body | safe }}</main>
 </body>
 </html>
-"#;
+"##;
 
 /// The name a template must have to serve as the page layout.
 pub const BASE_TEMPLATE_NAME: &str = "base.html";

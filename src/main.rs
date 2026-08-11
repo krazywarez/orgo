@@ -280,6 +280,7 @@ fn build_file(input: &Utf8Path, output: &Utf8Path) -> Result<()> {
         word_count: 0,
         reading_time: 0,
         keywords: Default::default(),
+        toc: org_ssg::util::table_of_contents(&resolved.document.root),
     };
     let mut ctx = RenderContext::new(&site, &page_ctx, &[], SYNTAX_STYLESHEET, "");
     ctx.body = &fragment;

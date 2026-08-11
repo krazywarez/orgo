@@ -153,11 +153,28 @@ pub struct HtmlOutput {
     /// beneath it. Set to 0 if your template renders no title of its own, so the
     /// document does not start at `<h2>` with nothing above it.
     pub heading_offset: u8,
+    /// Make each page's table of contents available to templates as `page.toc`.
+    ///
+    /// On by default: it is *data*, and whether it appears is the template's business.
+    /// A document turns it off for itself with org's own `#+OPTIONS: toc:nil`, which is
+    /// how ~2% of the reference corpus does it.
+    pub toc: bool,
+    /// Number headings, `1.`, `1.1.`, and so on.
+    ///
+    /// Off by default, which differs from Emacs — `org-export-with-section-numbers` is
+    /// on there, and the reference site inherits numbered headings from it. Most sites
+    /// do not want them, so the default is the taste rather than the inheritance;
+    /// `#+OPTIONS: num:t` or `section_numbers = true` gets Emacs' behaviour back.
+    pub section_numbers: bool,
 }
 
 impl Default for HtmlOutput {
     fn default() -> Self {
-        HtmlOutput { heading_offset: 1 }
+        HtmlOutput {
+            heading_offset: 1,
+            toc: true,
+            section_numbers: false,
+        }
     }
 }
 

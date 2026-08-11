@@ -26,7 +26,7 @@ use syntect::util::LinesWithEndings;
 use crate::model::{Checkbox, Element, Link, LinkTarget, ListKind, Object, Section, TableRow};
 use crate::parser::is_image_target;
 use crate::resolve::ResolvedDoc;
-use crate::util::{plain_text, slugify};
+use crate::util::{heading_anchor, plain_text, slugify};
 
 /// A rendered HTML fragment (content only — no page chrome; spec §2.4).
 #[derive(Debug, Clone)]
@@ -137,6 +137,8 @@ struct Renderer<'a> {
     inline_defs: HashMap<String, Vec<Object>>,
     /// Reference keys in order of first appearance — drives numbering and note order.
     order: Vec<String>,
+    /// Counter per heading depth, for section numbers.
+    counters: Vec<usize>,
 }
 
 /// Options affecting how the tree becomes HTML. Presentation choices that belong to the
@@ -147,12 +149,17 @@ pub struct RenderOptions {
     /// beneath a page title supplied by the layout. See
     /// [`HtmlOutput::heading_offset`](crate::config::HtmlOutput::heading_offset).
     pub heading_offset: u8,
+    /// Prefix headings with `1.`, `1.1.`, … See
+    /// [`HtmlOutput::section_numbers`](crate::config::HtmlOutput::section_numbers).
+    pub section_numbers: bool,
 }
 
 impl Default for RenderOptions {
     fn default() -> Self {
+        let html = crate::config::HtmlOutput::default();
         RenderOptions {
-            heading_offset: crate::config::HtmlOutput::default().heading_offset,
+            heading_offset: html.heading_offset,
+            section_numbers: html.section_numbers,
         }
     }
 }
@@ -170,6 +177,7 @@ pub fn render_with(doc: &ResolvedDoc, highlighter: &dyn Highlighter, opts: &Rend
         block_defs: HashMap::new(),
         inline_defs: HashMap::new(),
         order: Vec::new(),
+        counters: Vec::new(),
     };
     r.collect_defs(&doc.document.root);
     let mut out = String::new();
@@ -190,17 +198,20 @@ impl Renderer<'_> {
     fn render_section(&mut self, section: &Section, out: &mut String) {
         if let Some(h) = &section.heading {
             let level = h.level.saturating_add(self.opts.heading_offset).clamp(1, 6);
-            let anchor = h
-                .custom_id
-                .clone()
-                .or_else(|| h.id.clone())
-                .unwrap_or_else(|| slugify(&plain_text(&h.title)));
+            let anchor = heading_anchor(h);
             // A heading with no title text has no meaningful slug; emit no `id` at all
             // rather than a run of duplicate empty ones.
             if anchor.is_empty() {
                 out.push_str(&format!("<h{}>", level));
             } else {
                 out.push_str(&format!("<h{} id=\"{}\">", level, escape_attr(&anchor)));
+            }
+            if self.opts.section_numbers {
+                let number = self.next_section_number(h.level);
+                out.push_str(&format!(
+                    "<span class=\"section-number-{}\">{number}</span> ",
+                    level
+                ));
             }
             // Keyword/priority markup mirrors Emacs' own HTML export classes, so output
             // stays diffable against an `emacs --batch` oracle.
@@ -230,6 +241,22 @@ impl Renderer<'_> {
         for child in &section.children {
             self.render_section(child, out);
         }
+    }
+
+    /// The next section number at `level`, e.g. `1.`, `1.1.`, `2.`.
+    ///
+    /// Deeper levels reset when a shallower one advances, and a document that skips a
+    /// level (a `***` under a `*`) simply starts the missing levels at 1 rather than
+    /// being treated as malformed.
+    fn next_section_number(&mut self, level: u8) -> String {
+        let depth = usize::from(level).max(1);
+        self.counters.truncate(depth);
+        while self.counters.len() < depth {
+            self.counters.push(0);
+        }
+        self.counters[depth - 1] += 1;
+        let parts: Vec<String> = self.counters.iter().map(usize::to_string).collect();
+        format!("{}.", parts.join("."))
     }
 
     fn render_element(&mut self, element: &Element, out: &mut String) {

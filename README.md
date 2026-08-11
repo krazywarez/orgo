@@ -72,7 +72,7 @@ receive:
 | Variable | What it is |
 |---|---|
 | `body` | the rendered page HTML — use `{{ body \| safe }}` |
-| `page` | `.title`, `.url`, `.source`, `.date`, `.date_iso`, `.tags`, `.excerpt`, `.word_count`, `.reading_time`, `.keywords` |
+| `page` | `.title`, `.url`, `.source`, `.date`, `.date_iso`, `.tags`, `.excerpt`, `.word_count`, `.reading_time`, `.toc`, `.keywords` |
 | `site` | `.title`, `.base_url`, `.description`, `.language` |
 | `nav` | list of `{title, url}`, relative to this page |
 | `root` | `../`-prefix back to the site root from this page |
@@ -231,6 +231,38 @@ The default layout also emits `<link rel="canonical">` when a base URL is set.
 Listing pages are cached on the entries they list, so adding a post re-renders that
 section's index and nothing else.
 
+### Table of contents and `#+OPTIONS:`
+
+`page.toc` is the page's headings as a **tree** — `{title, anchor, level, children}` —
+because a table of contents is one, and rebuilding a tree from a flat list of levels
+inside a template is what Jinja is worst at. Its anchors come from the same function the
+renderer uses to emit heading `id`s, so a TOC link cannot drift from the heading it
+points at.
+
+```jinja
+{% macro toc_list(entries) %}
+<ul>{% for e in entries %}
+  <li><a href="#{{ e.anchor }}">{{ e.title }}</a>
+  {%- if e.children %}{{ toc_list(e.children) }}{% endif %}</li>
+{% endfor %}</ul>
+{% endmacro %}
+{% if page.toc %}{{ toc_list(page.toc) }}{% endif %}
+```
+
+Org's own per-file export switches are honoured, so a document can turn a feature off for
+itself the way its author already knows:
+
+| Switch | Effect | Site default |
+|---|---|---|
+| `#+OPTIONS: toc:nil` | empties `page.toc` for this page | `[html] toc = true` |
+| `#+OPTIONS: num:t` | numbers headings `1.`, `1.1.`, … | `[html] section_numbers = false` |
+
+**Section numbers default to off, which differs from Emacs on purpose.**
+`org-export-with-section-numbers` is on there, so an org-published site inherits numbered
+headings whether or not anyone chose them. Most sites do not want them; `num:t` or
+`section_numbers = true` gets Emacs' behaviour back, with Emacs' own
+`section-number-N` classes so the output stays diffable against the oracle.
+
 ### Excerpts and drafts
 
 `page.excerpt` is a page's `#+DESCRIPTION:` when it sets one and its first paragraph
@@ -323,6 +355,7 @@ all-of-org. Phase 0 checked this line against a real 179-file corpus and found i
 | **12** | **`base_url`: `absolute`/`rfc822` filters, a valid RSS feed in the scaffold, canonical links** | **done** |
 | **13** | **`watch` on OS filesystem events, debounced, with the feedback loop closed** | **done** |
 | **14** | **Authoring: excerpts, word count, reading time, `truncate`, and draft pages** | **done** |
+| **15** | **Table of contents, section numbers, and org's `#+OPTIONS:` per-file switches** | **done** |
 
 ### v0.2 in / out
 
@@ -610,7 +643,7 @@ PARSE/RESOLVE/RENDER), `notify` (filesystem events for `watch`), `toml` (config)
 
 ```
 cargo build
-cargo test                                                # 135 tests
+cargo test                                                # 142 tests
 cargo run -- init my-site                                 # scaffold a new site
 cargo run -- build fixtures/minimal.org -o minimal.html   # single file
 cargo run -- build fixtures/site -o _site                 # whole site (incremental)

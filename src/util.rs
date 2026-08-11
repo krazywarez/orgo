@@ -4,7 +4,7 @@
 
 use camino::{Utf8Path, Utf8PathBuf};
 
-use crate::model::{Element, Keywords, Object, Section, TableRow};
+use crate::model::{Element, Heading, Keywords, Object, Section, TableRow};
 
 /// The output path for a document, relative to the site root.
 ///
@@ -73,6 +73,81 @@ fn plain_text_into(objs: &[Object], out: &mut String) {
             }
             Object::FootnoteRef { .. } | Object::Timestamp(_) | Object::LineBreak => {}
         }
+    }
+}
+
+/// The `id` a heading is emitted with, and therefore the fragment anything linking to it
+/// must use.
+///
+/// One function because there are three callers — the renderer emitting the `id`, INDEX
+/// recording link targets, and the table of contents linking into the page. Any drift
+/// between them is a link that silently goes nowhere.
+pub fn heading_anchor(heading: &Heading) -> String {
+    heading
+        .custom_id
+        .clone()
+        .or_else(|| heading.id.clone())
+        .unwrap_or_else(|| slugify(&plain_text(&heading.title)))
+}
+
+/// One entry in a page's table of contents.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct TocEntry {
+    pub title: String,
+    /// Fragment identifier, without the `#`.
+    pub anchor: String,
+    /// Org heading level, 1-based, before any `heading_offset` is applied.
+    pub level: u8,
+    pub children: Vec<TocEntry>,
+}
+
+/// A page's table of contents, mirroring its heading tree.
+///
+/// Nested rather than flat: a table of contents *is* a tree, and reconstructing one from
+/// a flat list of levels inside a template is the kind of thing Jinja is bad at.
+pub fn table_of_contents(root: &Section) -> Vec<TocEntry> {
+    root.children.iter().map(toc_entry).collect()
+}
+
+fn toc_entry(section: &Section) -> TocEntry {
+    let heading = section.heading.as_ref();
+    TocEntry {
+        title: heading.map(|h| plain_text(&h.title)).unwrap_or_default(),
+        anchor: heading.map(heading_anchor).unwrap_or_default(),
+        level: heading.map(|h| h.level).unwrap_or(1),
+        children: section.children.iter().map(toc_entry).collect(),
+    }
+}
+
+/// Parse `#+OPTIONS:` into its `key:value` switches.
+///
+/// Org's per-file export switches are a space-separated list — `toc:nil num:t` — and
+/// this is the standard way an author turns a feature off for one document.
+pub fn export_options(keywords: &Keywords) -> std::collections::BTreeMap<String, String> {
+    let mut out = std::collections::BTreeMap::new();
+    for (_, value) in keywords
+        .entries
+        .iter()
+        .filter(|(k, _)| k.eq_ignore_ascii_case("OPTIONS"))
+    {
+        for token in value.split_whitespace() {
+            if let Some((key, val)) = token.split_once(':') {
+                if !key.is_empty() {
+                    out.insert(key.to_ascii_lowercase(), val.to_ascii_lowercase());
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Whether an `#+OPTIONS:` switch is on, falling back to the site default when the
+/// document says nothing.
+pub fn option_enabled(keywords: &Keywords, key: &str, default: bool) -> bool {
+    match export_options(keywords).get(key).map(String::as_str) {
+        Some("nil" | "false" | "no" | "0" | "off") => false,
+        Some(_) => true,
+        None => default,
     }
 }
 
