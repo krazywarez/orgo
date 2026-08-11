@@ -6,6 +6,24 @@ expression: "parse_fixture(\"minimal.org\").root"
   "heading": null,
   "content": [
     {
+      "Keyword": {
+        "key": "TITLE",
+        "value": "Minimal Fixture"
+      }
+    },
+    {
+      "Keyword": {
+        "key": "DATE",
+        "value": "2026-08-08"
+      }
+    },
+    {
+      "Keyword": {
+        "key": "AUTHOR",
+        "value": "Owner"
+      }
+    },
+    {
       "Paragraph": [
         {
           "Text": "A single paragraph of preamble text before any heading."

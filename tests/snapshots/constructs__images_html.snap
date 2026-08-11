@@ -1,0 +1,14 @@
+---
+source: tests/constructs.rs
+expression: "render_fixture(\"images.org\")"
+---
+<h1 id="bare-image">Bare image</h1>
+<p><img src="diagram.png" alt=""></p>
+<h1 id="captioned-figure">Captioned figure</h1>
+<figure><img src="pipeline.svg" alt="The pipeline, end to end" width="640" class="diagram"><figcaption>The pipeline, end to end</figcaption></figure>
+<h1 id="caption-with-markup">Caption with markup</h1>
+<figure><img src="chart.png" alt="A stylised chart"><figcaption>A <em>stylised</em> chart</figcaption></figure>
+<h1 id="quoted-attribute-values">Quoted attribute values</h1>
+<figure><img src="cat.jpg" alt="a cat, sitting" loading="lazy"></figure>
+<h1 id="image-with-a-description-is-a-link">Image with a description is a link</h1>
+<p><a href="diagram.png">the diagram</a></p>

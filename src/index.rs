@@ -21,6 +21,19 @@ pub enum TargetId {
     File(Utf8PathBuf),
 }
 
+/// How a target is written in org source, so a broken-link warning names something the
+/// author can search for.
+impl std::fmt::Display for TargetId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TargetId::Id(s) => write!(f, "[[id:{s}]]"),
+            TargetId::CustomId(s) => write!(f, "[[#{s}]]"),
+            TargetId::Heading(s) => write!(f, "[[*{s}]]"),
+            TargetId::File(p) => write!(f, "[[file:{p}]]"),
+        }
+    }
+}
+
 impl TargetId {
     /// A stable string form used to order targets deterministically when hashing
     /// (so a page's `resolved_links_hash` does not depend on `HashSet` iteration order).

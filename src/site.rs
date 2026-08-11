@@ -23,10 +23,10 @@ use crate::incremental::{
 use crate::index::{document_targets, SymbolTable, TargetId};
 use crate::model::{ContentHash, Document};
 use crate::parser::parse;
-use crate::render::{render, Html, SyntectHighlighter};
+use crate::render::{render, syntax_css, Html, SyntectHighlighter};
 use crate::resolve::resolve;
 use crate::template::{template_sources, NavItem, Templater};
-use crate::util::output_url;
+use crate::util::{output_url, relative_root};
 
 /// A fully built page: source and output paths (relative to their roots) and its
 /// final templated HTML.
@@ -142,7 +142,7 @@ fn prepare_pages(src: &Utf8Path) -> Result<(Vec<PagePrep>, SymbolTable)> {
 /// touching the output directory. Shared by the tests (full render, every page).
 pub fn render_site(src: &Utf8Path) -> Result<(Vec<BuiltPage>, BrokenLinks)> {
     let (preps, _symbols) = prepare_pages(src)?;
-    let highlighter = SyntectHighlighter;
+    let highlighter = SyntectHighlighter::new();
     let templater = Templater::new();
 
     let mut pages = Vec::new();
@@ -169,10 +169,14 @@ fn render_page(
     p: &PagePrep,
 ) -> Result<String> {
     let Html(fragment) = render(&p.resolved, highlighter);
+    let stylesheet = format!("{}{}", relative_root(&p.source), SYNTAX_STYLESHEET);
     templater
-        .render_page(&p.title, &fragment, &p.nav)
+        .render_page(&p.title, &fragment, &p.nav, &stylesheet)
         .with_context(|| format!("templating {}", p.source))
 }
+
+/// Site-root-relative name of the generated syntax stylesheet. Every page links to it.
+pub const SYNTAX_STYLESHEET: &str = "syntax.css";
 
 /// Full site build with the incremental layer (spec §4). Renders only the pages whose
 /// `render_key` changed or that link into a changed file's targets; reuses the on-disk
@@ -243,7 +247,7 @@ pub fn build_site(src: &Utf8Path, out: &Utf8Path, opts: &BuildOptions) -> Result
         }
     }
 
-    let highlighter = SyntectHighlighter;
+    let highlighter = SyntectHighlighter::new();
     let templater = Templater::new();
     let mut report = SiteReport::default();
 
@@ -266,6 +270,12 @@ pub fn build_site(src: &Utf8Path, out: &Utf8Path, opts: &BuildOptions) -> Result
             report.skipped.push(p.output.clone());
         }
     }
+
+    // The syntax stylesheet the highlighter's CSS classes refer to. Written every build
+    // (it is a few KB and depends only on the theme, which lives in the config hash).
+    fs::create_dir_all(out).with_context(|| format!("creating {out}"))?;
+    fs::write(out.join(SYNTAX_STYLESHEET), syntax_css())
+        .with_context(|| format!("writing {SYNTAX_STYLESHEET} under {out}"))?;
 
     // Assets are a dumb copy in v0.3 (spec §8 Q11): copy every run. Cheap, and keeps the
     // full-vs-incremental byte equivalence trivially true for non-`.org` files.
@@ -295,7 +305,7 @@ pub fn build_site(src: &Utf8Path, out: &Utf8Path, opts: &BuildOptions) -> Result
 
     if opts.strict && !report.broken.is_empty() {
         for (page, target) in &report.broken {
-            eprintln!("error: unresolved link in {page}: {target:?}");
+            eprintln!("error: {page}: unresolved link {target}");
         }
         anyhow::bail!(
             "{} unresolved internal link(s) under --strict",
@@ -303,7 +313,7 @@ pub fn build_site(src: &Utf8Path, out: &Utf8Path, opts: &BuildOptions) -> Result
         );
     }
     for (page, target) in &report.broken {
-        eprintln!("warning: unresolved link in {page}: {target:?}");
+        eprintln!("warning: {page}: unresolved link {target}");
     }
 
     Ok(report)

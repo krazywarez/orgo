@@ -1,0 +1,55 @@
+#+TITLE: Out of Scope
+#+INCLUDE: "other.org"
+
+Every construct here is on the README's explicit OUT list. The contract is not that we
+handle them — it is that they degrade predictably and never crash the build.
+
+* Babel
+
+#+BEGIN_SRC sh :results output :exports both
+echo "the block renders; :results is never executed"
+#+END_SRC
+
+#+RESULTS:
+: stale output from a previous evaluation
+
+* Table formulas
+
+| item | cost |
+|------+------|
+| a    |    1 |
+| b    |    2 |
+#+TBLFM: $2=vsum(@2..@3)
+
+* LaTeX
+
+Inline math $x^2 + y^2$ and a display block:
+
+\begin{equation}
+E = mc^2
+\end{equation}
+
+* Macros and radio targets
+
+A macro call {{{author}}} and a <<<radio target>>> stay literal.
+
+* Drawers
+
+:LOGBOOK:
+CLOCK: [2024-01-15 Mon 09:00]--[2024-01-15 Mon 10:00] =>  1:00
+:END:
+
+:CUSTOM_DRAWER:
+Drawer contents are captured and dropped.
+:END:
+
+* Verse
+
+#+BEGIN_VERSE
+An unmodelled block type
+keeps its content verbatim.
+#+END_VERSE
+
+* Entities
+
+The full entity set is out of scope, so \alpha stays literal.

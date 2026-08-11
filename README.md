@@ -32,7 +32,7 @@ is the only inherently global stage — it is where the link dependency graph is
 | TEMPLATE | `src/template.rs` | minijinja: fragment + metadata → full page. |
 | incremental | `src/incremental.rs` | Content/config/template hashing, dep graph, cache manifest, invalidation. |
 
-## v1 scope (recommended; must be reconciled against a corpus audit first)
+## v1 scope (delivered as of v0.4; still to be reconciled against a corpus audit)
 
 **IN — v1 must handle:** headings with nesting; TODO keywords; priorities `[#A]`; tags;
 property drawers; plain lists (unordered/ordered/description, checkboxes, nesting);
@@ -47,10 +47,11 @@ paragraphs and horizontal rules; images with `#+CAPTION`/`#+ATTR_HTML`.
 macros; drawers other than PROPERTIES/LOGBOOK; column view / clocking / agenda
 semantics; non-HTML export blocks; the full Unicode entity set.
 
-**Scope guardrail:** every IN item gets a golden-file fixture from a real document;
-every OUT item gets a test asserting it degrades predictably (ignored, no crash). The
-IN/OUT line is enforced by tests, defending against the project's #1 risk: scope creep
-back toward all-of-org.
+**Scope guardrail:** every IN item gets a golden-file fixture; every OUT item gets a test
+asserting it degrades predictably (ignored, no crash). The IN/OUT line is enforced by
+`tests/constructs.rs`, defending against the project's #1 risk: scope creep back toward
+all-of-org. The fixtures are hand-written today; deriving them from a real corpus is
+Phase 0.
 
 ## Phase plan
 
@@ -60,14 +61,15 @@ back toward all-of-org.
 | **v0.1** | **End-to-end core parse → render: `build` a single `.org` file to HTML** | **done** |
 | **v0.2** | **Multi-file SITE build: INDEX + RESOLVE internal links, minijinja templates, `build <src-dir> <out-dir>`, tables + footnotes** | **done** |
 | **v0.3** | **Incremental build layer: content/config/template hashing, dependency graph, per-page render keys, persisted cache manifest, invalidation** | **done** |
+| **v0.4** | **MVP: the full v1 construct scope — heading metadata, nested/description lists, block types, timestamps, images, syntect highlighting — with the IN/OUT line under test** | **done** |
 | 0 | Corpus audit + `emacs --batch` ground-truth oracle | todo |
 | 1 | Line lexer + heading/section skeleton | done |
-| 2 | Block elements — lists, source blocks, tables, footnote defs done; generic drawers | partial |
-| 3 | Inline objects — emphasis, links, bare URLs, footnote refs done; timestamps | partial |
-| 4 | Rendering to HTML — tree walk, tables, footnote two-pass, minijinja templating done; real syntect highlighting | partial |
+| 2 | Block elements — lists, source blocks, tables, footnote defs, blocks by type, drawers | done |
+| 3 | Inline objects — emphasis, links, bare URLs, footnote refs, timestamps | done |
+| 4 | Rendering to HTML — tree walk, tables, footnote two-pass, minijinja templating, syntect highlighting | done |
 | 5 | Link resolution + symbol table (INDEX + RESOLVE, used-target list, broken-link reporting) | done |
 | 6 | Incremental build layer (hashing, dep graph, invalidation) done; `watch` is a simple poll loop | done |
-| 7 | Hardening: rayon parallelism, CLI polish, error locations | todo |
+| 7 | Hardening: rayon parallelism, error locations in parse diagnostics | todo |
 
 ### v0.2 in / out
 
@@ -82,9 +84,8 @@ plus two new constructs — pipe **tables** (with header band from the rule row)
 **footnotes** (block `[fn:1]` definitions, referenced `[fn:1]`, and inline `[fn:1:text]`,
 rendered as a numbered, back-linked notes section).
 
-**Still stubbed (`todo!`):** timestamps; TODO keywords and priorities; generic
-(non-PROPERTIES) drawers. Source-block syntax highlighting remains a `<pre><code>`
-passthrough behind the `Highlighter` trait; real syntect tokenizing is deferred.
+**Left stubbed at v0.2, all closed in v0.4:** timestamps; TODO keywords and priorities;
+generic (non-PROPERTIES) drawers; real syntect tokenizing behind the `Highlighter` trait.
 
 ### v0.3 in / out
 
@@ -121,11 +122,51 @@ re-renders exactly the changed page plus its linkers; **renamed-heading** invali
 linking page and updates its emitted anchor; and cache **version-bump / missing / corrupt**
 all fall back to a full rebuild.
 
-**Out of scope in v0.3 (unchanged from v0.2):** real syntect highlighting; timestamps and
-TODO keywords. `watch` is a minimal mtime poll loop (`watch <src-dir> -o <out-dir>`), not an
-OS file-watcher — the fs-notify integration is deferred. The parse-tree cache (spec §4.5,
+**Out of scope in v0.3:** real syntect highlighting; timestamps and TODO keywords (all
+landed in v0.4). `watch` is a minimal mtime poll loop (`watch <src-dir> -o <out-dir>`), not
+an OS file-watcher — the fs-notify integration is deferred. The parse-tree cache (spec §4.5,
 "optionally") is not persisted: PARSE/INDEX/RESOLVE run for every file each build (cheap and
 pure); the incremental win is on RENDER + EMIT.
+
+### v0.4 in / out — the MVP
+
+v0.4 closes the gap between the v1 scope above and what the code actually did, so every
+construct the IN list claims is now parsed, rendered, and pinned by a golden file:
+
+- **Heading metadata** — TODO keywords (the Emacs default `TODO`/`DONE` set, matched on a
+  word boundary so `TODOs` is not one) and `[#A]` priority cookies, rendered with Emacs'
+  own export classes so the output stays diffable against an `emacs --batch` oracle.
+- **Lists** — indentation-based nesting (a sub-list renders *inside* its parent `<li>`),
+  multi-paragraph item bodies, and `term :: definition` description lists as `<dl>`.
+- **Blocks by type** — `QUOTE`, `CENTER`, `EXAMPLE`, `EXPORT` and `SRC` are now distinct
+  elements rather than all collapsing to a verbatim example block. Block matching is on the
+  specific kind, so a source block can nest inside a quote. An `html` export block passes
+  through; every other backend drops.
+- **Timestamps** — active `<...>` and inactive `[...]`, optional times, same-day time
+  ranges and `--`-joined date ranges, rendered as `<time>` with a machine-readable
+  `datetime`. Repeater/warning cookies are recognized and discarded.
+- **Images** — a description-less link to an image file renders as `<img>`; with an
+  affiliated `#+CAPTION:`/`#+ATTR_HTML:` it is promoted to a `<figure>` with the caption as
+  both `<figcaption>` and alt text. Links to non-`.org` files are now understood as asset
+  links: neither resolved nor reported as broken.
+- **Syntax highlighting** — real syntect tokenizing to CSS classes (never inline styles, so
+  themes live in the stylesheet). Every build emits the matching `syntax.css` and each page
+  links it relative to its own depth. An unknown language degrades to escaped `<pre><code>`.
+- **Diagnostics** — broken links are reported as the org syntax the author wrote
+  (`warning: b.org: unresolved link [[#setup]]`) rather than a Debug-printed enum.
+
+**The OUT line is now enforced, not just asserted.** `tests/constructs.rs` pins each
+excluded construct to a specific degradation: babel is never executed *and* a checked-in
+`#+RESULTS:` block is dropped rather than published as if it were verified output;
+`#+TBLFM:` is inert; `#+INCLUDE:` is never expanded; LaTeX, macros and radio targets survive
+as literal text; drawers other than PROPERTIES are captured and dropped; unmodelled block
+types keep their content verbatim.
+
+**Still out at v0.4:** the Phase 0 corpus audit and `emacs --batch` oracle (the fixtures are
+hand-written, so "matches Emacs" is asserted by construction, not measured); rayon
+parallelism; parse errors carrying source locations; `#+TODO:` per-file keyword sequences;
+planning lines (`SCHEDULED:`/`DEADLINE:`), which render as ordinary paragraphs; fixed-width
+`: ` lines; and the `watch` fs-notify integration.
 
 **From v0.1 (core subset):** headings with nesting and anchors (every heading is now
 anchored — `:CUSTOM_ID:`/`:ID:` else a slug of its text) and trailing tags; paragraphs;
@@ -155,10 +196,14 @@ cargo run -- clean _site                                  # remove output + cach
 A second `build` of an unchanged site re-renders nothing; editing a page re-renders only
 that page and the pages that link into it (watch the `rendered`/`cached` counts).
 
-`fixtures/` holds tiny `.org` samples: single-file ones (`minimal.org`, `core.org`,
-`elements.org`, `table.org`, `footnote.org`) and a linked multi-file site under
-`fixtures/site/` (`index.org`, `guide.org`, `about.org` + a `style.css` asset). The
-real corpus (golden files derived from actual documents) lands in Phase 0. `cargo test`
-includes `insta` snapshots of the element tree and rendered HTML for the single-file
-fixtures, the two templated site pages (proving cross-file link resolution), and the
-table and footnote constructs.
+A build emits `syntax.css` next to its output (the highlighter emits CSS classes, so the
+stylesheet has to come with them) and every page links it.
+
+`fixtures/` holds tiny `.org` samples: the core ones (`minimal.org`, `core.org`,
+`elements.org`, `table.org`, `footnote.org`), one per v1 construct group (`headings.org`,
+`lists.org`, `blocks.org`, `timestamps.org`, `images.org`), the scope guardrail
+(`outofscope.org`), and a linked multi-file site under `fixtures/site/` (`index.org`,
+`guide.org`, `about.org` + a `style.css` asset). The real corpus (golden files derived from
+actual documents) lands in Phase 0. `cargo test` runs `insta` snapshots of the element tree
+and rendered HTML for each fixture, the two templated site pages (proving cross-file link
+resolution), and the incremental gates.

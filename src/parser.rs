@@ -9,18 +9,24 @@
 //! PARSE is a pure function of a single file's bytes (spec §2.1): it never depends on
 //! another file, which is what makes content-hash caching sound.
 //!
-//! v0.1 scope (the CORE subset): headings + nesting, property drawers on headings,
-//! paragraphs, plain lists (unordered + ordered) with checkboxes, source blocks, and
-//! inline markup (bold/italic/underline/strike/verbatim/code, links, bare URLs).
-//! Out of scope and left graceful (parsed-and-ignored, never crashing): tables,
-//! footnotes, timestamps, TODO keywords, non-SRC blocks (kept verbatim as example
-//! blocks), generic drawers other than PROPERTIES.
+//! Scope is the v1 IN list (README §"v1 scope"): headings with nesting, TODO keywords,
+//! priorities, tags and property drawers; paragraphs; plain lists (unordered, ordered,
+//! description) with checkboxes and nesting; tables; source/example/quote/center/export
+//! blocks; footnotes; `#+` keywords; inline markup, links, timestamps; images with
+//! `#+CAPTION`/`#+ATTR_HTML`.
+//!
+//! Out-of-scope constructs are parsed-and-ignored, never fatal: babel `:results` and
+//! `#+TBLFM:` are inert keywords, unknown block types keep their content verbatim as
+//! example blocks, generic drawers are captured and dropped at render, and LaTeX,
+//! macros and radio targets survive as literal text.
 
 use camino::Utf8Path;
+use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 
 use crate::model::{
     BlockParams, Bullet, Checkbox, ContentHash, Document, Element, Heading, Keywords, Link,
-    LinkTarget, List, ListItem, ListKind, Object, Properties, Section, Table, TableRow,
+    LinkTarget, List, ListItem, ListKind, Object, Properties, Section, Table, TableRow, Timestamp,
+    TodoKeyword,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -113,20 +119,23 @@ pub fn parse(path: &Utf8Path, source: &str) -> Result<Document, ParseError> {
         .collect();
     let first = heading_idxs.first().copied().unwrap_or(lines.len());
 
-    // Preamble: document-level keywords are lifted into `keywords`; the remaining
-    // lines become the root section's block content.
+    // Preamble: document-level keywords are *copied* into `keywords`, which is the
+    // metadata map. They are not removed from the body — collecting is not deleting.
+    // Dropping the lines would merge the paragraphs either side of a keyword and would
+    // strand affiliated keywords (`#+CAPTION:`) away from the element they belong to;
+    // left in place, `parse_elements` handles both. Affiliated keywords are not document
+    // metadata, so they are not copied.
     {
-        let mut body: Vec<&str> = Vec::new();
         for (l, c) in lines[..first].iter().zip(&classes[..first]) {
             if *c == Line::Keyword {
                 if let Some((k, v)) = keyword_kv(l) {
-                    keywords.entries.push((k, v));
+                    if !is_affiliated(&k) {
+                        keywords.entries.push((k, v));
+                    }
                 }
-            } else {
-                body.push(l);
             }
         }
-        root.content = parse_elements(&body);
+        root.content = parse_elements(&lines[..first]);
     }
 
     // Each heading segment runs from its own line up to (but excluding) the next heading.
@@ -206,19 +215,66 @@ fn heading_level(line: &str) -> Option<u8> {
     }
 }
 
+/// The default TODO keyword set, matching Emacs' out-of-the-box `org-todo-keywords`
+/// (`("TODO" "DONE")`) so our output can be diffed against an `emacs --batch` oracle.
+/// Per-file `#+TODO:` sequences are out of scope; the set is a documented [`BuildConfig`]
+/// slot for when it becomes configurable.
+///
+/// [`BuildConfig`]: crate::incremental::BuildConfig
+const TODO_KEYWORDS: &[(&str, bool)] = &[("TODO", false), ("DONE", true)];
+
 fn parse_heading(line: &str) -> Heading {
     let level = heading_level(line).unwrap_or(1);
     let rest = line[level as usize..].trim();
     let (title_str, tags) = split_tags(rest);
+    let (todo, after_todo) = split_todo(title_str.trim());
+    let (priority, title_str) = split_priority(after_todo);
     Heading {
         level,
-        todo: None,     // TODO keywords: out of scope for v0.1.
-        priority: None, // priorities: out of scope for v0.1.
+        todo,
+        priority,
         title: inline(title_str.trim()),
         tags,
         properties: Properties::default(),
         id: None,
         custom_id: None,
+    }
+}
+
+/// A leading TODO keyword: a bare word from the keyword set, followed by whitespace or
+/// end of the heading. `*  TODOs are great` is NOT a keyword (no word boundary).
+fn split_todo(title: &str) -> (Option<TodoKeyword>, &str) {
+    let word_end = title.find(char::is_whitespace).unwrap_or(title.len());
+    let word = &title[..word_end];
+    for (name, done) in TODO_KEYWORDS {
+        if word == *name {
+            return (
+                Some(TodoKeyword {
+                    name: (*name).to_string(),
+                    done: *done,
+                }),
+                title[word_end..].trim_start(),
+            );
+        }
+    }
+    (None, title)
+}
+
+/// A priority cookie `[#A]` immediately after the TODO keyword.
+fn split_priority(title: &str) -> (Option<char>, &str) {
+    let Some(rest) = title.strip_prefix("[#") else {
+        return (None, title);
+    };
+    let mut chars = rest.chars();
+    let Some(c) = chars.next().filter(|c| c.is_ascii_alphanumeric()) else {
+        return (None, title);
+    };
+    match chars.next() {
+        Some(']') => (
+            Some(c.to_ascii_uppercase()),
+            rest[c.len_utf8() + 1..].trim_start(),
+        ),
+        _ => (None, title),
     }
 }
 
@@ -311,6 +367,10 @@ fn parse_property(line: &str) -> Option<(String, String)> {
 
 fn parse_elements(lines: &[&str]) -> Vec<Element> {
     let mut out = Vec::new();
+    // Affiliated keywords (`#+CAPTION:` and friends) belong to the element that follows
+    // them, so they are held aside until that element is built.
+    let mut affiliated: Vec<(String, String)> = Vec::new();
+    let mut drop_next = false;
     let mut i = 0;
     while i < lines.len() {
         let line = lines[i];
@@ -318,68 +378,82 @@ fn parse_elements(lines: &[&str]) -> Vec<Element> {
             i += 1;
             continue;
         }
-        if let Some((kind, after)) = block_begin(line) {
-            let mut j = i + 1;
-            let mut inner = Vec::new();
-            while j < lines.len() && !is_block_end(lines[j]) {
-                inner.push(lines[j]);
-                j += 1;
-            }
-            let code = inner.join("\n");
-            if kind.eq_ignore_ascii_case("SRC") {
-                let (lang, params) = parse_src_header(&after);
-                out.push(Element::SrcBlock { lang, params, code });
-            } else {
-                // Non-SRC blocks (quote/example/center/export) are kept verbatim for
-                // v0.1 rather than richly modeled — see module scope note.
-                out.push(Element::ExampleBlock(code));
-            }
-            i = if j < lines.len() { j + 1 } else { j };
-            continue;
-        }
-        if is_rule(line) {
-            out.push(Element::HorizontalRule);
-            i += 1;
-            continue;
-        }
         if let Some((key, value)) = keyword_kv(line) {
-            out.push(Element::Keyword { key, value });
-            i += 1;
-            continue;
-        }
-        if line.trim_start().starts_with('|') {
-            let (table, next) = parse_table(lines, i);
-            out.push(Element::Table(table));
-            i = next;
-            continue;
-        }
-        if let Some((label, first_rest)) = footnote_def_label(line) {
-            let (def, next) = parse_footnote_def(lines, i, label, first_rest);
-            out.push(def);
-            i = next;
-            continue;
-        }
-        if is_list_item(line.trim_start()).is_some() {
-            let (list, next) = parse_list(lines, i);
-            out.push(Element::List(list));
-            i = next;
-            continue;
-        }
-        // Paragraph: gather consecutive soft-wrapped text lines.
-        let mut para = Vec::new();
-        while i < lines.len() {
-            let l = lines[i];
-            if l.trim().is_empty() || is_structural(l) {
-                break;
+            if key.eq_ignore_ascii_case("RESULTS") {
+                // Babel is never executed (README §OUT), so a checked-in `#+RESULTS:`
+                // block is output from someone else's Emacs session at some other time.
+                // Emitting it would put unverifiable content on the page dressed as
+                // real content, so the block it labels is dropped.
+                drop_next = true;
+            } else if is_affiliated(&key) {
+                affiliated.push((key, value));
+            } else {
+                out.push(Element::Keyword { key, value });
             }
-            para.push(l.trim());
             i += 1;
+            continue;
         }
-        if !para.is_empty() {
-            out.push(Element::Paragraph(inline(&para.join(" "))));
+        let (element, next) = parse_one_element(lines, i);
+        i = next;
+        if std::mem::take(&mut drop_next) {
+            affiliated.clear();
+            continue;
+        }
+        if let Some(element) = element {
+            out.push(attach_affiliated(element, std::mem::take(&mut affiliated)));
         }
     }
     out
+}
+
+/// Build the single element starting at `lines[start]`, returning it with the index of
+/// the first line past it. `None` means the lines were consumed without producing an
+/// element. `start` is guaranteed non-blank and not an affiliated keyword.
+fn parse_one_element(lines: &[&str], start: usize) -> (Option<Element>, usize) {
+    let line = lines[start];
+    if let Some(text) = comment_text(line) {
+        return (Some(Element::Comment(text)), start + 1);
+    }
+    if let Some((kind, after)) = block_begin(line) {
+        let (el, next) = parse_block(lines, start, &kind, &after);
+        return (Some(el), next);
+    }
+    if let Some(name) = drawer_begin_name(line) {
+        let (el, next) = parse_drawer(lines, start, name);
+        return (Some(el), next);
+    }
+    if is_rule(line) {
+        return (Some(Element::HorizontalRule), start + 1);
+    }
+    if line.trim_start().starts_with('|') {
+        let (table, next) = parse_table(lines, start);
+        return (Some(Element::Table(table)), next);
+    }
+    if let Some((label, first_rest)) = footnote_def_label(line) {
+        let (def, next) = parse_footnote_def(lines, start, label, first_rest);
+        return (Some(def), next);
+    }
+    if is_list_item(line.trim_start()).is_some() {
+        let (list, next) = parse_list(lines, start);
+        return (Some(Element::List(list)), next);
+    }
+    // Paragraph: gather consecutive soft-wrapped text lines.
+    let mut para = Vec::new();
+    let mut i = start;
+    while i < lines.len() {
+        let l = lines[i];
+        if l.trim().is_empty() || is_structural(l) {
+            break;
+        }
+        para.push(l.trim());
+        i += 1;
+    }
+    if para.is_empty() {
+        // `is_structural` said this line begins a construct that no branch above claimed
+        // (a stray `#+END_`); skip it rather than looping forever.
+        return (None, start + 1);
+    }
+    (Some(Element::Paragraph(inline(&para.join(" ")))), i)
 }
 
 /// Is this line the start of a non-paragraph construct?
@@ -389,10 +463,151 @@ fn is_structural(line: &str) -> bool {
         || is_block_end(line)
         || is_rule(line)
         || keyword_kv(line).is_some()
+        || comment_text(line).is_some()
+        || drawer_begin_name(line).is_some()
         || is_list_item(t).is_some()
         || t.starts_with('|')
         || footnote_def_label(line).is_some()
         || heading_level(line).is_some()
+}
+
+// ---------------------------------------------------------------------------
+// Blocks, drawers, comments, affiliated keywords
+// ---------------------------------------------------------------------------
+
+/// Consume `#+BEGIN_<KIND> … #+END_<KIND>`. Matching is on the *specific* kind so a
+/// source block can sit inside a quote block; an unterminated block runs to end of
+/// input rather than failing.
+fn parse_block(lines: &[&str], start: usize, kind: &str, after: &str) -> (Element, usize) {
+    let mut inner: Vec<&str> = Vec::new();
+    let mut j = start + 1;
+    while j < lines.len() && !is_block_end_of(lines[j], kind) {
+        inner.push(lines[j]);
+        j += 1;
+    }
+    let next = if j < lines.len() { j + 1 } else { j };
+    let element = match kind.to_ascii_uppercase().as_str() {
+        "SRC" => {
+            let (lang, params) = parse_src_header(after);
+            Element::SrcBlock {
+                lang,
+                params,
+                code: inner.join("\n"),
+            }
+        }
+        "EXAMPLE" => Element::ExampleBlock(inner.join("\n")),
+        "QUOTE" => Element::QuoteBlock(parse_elements(&inner)),
+        "CENTER" => Element::CenterBlock(parse_elements(&inner)),
+        "EXPORT" => Element::ExportBlock {
+            backend: after.split_whitespace().next().unwrap_or("").to_string(),
+            raw: inner.join("\n"),
+        },
+        // Out-of-scope block types (verse, comment, ascii, custom) degrade to a verbatim
+        // example block: content preserved, no crash.
+        _ => Element::ExampleBlock(inner.join("\n")),
+    };
+    (element, next)
+}
+
+/// `:NAME:` … `:END:` at block level. A PROPERTIES drawer directly under a heading is
+/// consumed by [`parse_section_body`]; anything reaching here is a generic drawer,
+/// which the renderer drops (README §OUT).
+fn parse_drawer(lines: &[&str], start: usize, name: String) -> (Element, usize) {
+    let mut inner: Vec<&str> = Vec::new();
+    let mut j = start + 1;
+    while j < lines.len() && !lines[j].trim().eq_ignore_ascii_case(":END:") {
+        inner.push(lines[j]);
+        j += 1;
+    }
+    let next = if j < lines.len() { j + 1 } else { j };
+    (
+        Element::Drawer {
+            name,
+            content: parse_elements(&inner),
+        },
+        next,
+    )
+}
+
+/// The drawer name in a `:NAME:` opening line, if this line is one. `:END:` closes a
+/// drawer rather than opening one.
+fn drawer_begin_name(line: &str) -> Option<String> {
+    let t = line.trim();
+    if !is_drawer_begin(t) {
+        return None;
+    }
+    let name = &t[1..t.len() - 1];
+    if name.eq_ignore_ascii_case("END") {
+        return None;
+    }
+    Some(name.to_string())
+}
+
+/// A comment line: `#` followed by whitespace or nothing. `#+KEY:` is a keyword (checked
+/// first) and `#hashtag` is ordinary text.
+fn comment_text(line: &str) -> Option<String> {
+    let rest = line.trim_start().strip_prefix('#')?;
+    if rest.is_empty() {
+        return Some(String::new());
+    }
+    if !rest.starts_with(char::is_whitespace) {
+        return None;
+    }
+    Some(rest.trim().to_string())
+}
+
+/// Keywords that attach to the element that follows them rather than standing alone.
+fn is_affiliated(key: &str) -> bool {
+    let k = key.to_ascii_uppercase();
+    matches!(k.as_str(), "CAPTION" | "NAME" | "ATTR_HTML")
+}
+
+/// A paragraph holding nothing but an image link becomes a block-level figure when a
+/// `#+CAPTION:`/`#+ATTR_HTML:` precedes it. Affiliated keywords on anything else are
+/// parsed and dropped (README §IN covers captions for images only).
+fn attach_affiliated(element: Element, affiliated: Vec<(String, String)>) -> Element {
+    let value = |key: &str| {
+        affiliated
+            .iter()
+            .find(|(k, _)| k.eq_ignore_ascii_case(key))
+            .map(|(_, v)| v.clone())
+    };
+    let caption = value("CAPTION").unwrap_or_default();
+    let attrs = value("ATTR_HTML").unwrap_or_default();
+    if caption.is_empty() && attrs.is_empty() {
+        return element;
+    }
+    let Element::Paragraph(objs) = &element else {
+        return element;
+    };
+    let [Object::Link(link)] = objs.as_slice() else {
+        return element;
+    };
+    if !is_image_target(&link.target) {
+        return element;
+    }
+    Element::Figure {
+        link: link.clone(),
+        caption: inline(&caption),
+        attrs,
+    }
+}
+
+/// Does this link point at an image file? Drives both figure promotion and inline
+/// `<img>` rendering.
+pub fn is_image_target(target: &LinkTarget) -> bool {
+    let path = match target {
+        LinkTarget::File { path, .. } => path.as_str(),
+        LinkTarget::External(url) => url.split(['?', '#']).next().unwrap_or(url),
+        _ => return false,
+    };
+    let Some(ext) = path.rsplit('.').next() else {
+        return false;
+    };
+    matches!(
+        ext.to_ascii_lowercase().as_str(),
+        "png" | "jpg" | "jpeg" | "gif" | "svg" | "webp" | "avif"
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -479,37 +694,140 @@ fn parse_footnote_def(
     (Element::FootnoteDefinition { label, content }, i)
 }
 
+/// Consume one plain list. Items are delimited by bullets at the list's own indent
+/// column; everything indented further is that item's body, re-parsed as block content —
+/// which is what makes lists nest. A single blank line does not end a list, but a blank
+/// line followed by anything that is not a sibling bullet does.
 fn parse_list(lines: &[&str], start: usize) -> (List, usize) {
-    let kind = match is_list_item(lines[start].trim_start()) {
-        Some(Bullet::Ordered(_)) => ListKind::Ordered,
+    let base = indent_of(lines[start]);
+    let family = bullet_family(&is_list_item(lines[start].trim_start()).expect("list item"));
+    // A list is a description list when its FIRST item carries a `::` term separator.
+    let kind = match (&family, split_term(item_text(lines[start].trim_start()))) {
+        (ListKind::Ordered, _) => ListKind::Ordered,
+        (_, Some(_)) => ListKind::Description,
         _ => ListKind::Unordered,
     };
+
     let mut items = Vec::new();
     let mut i = start;
-    while i < lines.len() {
-        let t = lines[i].trim_start();
-        let bullet = match is_list_item(t) {
-            Some(b) => b,
-            None => break,
-        };
-        let item_kind = match bullet {
-            Bullet::Ordered(_) => ListKind::Ordered,
-            _ => ListKind::Unordered,
-        };
-        if item_kind != kind {
+    loop {
+        // Skip blank lines, but only stay in the list if a sibling bullet follows.
+        let mut j = i;
+        while j < lines.len() && lines[j].trim().is_empty() {
+            j += 1;
+        }
+        if j >= lines.len() || indent_of(lines[j]) != base {
             break;
         }
-        let rest = item_body(t, &bullet);
-        let (checkbox, text) = split_checkbox(rest);
+        let Some(bullet) = is_list_item(lines[j].trim_start()) else {
+            break;
+        };
+        if bullet_family(&bullet) != family {
+            break;
+        }
+
+        // Body = the text after the bullet, plus every following line indented past the
+        // bullet column (blank lines included, so an item can hold several paragraphs).
+        let rest = item_body(lines[j].trim_start(), &bullet);
+        let (checkbox, rest) = split_checkbox(rest);
+        let (term, rest) = match kind {
+            ListKind::Description => match split_term(rest) {
+                Some((term, def)) => (Some(inline(term.trim())), def),
+                None => (None, rest),
+            },
+            _ => (None, rest),
+        };
+
+        let mut body: Vec<String> = vec![rest.trim().to_string()];
+        i = j + 1;
+        while i < lines.len() {
+            if lines[i].trim().is_empty() {
+                // Trailing blanks belong to the item only if more of it follows.
+                let mut k = i;
+                while k < lines.len() && lines[k].trim().is_empty() {
+                    k += 1;
+                }
+                if k < lines.len() && indent_of(lines[k]) > base {
+                    body.resize(body.len() + (k - i), String::new());
+                    i = k;
+                    continue;
+                }
+                break;
+            }
+            if indent_of(lines[i]) <= base {
+                break;
+            }
+            body.push(lines[i].to_string());
+            i += 1;
+        }
+
         items.push(ListItem {
             bullet,
             checkbox,
-            term: None, // description lists: out of scope for v0.1.
-            content: vec![Element::Paragraph(inline(text.trim()))],
+            term,
+            content: parse_elements(&dedent(&body)),
         });
-        i += 1;
     }
     (List { kind, items }, i)
+}
+
+/// Ordered and unordered bullets cannot share a list; description items use unordered
+/// bullets, so they are the same family.
+fn bullet_family(bullet: &Bullet) -> ListKind {
+    match bullet {
+        Bullet::Ordered(_) => ListKind::Ordered,
+        _ => ListKind::Unordered,
+    }
+}
+
+fn indent_of(line: &str) -> usize {
+    line.len() - line.trim_start().len()
+}
+
+/// Strip the common leading indent from an item's body lines so the recursive
+/// [`parse_elements`] call sees them at column zero. The first entry is already
+/// dedented (it is the text that followed the bullet), so it is excluded from the
+/// measurement.
+fn dedent(body: &[String]) -> Vec<&str> {
+    let common = body
+        .iter()
+        .skip(1)
+        .filter(|l| !l.trim().is_empty())
+        .map(|l| indent_of(l))
+        .min()
+        .unwrap_or(0);
+    body.iter()
+        .enumerate()
+        .map(|(idx, l)| {
+            if idx == 0 || l.len() < common {
+                l.as_str()
+            } else {
+                &l[common..]
+            }
+        })
+        .collect()
+}
+
+/// The text of a list item line after its bullet, for kind detection.
+fn item_text(t: &str) -> &str {
+    match is_list_item(t) {
+        Some(bullet) => item_body(t, &bullet),
+        None => t,
+    }
+}
+
+/// Split `term :: definition`. The separator must be surrounded by whitespace (or end
+/// the line) so `a::b` in code text is not mistaken for one.
+fn split_term(text: &str) -> Option<(&str, &str)> {
+    let idx = text.find(" :: ").or_else(|| {
+        text.strip_suffix(" ::")
+            .map(|before| before.len())
+    })?;
+    let term = &text[..idx];
+    if term.trim().is_empty() {
+        return None;
+    }
+    Some((term, text[idx..].trim_start_matches(" ::").trim_start()))
 }
 
 /// Text of a list item after its bullet marker.
@@ -565,6 +883,15 @@ fn block_begin(line: &str) -> Option<(String, String)> {
 
 fn is_block_end(line: &str) -> bool {
     line.trim_start().to_ascii_uppercase().starts_with("#+END_")
+}
+
+/// Does this line close a block of exactly `kind`?
+fn is_block_end_of(line: &str, kind: &str) -> bool {
+    let upper = line.trim().to_ascii_uppercase();
+    match upper.strip_prefix("#+END_") {
+        Some(rest) => rest.trim() == kind.to_ascii_uppercase(),
+        None => false,
+    }
 }
 
 fn parse_src_header(after: &str) -> (Option<String>, BlockParams) {
@@ -660,6 +987,14 @@ fn parse_inline_run(chars: &[char]) -> Vec<Object> {
         }
         if c == '[' && i + 1 < n && chars[i + 1] == '[' {
             if let Some((obj, next)) = try_link(chars, i) {
+                flush(&mut buf, &mut out);
+                out.push(obj);
+                i = next;
+                continue;
+            }
+        }
+        if c == '<' || c == '[' {
+            if let Some((obj, next)) = try_timestamp(chars, i) {
                 flush(&mut buf, &mut out);
                 out.push(obj);
                 i = next;
@@ -816,6 +1151,87 @@ fn try_bare_url(chars: &[char], i: usize) -> Option<(Object, usize)> {
         }),
         j,
     ))
+}
+
+// ---------------------------------------------------------------------------
+// Timestamps
+// ---------------------------------------------------------------------------
+
+/// An org timestamp: `<2024-01-15 Mon>` (active) or `[2024-01-15 Mon]` (inactive), with
+/// an optional `HH:MM` time, an optional `HH:MM-HH:MM` same-day range, and an optional
+/// `--`-joined second stamp for a multi-day range.
+fn try_timestamp(chars: &[char], i: usize) -> Option<(Object, usize)> {
+    let active = chars[i] == '<';
+    let (start, same_day_end, has_time, mut next) = parse_stamp(chars, i)?;
+    let mut end = same_day_end;
+    if end.is_none() && starts_with_at(chars, next, "--") {
+        // A range's two halves must agree on activeness, or it is two adjacent stamps.
+        if chars.get(next + 2) == Some(&chars[i]) {
+            if let Some((stamp_end, _, _, after)) = parse_stamp(chars, next + 2) {
+                end = Some(stamp_end);
+                next = after;
+            }
+        }
+    }
+    Some((
+        Object::Timestamp(Timestamp {
+            active,
+            start,
+            end,
+            has_time,
+        }),
+        next,
+    ))
+}
+
+/// One bracketed stamp → `(start, same-day end, has_time, index past the bracket)`.
+/// Day names (`Mon`) and repeater/warning cookies (`+1w`, `-2d`) are recognized and
+/// discarded — they carry no export meaning (README §OUT: agenda semantics).
+fn parse_stamp(
+    chars: &[char],
+    i: usize,
+) -> Option<(NaiveDateTime, Option<NaiveDateTime>, bool, usize)> {
+    let open = *chars.get(i)?;
+    let close = match open {
+        '<' => '>',
+        '[' => ']',
+        _ => return None,
+    };
+    let end = (i + 1..chars.len()).find(|&k| chars[k] == close)?;
+    let body: String = chars[i + 1..end].iter().collect();
+    let mut parts = body.split_whitespace();
+    let date = NaiveDate::parse_from_str(parts.next()?, "%Y-%m-%d").ok()?;
+
+    let mut has_time = false;
+    let mut start_time = NaiveTime::MIN;
+    let mut end_time = None;
+    for part in parts {
+        if let Some((from, to)) = parse_time_spec(part) {
+            has_time = true;
+            start_time = from;
+            end_time = to;
+        }
+    }
+    Some((
+        date.and_time(start_time),
+        end_time.map(|t| date.and_time(t)),
+        has_time,
+        end + 1,
+    ))
+}
+
+/// `HH:MM` or `HH:MM-HH:MM`.
+fn parse_time_spec(s: &str) -> Option<(NaiveTime, Option<NaiveTime>)> {
+    let (from, to) = match s.split_once('-') {
+        Some((a, b)) => (a, Some(b)),
+        None => (s, None),
+    };
+    let from = NaiveTime::parse_from_str(from, "%H:%M").ok()?;
+    let to = match to {
+        Some(b) => Some(NaiveTime::parse_from_str(b, "%H:%M").ok()?),
+        None => None,
+    };
+    Some((from, to))
 }
 
 fn is_marker(c: char) -> bool {

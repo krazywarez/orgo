@@ -14,6 +14,6 @@ expression: "render_fixture(\"core.org\")"
 </ul>
 <h1 id="links-and-code">Links and code</h1>
 <p>An external <a href="https://example.org">site</a> and a bare <a href="https://bare.example">https://bare.example</a>.</p>
-<pre><code class="language-rust">fn main() {
-    println!("hello");
-}</code></pre>
+<pre><code class="language-rust highlight"><span class="source rust"><span class="meta function rust"><span class="meta function rust"><span class="storage type function rust">fn</span> </span><span class="entity name function rust">main</span></span><span class="meta function rust"><span class="meta function parameters rust"><span class="punctuation section parameters begin rust">(</span></span><span class="meta function rust"><span class="meta function parameters rust"><span class="punctuation section parameters end rust">)</span></span></span></span><span class="meta function rust"> </span><span class="meta function rust"><span class="meta block rust"><span class="punctuation section block begin rust">{</span>
+    <span class="support macro rust">println!</span><span class="meta group rust"><span class="punctuation section group begin rust">(</span></span><span class="meta group rust"><span class="string quoted double rust"><span class="punctuation definition string begin rust">&quot;</span>hello<span class="punctuation definition string end rust">&quot;</span></span></span><span class="meta group rust"><span class="punctuation section group end rust">)</span></span><span class="punctuation terminator rust">;</span>
+</span><span class="meta block rust"><span class="punctuation section block end rust">}</span></span></span></span></code></pre>

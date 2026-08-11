@@ -1,0 +1,48 @@
+---
+source: tests/constructs.rs
+expression: "render_fixture(\"lists.org\")"
+---
+<h1 id="nesting">Nesting</h1>
+<ul>
+<li>outer item<ul>
+<li>inner item<ul>
+<li>deepest item</li>
+</ul>
+</li>
+<li>second inner</li>
+</ul>
+</li>
+<li>second outer</li>
+</ul>
+<h1 id="ordered">Ordered</h1>
+<ol>
+<li>first</li>
+<li>second<ol>
+<li>second point one</li>
+<li>second point two</li>
+</ol>
+</li>
+<li>third</li>
+</ol>
+<h1 id="checkboxes">Checkboxes</h1>
+<ul>
+<li><input type="checkbox" disabled> not done</li>
+<li><input type="checkbox" disabled checked> done</li>
+<li><input type="checkbox" disabled> partially done</li>
+</ul>
+<h1 id="description">Description</h1>
+<dl>
+<dt>term one</dt>
+<dd>the first definition</dd>
+<dt>term two</dt>
+<dd>the second definition, which is soft-wrapped across two lines</dd>
+<dt><em>marked up</em> term</dt>
+<dd>definitions hold inline markup</dd>
+</dl>
+<h1 id="multi-paragraph-items">Multi-paragraph items</h1>
+<ul>
+<li><p>an item whose body has two paragraphs</p>
+<p>the second paragraph, indented under the bullet</p>
+</li>
+<li>a plain sibling</li>
+</ul>

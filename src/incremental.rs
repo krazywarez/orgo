@@ -29,7 +29,7 @@ use crate::util::output_url;
 /// Bump whenever the `Document` type, hashing scheme, or resolution rules change.
 /// On mismatch: discard cache, full rebuild (spec §4.5). The blake3 crate's major
 /// version is folded in as the "hash-algo version" so a hash upgrade also busts.
-pub const CACHE_FORMAT_VERSION: u32 = 3;
+pub const CACHE_FORMAT_VERSION: u32 = 4;
 
 /// blake3 hex identity for a content/config/template/render-key hash class (spec §4.1).
 pub type Hash = ContentHash;
@@ -48,7 +48,7 @@ impl Default for BuildConfig {
     fn default() -> Self {
         BuildConfig {
             output_extension: "html".to_string(),
-            highlighter_theme: "passthrough".to_string(),
+            highlighter_theme: crate::render::SYNTAX_THEME.to_string(),
         }
     }
 }

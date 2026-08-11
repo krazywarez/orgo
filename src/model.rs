@@ -86,6 +86,14 @@ pub enum Element {
         code: String,
     },
     ExampleBlock(String),
+    /// An image link carrying affiliated `#+CAPTION:`/`#+ATTR_HTML:` metadata, which
+    /// promotes it from an inline image to a block-level `<figure>`.
+    Figure {
+        link: Link,
+        caption: Vec<Object>,
+        /// Raw `#+ATTR_HTML:` attribute string, passed through to the `<img>` tag.
+        attrs: String,
+    },
     QuoteBlock(Vec<Element>),
     CenterBlock(Vec<Element>),
     /// html passes through; others dropped at render (spec §1 OUT).

@@ -1,0 +1,175 @@
+---
+source: tests/constructs.rs
+expression: "parse_fixture(\"headings.org\").root"
+---
+{
+  "heading": null,
+  "content": [
+    {
+      "Keyword": {
+        "key": "TITLE",
+        "value": "Heading Metadata"
+      }
+    }
+  ],
+  "children": [
+    {
+      "heading": {
+        "level": 1,
+        "todo": {
+          "name": "TODO",
+          "done": false
+        },
+        "priority": "A",
+        "title": [
+          {
+            "Text": "Write the parser"
+          }
+        ],
+        "tags": [
+          "work",
+          "rust"
+        ],
+        "properties": {
+          "entries": [
+            [
+              "CUSTOM_ID",
+              "write-parser"
+            ],
+            [
+              "OWNER",
+              "nobody"
+            ]
+          ]
+        },
+        "id": null,
+        "custom_id": "write-parser"
+      },
+      "content": [
+        {
+          "Paragraph": [
+            {
+              "Text": "A heading carrying a keyword, a priority, tags and a property drawer."
+            }
+          ]
+        }
+      ],
+      "children": [
+        {
+          "heading": {
+            "level": 2,
+            "todo": {
+              "name": "DONE",
+              "done": true
+            },
+            "priority": null,
+            "title": [
+              {
+                "Text": "Nested and finished"
+              }
+            ],
+            "tags": [],
+            "properties": {
+              "entries": []
+            },
+            "id": null,
+            "custom_id": null
+          },
+          "content": [
+            {
+              "Paragraph": [
+                {
+                  "Text": "Sub-headings nest by star count."
+                }
+              ]
+            }
+          ],
+          "children": []
+        },
+        {
+          "heading": {
+            "level": 2,
+            "todo": null,
+            "priority": "C",
+            "title": [
+              {
+                "Text": "Priority without a keyword"
+              }
+            ],
+            "tags": [],
+            "properties": {
+              "entries": []
+            },
+            "id": null,
+            "custom_id": null
+          },
+          "content": [
+            {
+              "Paragraph": [
+                {
+                  "Text": "A priority cookie can stand alone."
+                }
+              ]
+            }
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "heading": {
+        "level": 1,
+        "todo": null,
+        "priority": null,
+        "title": [
+          {
+            "Text": "TODOs are not a keyword"
+          }
+        ],
+        "tags": [],
+        "properties": {
+          "entries": []
+        },
+        "id": null,
+        "custom_id": null
+      },
+      "content": [
+        {
+          "Paragraph": [
+            {
+              "Text": "The word boundary matters: this heading has no TODO keyword."
+            }
+          ]
+        }
+      ],
+      "children": []
+    },
+    {
+      "heading": {
+        "level": 1,
+        "todo": {
+          "name": "DONE",
+          "done": true
+        },
+        "priority": null,
+        "title": [],
+        "tags": [],
+        "properties": {
+          "entries": []
+        },
+        "id": null,
+        "custom_id": null
+      },
+      "content": [
+        {
+          "Paragraph": [
+            {
+              "Text": "A keyword with no title at all."
+            }
+          ]
+        }
+      ],
+      "children": []
+    }
+  ]
+}

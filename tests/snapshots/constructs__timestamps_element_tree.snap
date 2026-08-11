@@ -1,0 +1,209 @@
+---
+source: tests/constructs.rs
+expression: "parse_fixture(\"timestamps.org\").root"
+---
+{
+  "heading": null,
+  "content": [
+    {
+      "Keyword": {
+        "key": "TITLE",
+        "value": "Timestamps"
+      }
+    }
+  ],
+  "children": [
+    {
+      "heading": {
+        "level": 1,
+        "todo": null,
+        "priority": null,
+        "title": [
+          {
+            "Text": "Single"
+          }
+        ],
+        "tags": [],
+        "properties": {
+          "entries": []
+        },
+        "id": null,
+        "custom_id": null
+      },
+      "content": [
+        {
+          "Paragraph": [
+            {
+              "Text": "An active date "
+            },
+            {
+              "Timestamp": {
+                "active": true,
+                "start": "2024-01-15T00:00:00",
+                "end": null,
+                "has_time": false
+              }
+            },
+            {
+              "Text": " and an inactive one "
+            },
+            {
+              "Timestamp": {
+                "active": false,
+                "start": "2024-01-15T00:00:00",
+                "end": null,
+                "has_time": false
+              }
+            },
+            {
+              "Text": "."
+            }
+          ]
+        },
+        {
+          "Paragraph": [
+            {
+              "Text": "With a time: "
+            },
+            {
+              "Timestamp": {
+                "active": true,
+                "start": "2024-01-15T10:30:00",
+                "end": null,
+                "has_time": true
+              }
+            },
+            {
+              "Text": "."
+            }
+          ]
+        }
+      ],
+      "children": []
+    },
+    {
+      "heading": {
+        "level": 1,
+        "todo": null,
+        "priority": null,
+        "title": [
+          {
+            "Text": "Ranges"
+          }
+        ],
+        "tags": [],
+        "properties": {
+          "entries": []
+        },
+        "id": null,
+        "custom_id": null
+      },
+      "content": [
+        {
+          "Paragraph": [
+            {
+              "Text": "A same-day time range "
+            },
+            {
+              "Timestamp": {
+                "active": true,
+                "start": "2024-01-15T10:00:00",
+                "end": "2024-01-15T11:45:00",
+                "has_time": true
+              }
+            },
+            {
+              "Text": "."
+            }
+          ]
+        },
+        {
+          "Paragraph": [
+            {
+              "Text": "A multi-day range "
+            },
+            {
+              "Timestamp": {
+                "active": true,
+                "start": "2024-01-15T00:00:00",
+                "end": "2024-01-20T00:00:00",
+                "has_time": false
+              }
+            },
+            {
+              "Text": "."
+            }
+          ]
+        }
+      ],
+      "children": []
+    },
+    {
+      "heading": {
+        "level": 1,
+        "todo": null,
+        "priority": null,
+        "title": [
+          {
+            "Text": "Ignored decorations"
+          }
+        ],
+        "tags": [],
+        "properties": {
+          "entries": []
+        },
+        "id": null,
+        "custom_id": null
+      },
+      "content": [
+        {
+          "Paragraph": [
+            {
+              "Text": "A repeater is dropped: "
+            },
+            {
+              "Timestamp": {
+                "active": true,
+                "start": "2024-01-15T00:00:00",
+                "end": null,
+                "has_time": false
+              }
+            },
+            {
+              "Text": "."
+            }
+          ]
+        }
+      ],
+      "children": []
+    },
+    {
+      "heading": {
+        "level": 1,
+        "todo": null,
+        "priority": null,
+        "title": [
+          {
+            "Text": "Not timestamps"
+          }
+        ],
+        "tags": [],
+        "properties": {
+          "entries": []
+        },
+        "id": null,
+        "custom_id": null
+      },
+      "content": [
+        {
+          "Paragraph": [
+            {
+              "Text": "Comparisons like 3 < 4 and [not a stamp] stay literal text."
+            }
+          ]
+        }
+      ],
+      "children": []
+    }
+  ]
+}

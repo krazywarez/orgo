@@ -78,6 +78,16 @@ pub fn output_url(from_rel: &Utf8Path, to_rel: &Utf8Path, anchor: Option<&str>) 
     }
 }
 
+/// The `../`-prefix that reaches the site root from the page at `from_rel`. Empty for a
+/// top-level page. Used for site-global assets like the syntax stylesheet.
+pub fn relative_root(from_rel: &Utf8Path) -> String {
+    let depth = from_rel
+        .parent()
+        .map(|p| p.components().count())
+        .unwrap_or(0);
+    "../".repeat(depth)
+}
+
 /// Relative path from `from_dir` to `to`, using `../` where needed. `/`-joined for URLs.
 fn relative_path(from_dir: &Utf8Path, to: &Utf8Path) -> String {
     let from_c: Vec<&str> = from_dir.components().map(|c| c.as_str()).collect();

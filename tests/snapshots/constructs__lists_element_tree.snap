@@ -1,0 +1,466 @@
+---
+source: tests/constructs.rs
+expression: "parse_fixture(\"lists.org\").root"
+---
+{
+  "heading": null,
+  "content": [
+    {
+      "Keyword": {
+        "key": "TITLE",
+        "value": "Lists"
+      }
+    }
+  ],
+  "children": [
+    {
+      "heading": {
+        "level": 1,
+        "todo": null,
+        "priority": null,
+        "title": [
+          {
+            "Text": "Nesting"
+          }
+        ],
+        "tags": [],
+        "properties": {
+          "entries": []
+        },
+        "id": null,
+        "custom_id": null
+      },
+      "content": [
+        {
+          "List": {
+            "kind": "Unordered",
+            "items": [
+              {
+                "bullet": "Dash",
+                "checkbox": null,
+                "term": null,
+                "content": [
+                  {
+                    "Paragraph": [
+                      {
+                        "Text": "outer item"
+                      }
+                    ]
+                  },
+                  {
+                    "List": {
+                      "kind": "Unordered",
+                      "items": [
+                        {
+                          "bullet": "Dash",
+                          "checkbox": null,
+                          "term": null,
+                          "content": [
+                            {
+                              "Paragraph": [
+                                {
+                                  "Text": "inner item"
+                                }
+                              ]
+                            },
+                            {
+                              "List": {
+                                "kind": "Unordered",
+                                "items": [
+                                  {
+                                    "bullet": "Dash",
+                                    "checkbox": null,
+                                    "term": null,
+                                    "content": [
+                                      {
+                                        "Paragraph": [
+                                          {
+                                            "Text": "deepest item"
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "bullet": "Dash",
+                          "checkbox": null,
+                          "term": null,
+                          "content": [
+                            {
+                              "Paragraph": [
+                                {
+                                  "Text": "second inner"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "bullet": "Dash",
+                "checkbox": null,
+                "term": null,
+                "content": [
+                  {
+                    "Paragraph": [
+                      {
+                        "Text": "second outer"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "children": []
+    },
+    {
+      "heading": {
+        "level": 1,
+        "todo": null,
+        "priority": null,
+        "title": [
+          {
+            "Text": "Ordered"
+          }
+        ],
+        "tags": [],
+        "properties": {
+          "entries": []
+        },
+        "id": null,
+        "custom_id": null
+      },
+      "content": [
+        {
+          "List": {
+            "kind": "Ordered",
+            "items": [
+              {
+                "bullet": {
+                  "Ordered": 1
+                },
+                "checkbox": null,
+                "term": null,
+                "content": [
+                  {
+                    "Paragraph": [
+                      {
+                        "Text": "first"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "bullet": {
+                  "Ordered": 2
+                },
+                "checkbox": null,
+                "term": null,
+                "content": [
+                  {
+                    "Paragraph": [
+                      {
+                        "Text": "second"
+                      }
+                    ]
+                  },
+                  {
+                    "List": {
+                      "kind": "Ordered",
+                      "items": [
+                        {
+                          "bullet": {
+                            "Ordered": 1
+                          },
+                          "checkbox": null,
+                          "term": null,
+                          "content": [
+                            {
+                              "Paragraph": [
+                                {
+                                  "Text": "second point one"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "bullet": {
+                            "Ordered": 2
+                          },
+                          "checkbox": null,
+                          "term": null,
+                          "content": [
+                            {
+                              "Paragraph": [
+                                {
+                                  "Text": "second point two"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "bullet": {
+                  "Ordered": 3
+                },
+                "checkbox": null,
+                "term": null,
+                "content": [
+                  {
+                    "Paragraph": [
+                      {
+                        "Text": "third"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "children": []
+    },
+    {
+      "heading": {
+        "level": 1,
+        "todo": null,
+        "priority": null,
+        "title": [
+          {
+            "Text": "Checkboxes"
+          }
+        ],
+        "tags": [],
+        "properties": {
+          "entries": []
+        },
+        "id": null,
+        "custom_id": null
+      },
+      "content": [
+        {
+          "List": {
+            "kind": "Unordered",
+            "items": [
+              {
+                "bullet": "Dash",
+                "checkbox": "Off",
+                "term": null,
+                "content": [
+                  {
+                    "Paragraph": [
+                      {
+                        "Text": "not done"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "bullet": "Dash",
+                "checkbox": "On",
+                "term": null,
+                "content": [
+                  {
+                    "Paragraph": [
+                      {
+                        "Text": "done"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "bullet": "Dash",
+                "checkbox": "Trans",
+                "term": null,
+                "content": [
+                  {
+                    "Paragraph": [
+                      {
+                        "Text": "partially done"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "children": []
+    },
+    {
+      "heading": {
+        "level": 1,
+        "todo": null,
+        "priority": null,
+        "title": [
+          {
+            "Text": "Description"
+          }
+        ],
+        "tags": [],
+        "properties": {
+          "entries": []
+        },
+        "id": null,
+        "custom_id": null
+      },
+      "content": [
+        {
+          "List": {
+            "kind": "Description",
+            "items": [
+              {
+                "bullet": "Dash",
+                "checkbox": null,
+                "term": [
+                  {
+                    "Text": "term one"
+                  }
+                ],
+                "content": [
+                  {
+                    "Paragraph": [
+                      {
+                        "Text": "the first definition"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "bullet": "Dash",
+                "checkbox": null,
+                "term": [
+                  {
+                    "Text": "term two"
+                  }
+                ],
+                "content": [
+                  {
+                    "Paragraph": [
+                      {
+                        "Text": "the second definition, which is soft-wrapped across two lines"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "bullet": "Dash",
+                "checkbox": null,
+                "term": [
+                  {
+                    "Italic": [
+                      {
+                        "Text": "marked up"
+                      }
+                    ]
+                  },
+                  {
+                    "Text": " term"
+                  }
+                ],
+                "content": [
+                  {
+                    "Paragraph": [
+                      {
+                        "Text": "definitions hold inline markup"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "children": []
+    },
+    {
+      "heading": {
+        "level": 1,
+        "todo": null,
+        "priority": null,
+        "title": [
+          {
+            "Text": "Multi-paragraph items"
+          }
+        ],
+        "tags": [],
+        "properties": {
+          "entries": []
+        },
+        "id": null,
+        "custom_id": null
+      },
+      "content": [
+        {
+          "List": {
+            "kind": "Unordered",
+            "items": [
+              {
+                "bullet": "Dash",
+                "checkbox": null,
+                "term": null,
+                "content": [
+                  {
+                    "Paragraph": [
+                      {
+                        "Text": "an item whose body has two paragraphs"
+                      }
+                    ]
+                  },
+                  {
+                    "Paragraph": [
+                      {
+                        "Text": "the second paragraph, indented under the bullet"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "bullet": "Dash",
+                "checkbox": null,
+                "term": null,
+                "content": [
+                  {
+                    "Paragraph": [
+                      {
+                        "Text": "a plain sibling"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "children": []
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+---
+source: tests/constructs.rs
+expression: "render_fixture(\"headings.org\")"
+---
+<h1 id="write-parser"><span class="todo TODO">TODO</span> <span class="priority">[#A]</span> Write the parser <span class="tag">work</span> <span class="tag">rust</span></h1>
+<p>A heading carrying a keyword, a priority, tags and a property drawer.</p>
+<h2 id="nested-and-finished"><span class="done DONE">DONE</span> Nested and finished</h2>
+<p>Sub-headings nest by star count.</p>
+<h2 id="priority-without-a-keyword"><span class="priority">[#C]</span> Priority without a keyword</h2>
+<p>A priority cookie can stand alone.</p>
+<h1 id="todos-are-not-a-keyword">TODOs are not a keyword</h1>
+<p>The word boundary matters: this heading has no TODO keyword.</p>
+<h1><span class="done DONE">DONE</span> </h1>
+<p>A keyword with no title at all.</p>

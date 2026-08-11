@@ -33,7 +33,7 @@ fn render_fragment(name: &str) -> String {
     let path = fixtures().join(name);
     let source = std::fs::read_to_string(&path).expect("read fixture");
     let document = parse(Utf8PathBuf::from(name).as_path(), &source).expect("parse");
-    let Html(html) = render(&ResolvedDoc { document }, &SyntectHighlighter);
+    let Html(html) = render(&ResolvedDoc { document }, &SyntectHighlighter::new());
     html
 }
 

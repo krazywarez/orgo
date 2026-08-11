@@ -7,13 +7,13 @@ use camino::{Utf8Path, Utf8PathBuf};
 use clap::{Parser, Subcommand};
 
 use org_ssg::parser::parse;
-use org_ssg::render::{render, Html, SyntectHighlighter};
+use org_ssg::render::{render, syntax_css, Html, SyntectHighlighter};
 use org_ssg::resolve::ResolvedDoc;
-use org_ssg::site::{build_site, BuildOptions};
+use org_ssg::site::{build_site, BuildOptions, SYNTAX_STYLESHEET};
 use org_ssg::template::Templater;
 
 #[derive(Parser)]
-#[command(name = "org-ssg", about = "Org-mode static site generator")]
+#[command(name = "org-ssg", version, about = "Org-mode static site generator")]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -153,7 +153,8 @@ fn watch(input: &Utf8Path, output: &Utf8Path) -> Result<()> {
 
 /// Single-file build: read → PARSE → RENDER → TEMPLATE → write. No cross-file link
 /// resolution (there is no corpus to resolve against); links keep their best-effort
-/// URLs. Whole-site link resolution lives in [`build_site`].
+/// URLs. Whole-site link resolution lives in [`build_site`]. The syntax stylesheet is
+/// written alongside the page, since highlighting emits CSS classes.
 fn build_file(input: &Utf8Path, output: &Utf8Path) -> Result<()> {
     let source = fs::read_to_string(input)
         .with_context(|| format!("reading source file {input}"))?;
@@ -168,13 +169,16 @@ fn build_file(input: &Utf8Path, output: &Utf8Path) -> Result<()> {
         .unwrap_or_else(|| input.file_stem().unwrap_or("untitled").to_string());
 
     let resolved = ResolvedDoc { document };
-    let highlighter = SyntectHighlighter;
+    let highlighter = SyntectHighlighter::new();
     let Html(fragment) = render(&resolved, &highlighter);
 
     let templater = Templater::new();
     let page = templater
-        .render_page(&title, &fragment, &[])
+        .render_page(&title, &fragment, &[], SYNTAX_STYLESHEET)
         .with_context(|| format!("templating {input}"))?;
     fs::write(output, page).with_context(|| format!("writing output file {output}"))?;
+
+    let css = output.with_file_name(SYNTAX_STYLESHEET);
+    fs::write(&css, syntax_css()).with_context(|| format!("writing stylesheet {css}"))?;
     Ok(())
 }

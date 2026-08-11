@@ -23,7 +23,7 @@ fn parse_fixture(name: &str) -> Document {
 fn render_fixture(name: &str) -> String {
     let document = parse_fixture(name);
     let resolved = ResolvedDoc { document };
-    let Html(html) = render(&resolved, &SyntectHighlighter);
+    let Html(html) = render(&resolved, &SyntectHighlighter::new());
     html
 }
 

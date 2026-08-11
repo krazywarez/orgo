@@ -6,6 +6,12 @@ expression: "parse_fixture(\"core.org\").root"
   "heading": null,
   "content": [
     {
+      "Keyword": {
+        "key": "TITLE",
+        "value": "Core Constructs"
+      }
+    },
+    {
       "Paragraph": [
         {
           "Text": "Intro paragraph with a bare URL "

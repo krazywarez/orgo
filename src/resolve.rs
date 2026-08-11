@@ -148,6 +148,12 @@ impl Cx<'_> {
             LinkTarget::Id(id) => TargetId::Id(id.clone()),
             LinkTarget::Heading(t) => TargetId::Heading(t.clone()),
             LinkTarget::File { path, .. } => {
+                // Only `.org` files are pages. A link to an asset (an image, a PDF) is
+                // already a correct relative URL in the output tree, since assets are
+                // copied preserving layout — so it is neither resolved nor reported.
+                if path.extension() != Some("org") {
+                    return;
+                }
                 TargetId::File(normalize_link_path(self.from, path))
             }
         };

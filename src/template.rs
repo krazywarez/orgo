@@ -22,6 +22,9 @@ const BASE_TEMPLATE: &str = r#"<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <title>{{ title }}</title>
+{%- if stylesheet %}
+<link rel="stylesheet" href="{{ stylesheet }}">
+{%- endif %}
 </head>
 <body>
 <nav>
@@ -62,18 +65,21 @@ impl Templater {
         Templater { env }
     }
 
-    /// fragment + page metadata → full HTML page.
+    /// fragment + page metadata → full HTML page. `stylesheet` is the URL of the
+    /// syntax-highlighting stylesheet relative to *this* page (highlighting emits CSS
+    /// classes, so the sheet has to come with it).
     pub fn render_page(
         &self,
         title: &str,
         body: &str,
         nav: &[NavItem],
+        stylesheet: &str,
     ) -> Result<String, TemplateError> {
         let tmpl = self
             .env
             .get_template("base")
             .map_err(|e| TemplateError::Render(e.to_string()))?;
-        tmpl.render(context! { title => title, body => body, nav => nav })
+        tmpl.render(context! { title => title, body => body, nav => nav, stylesheet => stylesheet })
             .map_err(|e| TemplateError::Render(e.to_string()))
     }
 }

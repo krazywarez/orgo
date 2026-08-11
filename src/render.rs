@@ -8,14 +8,23 @@
 //!    and its cost must be cache-skippable (spec §4.2). Emit CSS classes, not inline
 //!    styles, so themes live in the stylesheet (spec §3.2).
 //!
-//! v0.2 renders: headings (always anchored, with tags), paragraphs, plain lists
-//! (unordered/ordered + checkboxes), source/example blocks, horizontal rules, tables
-//! (with header band from the rule row), footnotes, and inline markup. Real syntect
-//! tokenizing remains a `<pre><code>` passthrough for now (see [`SyntectHighlighter`]).
+//! Renders the v1 IN set: headings (always anchored, with TODO keyword, priority and
+//! tags), paragraphs, plain lists (unordered/ordered/description, nested, with
+//! checkboxes), tables, source blocks (syntect-highlighted), example/quote/center
+//! blocks, HTML export blocks, horizontal rules, images and captioned figures,
+//! footnotes, timestamps, and inline markup. Out-of-scope elements (generic drawers,
+//! comments, stray keywords, non-HTML export blocks) render to nothing.
 
 use std::collections::HashMap;
+use std::sync::OnceLock;
 
-use crate::model::{Checkbox, Element, LinkTarget, ListKind, Object, Section, TableRow};
+use syntect::highlighting::ThemeSet;
+use syntect::html::{css_for_theme_with_class_style, ClassStyle, ClassedHTMLGenerator};
+use syntect::parsing::SyntaxSet;
+use syntect::util::LinesWithEndings;
+
+use crate::model::{Checkbox, Element, Link, LinkTarget, ListKind, Object, Section, TableRow};
+use crate::parser::is_image_target;
 use crate::resolve::ResolvedDoc;
 use crate::util::{plain_text, slugify};
 
@@ -29,22 +38,91 @@ pub trait Highlighter {
     fn highlight(&self, code: &str, lang: Option<&str>) -> Html;
 }
 
-/// Default v1 highlighter. For now this is a plain `<pre><code>` passthrough that
-/// escapes the code and tags it with a `language-*` class; real syntect tokenizing
-/// to CSS-class spans is deferred (spec §3.2, §4.2).
-pub struct SyntectHighlighter;
+/// The class style used for both the emitted spans and the generated stylesheet. The
+/// two must agree or the CSS will not match the markup.
+const CLASS_STYLE: ClassStyle = ClassStyle::Spaced;
+
+/// The syntect theme whose colours become [`syntax_css`]. Mirrored in
+/// [`BuildConfig::highlighter_theme`](crate::incremental::BuildConfig) so a theme change
+/// flows into the config hash and invalidates every page.
+pub const SYNTAX_THEME: &str = "InspiredGitHub";
+
+/// Syntect's default syntax definitions, loaded once per process (loading is far more
+/// expensive than highlighting, and a site build highlights many blocks).
+fn syntax_set() -> &'static SyntaxSet {
+    static SET: OnceLock<SyntaxSet> = OnceLock::new();
+    SET.get_or_init(SyntaxSet::load_defaults_newlines)
+}
+
+/// The stylesheet the emitted highlight classes refer to. Highlighting emits CSS
+/// classes rather than inline styles (spec §3.2), so a build must also emit this.
+pub fn syntax_css() -> &'static str {
+    static CSS: OnceLock<String> = OnceLock::new();
+    CSS.get_or_init(|| {
+        let themes = ThemeSet::load_defaults();
+        themes
+            .themes
+            .get(SYNTAX_THEME)
+            .and_then(|theme| css_for_theme_with_class_style(theme, CLASS_STYLE).ok())
+            .unwrap_or_default()
+    })
+}
+
+/// The v1 highlighter: syntect tokenizing to CSS-class spans (spec §3.2, §4.2). A block
+/// whose language syntect does not know falls back to escaped `<pre><code>`.
+pub struct SyntectHighlighter {
+    syntaxes: &'static SyntaxSet,
+}
+
+impl SyntectHighlighter {
+    pub fn new() -> Self {
+        SyntectHighlighter {
+            syntaxes: syntax_set(),
+        }
+    }
+}
+
+impl Default for SyntectHighlighter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl Highlighter for SyntectHighlighter {
     fn highlight(&self, code: &str, lang: Option<&str>) -> Html {
-        let class = match lang {
-            Some(l) => format!(" class=\"language-{}\"", escape_attr(l)),
-            None => String::new(),
+        let Some(syntax) = lang.and_then(|l| self.syntaxes.find_syntax_by_token(l)) else {
+            return Html(plain_code(code, lang));
         };
+        let mut generator =
+            ClassedHTMLGenerator::new_with_class_style(syntax, self.syntaxes, CLASS_STYLE);
+        for line in LinesWithEndings::from(code) {
+            if generator
+                .parse_html_for_line_which_includes_newline(line)
+                .is_err()
+            {
+                return Html(plain_code(code, lang));
+            }
+        }
         Html(format!(
-            "<pre><code{}>{}</code></pre>\n",
-            class,
-            escape_html(code)
+            "<pre><code class=\"{} highlight\">{}</code></pre>\n",
+            language_class(lang),
+            generator.finalize()
         ))
+    }
+}
+
+fn plain_code(code: &str, lang: Option<&str>) -> String {
+    format!(
+        "<pre><code class=\"{}\">{}</code></pre>\n",
+        language_class(lang),
+        escape_html(code)
+    )
+}
+
+fn language_class(lang: Option<&str>) -> String {
+    match lang {
+        Some(l) => format!("language-{}", escape_attr(l)),
+        None => "language-none".to_string(),
     }
 }
 
@@ -91,7 +169,29 @@ impl Renderer<'_> {
                 .clone()
                 .or_else(|| h.id.clone())
                 .unwrap_or_else(|| slugify(&plain_text(&h.title)));
-            out.push_str(&format!("<h{} id=\"{}\">", level, escape_attr(&anchor)));
+            // A heading with no title text has no meaningful slug; emit no `id` at all
+            // rather than a run of duplicate empty ones.
+            if anchor.is_empty() {
+                out.push_str(&format!("<h{}>", level));
+            } else {
+                out.push_str(&format!("<h{} id=\"{}\">", level, escape_attr(&anchor)));
+            }
+            // Keyword/priority markup mirrors Emacs' own HTML export classes, so output
+            // stays diffable against an `emacs --batch` oracle.
+            if let Some(todo) = &h.todo {
+                out.push_str(&format!(
+                    "<span class=\"{} {}\">{}</span> ",
+                    if todo.done { "done" } else { "todo" },
+                    escape_attr(&todo.name),
+                    escape_html(&todo.name)
+                ));
+            }
+            if let Some(priority) = h.priority {
+                out.push_str(&format!(
+                    "<span class=\"priority\">[#{}]</span> ",
+                    escape_html(&priority.to_string())
+                ));
+            }
             self.render_objects(&h.title, out);
             for tag in &h.tags {
                 out.push_str(&format!(" <span class=\"tag\">{}</span>", escape_html(tag)));
@@ -113,33 +213,7 @@ impl Renderer<'_> {
                 self.render_objects(objs, out);
                 out.push_str("</p>\n");
             }
-            Element::List(list) => {
-                let tag = match list.kind {
-                    ListKind::Ordered => "ol",
-                    _ => "ul",
-                };
-                out.push_str(&format!("<{}>\n", tag));
-                for item in &list.items {
-                    out.push_str("<li>");
-                    if let Some(cb) = &item.checkbox {
-                        let checked = matches!(cb, Checkbox::On);
-                        out.push_str(&format!(
-                            "<input type=\"checkbox\" disabled{}> ",
-                            if checked { " checked" } else { "" }
-                        ));
-                    }
-                    match item.content.as_slice() {
-                        [Element::Paragraph(objs)] => self.render_objects(objs, out),
-                        els => {
-                            for el in els {
-                                self.render_element(el, out);
-                            }
-                        }
-                    }
-                    out.push_str("</li>\n");
-                }
-                out.push_str(&format!("</{}>\n", tag));
-            }
+            Element::List(list) => self.render_list(list, out),
             Element::Table(table) => self.render_table(table, out),
             Element::SrcBlock { lang, code, .. } => {
                 let Html(h) = self.hl.highlight(code, lang.as_deref());
@@ -148,12 +222,108 @@ impl Renderer<'_> {
             Element::ExampleBlock(code) => {
                 out.push_str(&format!("<pre>{}</pre>\n", escape_html(code)));
             }
+            Element::QuoteBlock(inner) => {
+                out.push_str("<blockquote>\n");
+                for el in inner {
+                    self.render_element(el, out);
+                }
+                out.push_str("</blockquote>\n");
+            }
+            Element::CenterBlock(inner) => {
+                out.push_str("<div class=\"center\">\n");
+                for el in inner {
+                    self.render_element(el, out);
+                }
+                out.push_str("</div>\n");
+            }
+            // An `html` export block is verbatim output by definition; every other
+            // backend is out of scope and drops (README §OUT).
+            Element::ExportBlock { backend, raw } => {
+                if backend.eq_ignore_ascii_case("html") {
+                    out.push_str(raw);
+                    out.push('\n');
+                }
+            }
+            Element::Figure {
+                link,
+                caption,
+                attrs,
+            } => {
+                out.push_str("<figure>");
+                out.push_str(&image_tag(link, attrs, &plain_text(caption)));
+                if !caption.is_empty() {
+                    out.push_str("<figcaption>");
+                    self.render_objects(caption, out);
+                    out.push_str("</figcaption>");
+                }
+                out.push_str("</figure>\n");
+            }
             Element::HorizontalRule => out.push_str("<hr>\n"),
             // Definitions are emitted in the footnotes section, not inline.
             Element::FootnoteDefinition { .. } => {}
-            // Out of scope (non-HTML export, generic drawers, stray keywords, comments):
-            // emitted as nothing rather than crashing.
-            _ => {}
+            // Out of scope (generic drawers, stray keywords, comments): emitted as
+            // nothing rather than crashing.
+            Element::Drawer { .. } | Element::Keyword { .. } | Element::Comment(_) => {}
+        }
+    }
+
+    fn render_list(&mut self, list: &crate::model::List, out: &mut String) {
+        if list.kind == ListKind::Description {
+            out.push_str("<dl>\n");
+            for item in &list.items {
+                out.push_str("<dt>");
+                if let Some(term) = &item.term {
+                    self.render_objects(term, out);
+                }
+                out.push_str("</dt>\n<dd>");
+                self.render_item_content(&item.content, out);
+                out.push_str("</dd>\n");
+            }
+            out.push_str("</dl>\n");
+            return;
+        }
+        let tag = if list.kind == ListKind::Ordered {
+            "ol"
+        } else {
+            "ul"
+        };
+        out.push_str(&format!("<{}>\n", tag));
+        for item in &list.items {
+            out.push_str("<li>");
+            if let Some(cb) = &item.checkbox {
+                out.push_str(&format!(
+                    "<input type=\"checkbox\" disabled{}> ",
+                    if matches!(cb, Checkbox::On) {
+                        " checked"
+                    } else {
+                        ""
+                    }
+                ));
+            }
+            self.render_item_content(&item.content, out);
+            out.push_str("</li>\n");
+        }
+        out.push_str(&format!("</{}>\n", tag));
+    }
+
+    /// A single-paragraph item renders its text bare — `<li>text<ul>…` rather than
+    /// `<li><p>text</p><ul>…` — which is what org does and what makes a nested list read
+    /// as a continuation of its parent item. An item holding *several* paragraphs wraps
+    /// them all, so they do not run together.
+    fn render_item_content(&mut self, content: &[Element], out: &mut String) {
+        let lead_is_bare = matches!(content.first(), Some(Element::Paragraph(_)))
+            && !content[1..]
+                .iter()
+                .any(|el| matches!(el, Element::Paragraph(_)));
+        let mut rest = content;
+        if lead_is_bare {
+            if let Some((Element::Paragraph(objs), tail)) = content.split_first() {
+                self.render_objects(objs, out);
+                rest = tail;
+            }
+        }
+        for el in rest {
+            self.render_element(el, out);
         }
     }
 
@@ -224,6 +394,10 @@ impl Renderer<'_> {
                 out.push_str(&format!("<code class=\"verbatim\">{}</code>", escape_html(s)))
             }
             Object::Code(s) => out.push_str(&format!("<code>{}</code>", escape_html(s))),
+            // A description-less link to an image is the image itself, not a link to it.
+            Object::Link(link) if link.description.is_none() && is_image_target(&link.target) => {
+                out.push_str(&image_tag(link, "", ""));
+            }
             Object::Link(link) => {
                 let href = link_href(&link.target);
                 out.push_str(&format!("<a href=\"{}\">", escape_attr(&href)));
@@ -252,8 +426,8 @@ impl Renderer<'_> {
                 ));
             }
             Object::LineBreak => out.push_str("<br>\n"),
-            // Timestamps, entities: out of scope for now.
-            _ => {}
+            Object::Timestamp(ts) => out.push_str(&timestamp_html(ts)),
+            Object::Entity(e) => out.push_str(&escape_html(e)),
         }
     }
 
@@ -296,6 +470,122 @@ fn collect_defs_in(elements: &[Element], defs: &mut HashMap<String, Vec<Element>
             defs.entry(label.clone()).or_insert_with(|| content.clone());
         }
     }
+}
+
+/// An `<img>` for an image link, carrying any `#+ATTR_HTML:` attributes and falling back
+/// to the caption for alt text — but only when the author did not write an `:alt` of
+/// their own, since two `alt` attributes on one tag is invalid HTML.
+fn image_tag(link: &Link, attrs: &str, alt: &str) -> String {
+    let mut pairs = attr_html(attrs);
+    if !pairs.iter().any(|(k, _)| k.eq_ignore_ascii_case("alt")) {
+        pairs.insert(0, ("alt".to_string(), alt.to_string()));
+    }
+    let attributes: String = pairs
+        .iter()
+        .map(|(k, v)| format!(" {}=\"{}\"", escape_attr(k), escape_attr(v)))
+        .collect();
+    format!(
+        "<img src=\"{}\"{}>",
+        escape_attr(&link_href(&link.target)),
+        attributes
+    )
+}
+
+/// `#+ATTR_HTML: :width 400 :class hero` → `[(width, 400), (class, hero)]`. Values run to
+/// the next `:key` token and may be double-quoted to include spaces. A malformed spec
+/// contributes nothing rather than emitting broken markup.
+fn attr_html(spec: &str) -> Vec<(String, String)> {
+    let mut out = Vec::new();
+    let mut key: Option<&str> = None;
+    let mut value = String::new();
+    let mut quoted: Option<String> = None;
+
+    let flush = |out: &mut Vec<(String, String)>, key: &mut Option<&str>, value: &mut String| {
+        if let Some(k) = key.take() {
+            out.push((k.to_string(), value.trim().to_string()));
+        }
+        value.clear();
+    };
+
+    for token in spec.split_whitespace() {
+        // Inside a quoted value, everything up to the closing quote is literal.
+        if let Some(buf) = &mut quoted {
+            buf.push(' ');
+            buf.push_str(token.trim_end_matches('"'));
+            if token.ends_with('"') {
+                value = quoted.take().expect("quoted value in progress");
+            }
+            continue;
+        }
+        if let Some(k) = token.strip_prefix(':') {
+            flush(&mut out, &mut key, &mut value);
+            if !k.is_empty() {
+                key = Some(k);
+            }
+            continue;
+        }
+        if key.is_none() {
+            continue;
+        }
+        if let Some(rest) = token.strip_prefix('"') {
+            if let Some(inner) = rest.strip_suffix('"') {
+                value = inner.to_string();
+            } else {
+                quoted = Some(rest.to_string());
+            }
+            continue;
+        }
+        if !value.is_empty() {
+            value.push(' ');
+        }
+        value.push_str(token);
+    }
+    if let Some(buf) = quoted {
+        value = buf;
+    }
+    flush(&mut out, &mut key, &mut value);
+    out
+}
+
+/// `<time>` markup for a timestamp. A range emits both endpoints; a same-day range
+/// abbreviates its end to just the time.
+fn timestamp_html(ts: &crate::model::Timestamp) -> String {
+    let class = if ts.active {
+        "timestamp"
+    } else {
+        "timestamp inactive"
+    };
+    let one = |dt: &chrono::NaiveDateTime, text: String| {
+        let attr = if ts.has_time {
+            dt.format("%Y-%m-%dT%H:%M").to_string()
+        } else {
+            dt.format("%Y-%m-%d").to_string()
+        };
+        format!(
+            "<time class=\"{class}\" datetime=\"{}\">{}</time>",
+            escape_attr(&attr),
+            escape_html(&text)
+        )
+    };
+    let text_of = |dt: &chrono::NaiveDateTime| {
+        if ts.has_time {
+            dt.format("%Y-%m-%d %H:%M").to_string()
+        } else {
+            dt.format("%Y-%m-%d").to_string()
+        }
+    };
+
+    let mut out = one(&ts.start, text_of(&ts.start));
+    if let Some(end) = &ts.end {
+        out.push_str("&#8211;");
+        let text = if end.date() == ts.start.date() && ts.has_time {
+            end.format("%H:%M").to_string()
+        } else {
+            text_of(end)
+        };
+        out.push_str(&one(end, text));
+    }
+    out
 }
 
 /// Best-effort URL for a link target. After RESOLVE, internal targets have been
