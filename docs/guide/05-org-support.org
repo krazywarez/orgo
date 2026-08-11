@@ -118,6 +118,7 @@ broken.
 | =#+FILETAGS:= | Tags, for grouping and =page.tags=. |
 | =#+SLUG:= | Sets the output filename. |
 | =#+DRAFT:= | Keeps the page out of the build. |
+| =#+TEMPLATE:= | The layout this page renders through. |
 | =#+OPTIONS:= | Per-file export switches. |
 | =#+CAPTION:=, =#+ATTR_HTML:= | Attach to the image below them. |
 

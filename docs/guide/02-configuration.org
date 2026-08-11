@@ -117,6 +117,40 @@ being listed is appended after everything you did list, so ="about.org"= alone w
 said. Either spelling works for an authored page too — its source path or its output
 path — though the source path is the one that survives a =#+SLUG:=.
 
+* [[pages]]
+
+Which layout a page renders through. Without any of these, every authored page uses
+=base.html=.
+
+#+BEGIN_SRC toml
+[[pages]]
+match = "blog"
+template = "post.html"
+#+END_SRC
+
+=match= is a *source* path relative to the source root — a directory, covering every page
+beneath it however deep, or one =.org= file. It is matched by path component, so =blog=
+covers =blog/2026/post.org= and does not touch =blogroll.org=.
+
+A section's layout is a property of the section, which is why this is a rule and not
+something you write in each file: a blog post carries the same byline and reply footer as
+every other one, and repeating that in 200 files means maintaining one fact 200 times.
+
+** Which rule wins
+
+Most specific, by path depth — =blog/notes= beats =blog=, whatever order they appear in.
+An empty =match= covers the whole site, which is how you rename the default layout.
+
+A page that differs from its section says so itself, and that wins over any rule:
+
+#+BEGIN_SRC org
+,#+TITLE: Colophon
+,#+TEMPLATE: wide.html
+#+END_SRC
+
+Naming a template that is not in the templates directory is an error that names the page,
+the template and what does exist — a layout typo should not be a hunt.
+
 * [templates]
 
 | Key | Default | Meaning |

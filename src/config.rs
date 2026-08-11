@@ -34,6 +34,67 @@ pub struct Config {
     /// Generated listing pages. Each produces one output file that has no source `.org`
     /// file behind it — a blog index, an archive, a feed.
     pub collections: Vec<Collection>,
+    /// Which layout authored pages render through, by source path. Pages matching no
+    /// rule use `base.html`.
+    pub pages: Vec<PageRule>,
+}
+
+/// One layout rule: the pages under `match` render through `template`.
+///
+/// Sections usually want one layout — every blog post carries the same byline and reply
+/// footer — and asking an author to repeat `#+TEMPLATE:` in each of 200 files is asking
+/// them to maintain the same fact 200 times. A rule states it once for the directory; a
+/// page that differs still says so itself with `#+TEMPLATE:`, which wins.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct PageRule {
+    /// A source path: a directory, matching every page beneath it, or one `.org` file.
+    /// Relative to the source root, like `nav.pages`.
+    #[serde(rename = "match")]
+    pub pattern: Utf8PathBuf,
+    /// Template file name, as it appears in the templates directory.
+    pub template: String,
+}
+
+impl PageRule {
+    /// Does this rule cover `source`? Matching is by path component, so a directory rule
+    /// covers everything beneath it however deep — `blog` matches `blog/2026/post.org`,
+    /// because a section's layout is a property of the section and not of how its files
+    /// happen to be filed — while `blo` matches nothing. An empty `match` covers the
+    /// whole site, which is how you change the default layout's name.
+    pub fn covers(&self, source: &Utf8Path) -> bool {
+        source.starts_with(&self.pattern)
+    }
+
+    /// How specific this rule is, for picking between two that both match. Longer paths
+    /// are more specific, so `blog/notes` beats `blog`.
+    fn specificity(&self) -> usize {
+        self.pattern.components().count()
+    }
+}
+
+/// Which template an authored page renders through: its own `#+TEMPLATE:` if it names
+/// one, else the most specific `[[pages]]` rule covering it, else `base.html`.
+///
+/// A page's own declaration wins because it is the more local statement — the one written
+/// with that page in view.
+pub fn page_template(config: &Config, source: &Utf8Path, keywords: &crate::model::Keywords) -> String {
+    let declared = keywords
+        .entries
+        .iter()
+        .find(|(k, _)| k.eq_ignore_ascii_case("TEMPLATE"))
+        .map(|(_, v)| v.trim())
+        .filter(|v| !v.is_empty());
+    if let Some(name) = declared {
+        return name.to_string();
+    }
+    config
+        .pages
+        .iter()
+        .filter(|rule| rule.covers(source))
+        .max_by_key(|rule| rule.specificity())
+        .map(|rule| rule.template.clone())
+        .unwrap_or_else(|| crate::template::BASE_TEMPLATE_NAME.to_string())
 }
 
 /// A generated page that lists other pages.
@@ -390,6 +451,15 @@ impl Config {
                 seen.push(path);
             }
         }
+        for rule in &self.pages {
+            if rule.template.trim().is_empty() {
+                anyhow::bail!(
+                    "the [[pages]] rule matching {:?} names no `template`; it has nothing \
+                     to select",
+                    rule.pattern.as_str()
+                );
+            }
+        }
         if !self.site.base_url.is_empty() && self.site.base_url.ends_with('/') {
             anyhow::bail!(
                 "site.base_url must not end with a slash (got {:?}) — URLs are joined \
@@ -430,6 +500,13 @@ dir = "templates"
 # Give templates a `pages` list of every page's metadata, so you can build an index or
 # archive. Costs incremental precision: with this on, adding a page re-renders the site.
 expose_page_list = false
+
+# Which layout a page renders through. Without a rule, every page uses base.html.
+# `match` is a source path — a directory (covering everything beneath it) or one .org
+# file — and the most specific rule wins. A page overrides any rule with `#+TEMPLATE:`.
+# [[pages]]
+# match = "blog"
+# template = "post.html"
 
 [highlight]
 # A syntect theme name: InspiredGitHub, Solarized (dark), base16-ocean.dark,

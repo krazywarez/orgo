@@ -62,6 +62,10 @@ mode = "top-level"     # top-level | all | explicit | none
 dir = "templates"      # base.html replaces the built-in layout
 expose_page_list = false
 
+# [[pages]]            # which layout a section renders through; base.html by default
+# match = "blog"       # a source directory or one .org file; most specific rule wins
+# template = "post.html"
+
 [highlight]
 theme = "InspiredGitHub"
 
@@ -89,6 +93,11 @@ receive:
 `page.keywords` carries **every** `#+KEYWORD:` in the file under its lowercased name, so
 your own metadata works without this crate knowing about it: `#+CUSTOM_THING: x` is
 `{{ page.keywords.custom_thing }}`.
+
+`base.html` is the default layout, not the only one. A `[[pages]]` rule gives a section
+its own — `match = "blog"`, `template = "post.html"` — and `#+TEMPLATE: wide.html` gives
+one page its own, which wins over any rule. A second layout usually starts with
+`{% extends "base.html" %}`.
 
 Editing a template re-renders the pages that use it — template sources are a hash input,
 so a design change never leaves a site half-updated.

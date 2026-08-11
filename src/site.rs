@@ -115,6 +115,9 @@ struct PagePrep {
     diagnostics: Vec<Diagnostic>,
     nav: Vec<NavItem>,
     context: PageContext,
+    /// The layout this page renders through: `#+TEMPLATE:`, a `[[pages]]` rule, or
+    /// `base.html` (see [`config::page_template`]).
+    template: String,
 }
 
 /// A generated page, resolved against the pages it lists.
@@ -677,6 +680,7 @@ fn prepare_pages(
 
             PagePrep {
                 context: page_context(doc, &output, config),
+                template: config::page_template(config, &doc.source_path, &doc.keywords),
                 source: doc.source_path.clone(),
                 output,
                 title: page_title(doc),
@@ -694,6 +698,28 @@ fn prepare_pages(
     Ok((pages, symbols))
 }
 
+/// Fail before rendering if any page names a template that does not exist.
+///
+/// minijinja would report the missing name on its own, but only once a page reaches it
+/// — and a typo in `#+TEMPLATE:` or a `[[pages]]` rule is worth naming together with the
+/// page that carries it and the templates that do exist.
+fn check_page_templates(templater: &Templater, preps: &[PagePrep]) -> Result<()> {
+    for p in preps {
+        if !templater.has(&p.template) {
+            let mut available = templater.names();
+            available.sort_unstable();
+            anyhow::bail!(
+                "{} renders through {}, which is not in the templates directory. \
+                 Available: {}",
+                p.source,
+                p.template,
+                available.join(", ")
+            );
+        }
+    }
+    Ok(())
+}
+
 /// Parse + index + resolve + render + template a whole site *in memory*, without
 /// touching the output directory. Shared by the tests (full render, every page).
 pub fn render_site(src: &Utf8Path) -> Result<(Vec<BuiltPage>, BrokenLinks)> {
@@ -702,6 +728,7 @@ pub fn render_site(src: &Utf8Path) -> Result<(Vec<BuiltPage>, BrokenLinks)> {
     let (preps, _symbols) = prepare_pages(src, &config, None)?;
     let highlighter = SyntectHighlighter::new();
     let templater = Templater::load(Some(&src.join(&config.templates.dir)), &config.site.base_url)?;
+    check_page_templates(&templater, &preps)?;
     let site = site_context(&config);
     let listing = page_listing(&config, &preps);
 
@@ -770,8 +797,8 @@ fn render_page(
     ctx.body = &fragment;
     ctx.pages = pages;
     templater
-        .render_page(&ctx)
-        .with_context(|| format!("templating {}", p.source))
+        .render(&p.template, &ctx)
+        .with_context(|| format!("templating {} through {}", p.source, p.template))
 }
 
 /// Site-root-relative name of the generated syntax stylesheet. Every page links to it.
@@ -796,6 +823,7 @@ pub fn build_site(src: &Utf8Path, out: &Utf8Path, opts: &BuildOptions) -> Result
     let (preps, symbols) = prepare_pages(src, &cfg, Some(out))?;
 
     let templater = Templater::load(Some(&src.join(&cfg.templates.dir)), &cfg.site.base_url)?;
+    check_page_templates(&templater, &preps)?;
     let syntax_css = render::syntax_css(&cfg.highlight.theme).ok_or_else(|| {
         anyhow::anyhow!(
             "unknown highlight.theme {:?}. Available: {}",

@@ -7,7 +7,7 @@ use camino::{Utf8Path, Utf8PathBuf};
 use clap::{Parser, Subcommand};
 
 use org_ssg::parser::parse;
-use org_ssg::config::Config;
+use org_ssg::config::{self, Config};
 use org_ssg::render::{self, render, Html, SyntectHighlighter};
 use org_ssg::resolve::ResolvedDoc;
 use org_ssg::site::{build_site, BuildOptions, SYNTAX_STYLESHEET};
@@ -323,9 +323,16 @@ fn build_file(input: &Utf8Path, output: &Utf8Path) -> Result<()> {
     };
     let mut ctx = RenderContext::new(&site, &page_ctx, &[], SYNTAX_STYLESHEET, "");
     ctx.body = &fragment;
+    // `#+TEMPLATE:` and `[[pages]]` apply here too, so `build one.org` and a whole-site
+    // build put the same page through the same layout.
+    let name = config::page_template(
+        &config,
+        Utf8Path::new(input.file_name().unwrap_or_default()),
+        &resolved.document.keywords,
+    );
     let page = templater
-        .render_page(&ctx)
-        .with_context(|| format!("templating {input}"))?;
+        .render(&name, &ctx)
+        .with_context(|| format!("templating {input} through {name}"))?;
     fs::write(output, page).with_context(|| format!("writing output file {output}"))?;
 
     let css = output.with_file_name(SYNTAX_STYLESHEET);

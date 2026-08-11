@@ -35,6 +35,34 @@ A template that does not compile is a *build error*, not a fallback to the defau
 someone editing a layout should see the mistake, not output that looks like their edit
 did nothing.
 
+* Pages can render through a different layout
+
+=base.html= is the default, not the only option. A =[[pages]]= rule gives a section its
+own layout, and =#+TEMPLATE:= gives one page its own:
+
+#+BEGIN_SRC toml
+[[pages]]
+match = "blog"
+template = "post.html"
+#+END_SRC
+
+#+BEGIN_SRC org
+,#+TEMPLATE: wide.html
+#+END_SRC
+
+The page's own keyword wins over any rule, and the most specific rule wins over a broader
+one. A second layout almost always wants the first one's chrome, so it extends it:
+
+#+BEGIN_SRC html
+{% extends "base.html" %}
+{% block content %}
+{{ body | safe }}
+<p><a href="mailto:you@example.com">Reply by email &rarr;</a></p>
+{% endblock %}
+#+END_SRC
+
+Full rules in [[file:02-configuration.org][Configuration]].
+
 * Names are full filenames
 
 Templates are registered under their full relative filename: =base.html=,

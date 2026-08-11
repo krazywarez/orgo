@@ -1913,3 +1913,218 @@ fn export_options_parse_as_org_writes_them() {
         assert!(!option_enabled(&keywords(&format!("toc:{off}")), "toc", true), "{off}");
     }
 }
+
+// ---------------------------------------------------------------------------
+// Per-page template selection
+// ---------------------------------------------------------------------------
+
+/// A site with a `post.html` layout beside the default one, so a page can be shown to
+/// render through the layout it chose rather than the one every page gets.
+fn write_two_layouts(src: &Utf8PathBuf, config: &str) {
+    write_site(src);
+    std::fs::create_dir_all(src.join("templates")).unwrap();
+    std::fs::write(
+        src.join("templates/base.html"),
+        "<html><body><h1>{{ page.title }}</h1>{{ body | safe }}</body></html>",
+    )
+    .unwrap();
+    std::fs::write(
+        src.join("templates/post.html"),
+        "<html><body class=\"post\"><h1>{{ page.title }}</h1>{{ body | safe }}\
+         <p>Reply by email</p></body></html>",
+    )
+    .unwrap();
+    std::fs::write(src.join("org-ssg.toml"), config).unwrap();
+}
+
+/// A section's layout is a property of the section: one rule covers every page under it,
+/// however deep, without touching a single source file.
+#[test]
+fn a_pages_rule_gives_a_directory_its_own_layout() {
+    let root = tmpdir("tmplrule");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_two_layouts(
+        &src,
+        "[[pages]]\nmatch = \"blog\"\ntemplate = \"post.html\"\n",
+    );
+    std::fs::create_dir_all(src.join("blog/2026")).unwrap();
+    std::fs::write(
+        src.join("blog/2026/nested.org"),
+        "#+TITLE: Nested\n\nDeep.\n",
+    )
+    .unwrap();
+    let out = root.join("out");
+    build(&src, &out);
+
+    assert!(
+        page(&out, "blog/post.html").contains("Reply by email"),
+        "a post uses the section layout"
+    );
+    assert!(
+        page(&out, "blog/2026/nested.html").contains("Reply by email"),
+        "so does a post nested deeper"
+    );
+    assert!(
+        !page(&out, "about.html").contains("Reply by email"),
+        "a page outside the section does not"
+    );
+}
+
+/// Matching is by path component, not by string prefix: `blog` must not capture
+/// `blogroll.org`, which is a different page with a name that happens to start the same.
+#[test]
+fn a_pages_rule_matches_whole_path_components() {
+    let root = tmpdir("tmplprefix");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_two_layouts(
+        &src,
+        "[[pages]]\nmatch = \"blog\"\ntemplate = \"post.html\"\n",
+    );
+    std::fs::write(src.join("blogroll.org"), "#+TITLE: Blogroll\n\nLinks.\n").unwrap();
+    let out = root.join("out");
+    build(&src, &out);
+
+    assert!(
+        !page(&out, "blogroll.html").contains("Reply by email"),
+        "blogroll.org is not inside blog/"
+    );
+}
+
+/// The page's own declaration wins: it is the more local statement, written with that
+/// page in view.
+#[test]
+fn a_page_template_keyword_overrides_the_rule() {
+    let root = tmpdir("tmplkeyword");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_two_layouts(
+        &src,
+        "[[pages]]\nmatch = \"blog\"\ntemplate = \"base.html\"\n",
+    );
+    std::fs::write(
+        src.join("blog/post.org"),
+        "#+TITLE: A Post\n#+TEMPLATE: post.html\n\nBody.\n",
+    )
+    .unwrap();
+    let out = root.join("out");
+    build(&src, &out);
+
+    assert!(
+        page(&out, "blog/post.html").contains("Reply by email"),
+        "the keyword beats the rule"
+    );
+}
+
+/// Two rules can both cover a page; the more specific path is the one that meant it.
+#[test]
+fn the_most_specific_pages_rule_wins() {
+    let root = tmpdir("tmplspecific");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_two_layouts(
+        &src,
+        // Declared before the broader rule, so passing this test means specificity
+        // decided it and not declaration order.
+        "[[pages]]\nmatch = \"blog/notes\"\ntemplate = \"post.html\"\n\n\
+         [[pages]]\nmatch = \"blog\"\ntemplate = \"base.html\"\n",
+    );
+    std::fs::create_dir_all(src.join("blog/notes")).unwrap();
+    std::fs::write(src.join("blog/notes/n.org"), "#+TITLE: Note\n\nBody.\n").unwrap();
+    let out = root.join("out");
+    build(&src, &out);
+
+    assert!(
+        page(&out, "blog/notes/n.html").contains("Reply by email"),
+        "the deeper rule wins"
+    );
+    assert!(
+        !page(&out, "blog/post.html").contains("Reply by email"),
+        "the shallower rule still covers the rest"
+    );
+}
+
+/// A template name that does not exist is a typo. Naming the page, the template and what
+/// does exist is the difference between a fix and a hunt.
+#[test]
+fn a_missing_page_template_is_an_error_naming_it() {
+    let root = tmpdir("tmplmissing");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_two_layouts(&src, "");
+    std::fs::write(
+        src.join("about.org"),
+        "#+TITLE: About\n#+TEMPLATE: nope.html\n\nAbout.\n",
+    )
+    .unwrap();
+
+    let err = build_site(&src, &root.join("out"), &BuildOptions::default())
+        .expect_err("a missing template must fail the build");
+    let msg = format!("{err:#}");
+    assert!(msg.contains("about.org"), "names the page: {msg}");
+    assert!(msg.contains("nope.html"), "names the template: {msg}");
+    assert!(msg.contains("post.html"), "lists what exists: {msg}");
+}
+
+/// Changing a page's layout has to re-render that page and no other.
+#[test]
+fn changing_a_page_template_keyword_rerenders_only_that_page() {
+    let root = tmpdir("tmplinc");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_two_layouts(&src, "");
+    let out = root.join("out");
+    build(&src, &out);
+
+    std::fs::write(
+        src.join("about.org"),
+        "#+TITLE: About\n#+TEMPLATE: post.html\n\nAbout.\n",
+    )
+    .unwrap();
+    let second = build(&src, &out);
+
+    assert_eq!(
+        second.rendered,
+        vec![Utf8PathBuf::from("about.html")],
+        "only the page whose layout changed"
+    );
+    assert!(page(&out, "about.html").contains("Reply by email"));
+}
+
+/// A rule is config, so adding one re-renders the pages it covers.
+#[test]
+fn adding_a_pages_rule_rerenders_the_pages_it_covers() {
+    let root = tmpdir("tmplruleinc");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_two_layouts(&src, "");
+    let out = root.join("out");
+    build(&src, &out);
+
+    std::fs::write(
+        src.join("org-ssg.toml"),
+        "[[pages]]\nmatch = \"blog\"\ntemplate = \"post.html\"\n",
+    )
+    .unwrap();
+    let second = build(&src, &out);
+
+    assert!(
+        second.rendered.contains(&Utf8PathBuf::from("blog/post.html")),
+        "the covered page re-rendered: {:?}",
+        second.rendered
+    );
+    assert!(page(&out, "blog/post.html").contains("Reply by email"));
+}
+
+/// A rule that names no template is a rule that does nothing.
+#[test]
+fn a_pages_rule_without_a_template_is_rejected() {
+    let mut config = Config::default();
+    config.pages.push(org_ssg::config::PageRule {
+        pattern: Utf8PathBuf::from("blog"),
+        template: String::new(),
+    });
+    let err = config.validate().expect_err("empty template must fail");
+    assert!(format!("{err:#}").contains("blog"), "names it: {err:#}");
+}
