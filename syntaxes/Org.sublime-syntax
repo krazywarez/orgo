@@ -1,0 +1,119 @@
+%YAML 1.2
+---
+# Org mode, for syntect. syntect bundles no Org definition, which is a conspicuous gap in
+# a tool whose users write about org — every `#+BEGIN_SRC org` block in the documentation
+# needs it.
+#
+# This highlights org as *source text you are reading about*, which is a different job
+# from parsing it: org-ssg's own parser (src/parser.rs) is what turns org into a
+# document. Where the two could disagree, this one stays conservative — a highlighter
+# that colours something wrongly is a cosmetic bug, and one that swallows a line is not.
+name: Org
+file_extensions: [org]
+scope: text.org
+
+contexts:
+  main:
+    - include: headings
+    - include: blocks
+    - include: keywords
+    - include: comments
+    - include: lists
+    - include: tables
+    - include: inline
+
+  headings:
+    # The whole line is the heading; TODO keyword, priority and tags are picked out
+    # within it.
+    - match: '^(\*+)\s'
+      captures:
+        1: punctuation.definition.heading.org
+      push:
+        - meta_scope: markup.heading.org
+        - match: $\n?
+          pop: true
+        - match: '\b(TODO|NEXT|WAITING|STARTED|DONE|CANCELLED|CANCELED)\b'
+          scope: keyword.other.todo.org
+        - match: '\[#[A-Z]\]'
+          scope: constant.other.priority.org
+        - match: '(:[A-Za-z0-9_@#%:]+:)\s*$'
+          scope: entity.name.tag.org
+        - include: inline
+
+  blocks:
+    # A source block delegates nothing: the inner language is not embedded, because the
+    # point here is reading org, not rendering the code inside it.
+    - match: '^\s*(#\+(?i:BEGIN_SRC|BEGIN_EXAMPLE|BEGIN_QUOTE|BEGIN_CENTER|BEGIN_EXPORT|BEGIN_VERSE|BEGIN_COMMENT))(.*)$'
+      captures:
+        1: keyword.control.block.begin.org
+        2: variable.parameter.org
+      push:
+        - meta_scope: markup.raw.block.org
+        - match: '^\s*(#\+(?i:END_\w+))\s*$'
+          captures:
+            1: keyword.control.block.end.org
+          pop: true
+
+  keywords:
+    # #+TITLE:, #+DATE:, #+SLUG: and friends — the metadata at the top of a file.
+    - match: '^\s*(#\+[A-Za-z_]+:)(.*)$'
+      captures:
+        1: keyword.other.keyword.org
+        2: string.unquoted.org
+
+  comments:
+    # `#` followed by a space. `#+` is a keyword and is matched above.
+    - match: '^\s*#\s.*$'
+      scope: comment.line.org
+
+  lists:
+    - match: '^\s*([-+*]|\d+[.)])\s'
+      scope: punctuation.definition.list.org
+    - match: '\[[ xX-]\]'
+      scope: constant.language.checkbox.org
+
+  tables:
+    - match: '^\s*\|.*$'
+      scope: markup.other.table.org
+
+  inline:
+    - include: links
+    - include: timestamps
+    - match: '\[fn:[^\]]*\]'
+      scope: markup.other.footnote.org
+    # Verbatim and code carry no nested markup, so they come first.
+    - match: '=[^\s=][^=]*='
+      scope: markup.raw.inline.org
+    - match: '~[^\s~][^~]*~'
+      scope: markup.raw.inline.org
+    - match: '\*[^\s*][^*]*\*'
+      scope: markup.bold.org
+    - match: '/[^\s/][^/]*/'
+      scope: markup.italic.org
+    - match: '_[^\s_][^_]*_'
+      scope: markup.underline.org
+    - match: '\+[^\s+][^+]*\+'
+      scope: markup.strikethrough.org
+
+  links:
+    - match: '(\[\[)([^\]]*)(\])'
+      captures:
+        1: punctuation.definition.link.org
+        2: markup.underline.link.org
+        3: punctuation.definition.link.org
+      push:
+        - match: '(\[)([^\]]*)(\]\])'
+          captures:
+            1: punctuation.definition.link.org
+            2: string.other.link.title.org
+            3: punctuation.definition.link.org
+          pop: true
+        - match: '\]'
+          scope: punctuation.definition.link.org
+          pop: true
+        - match: ''
+          pop: true
+
+  timestamps:
+    - match: '[<\[]\d{4}-\d{2}-\d{2}[^>\]]*[>\]]'
+      scope: constant.other.timestamp.org

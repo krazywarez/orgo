@@ -525,12 +525,13 @@ fn parse_block(
     base: usize,
     diags: &mut Vec<Diagnostic>,
 ) -> (Element, usize) {
-    let mut inner: Vec<&str> = Vec::new();
+    let mut inner: Vec<String> = Vec::new();
     let mut j = start + 1;
     while j < lines.len() && !is_block_end_of(lines[j], kind) {
-        inner.push(lines[j]);
+        inner.push(unescape_block_line(lines[j]));
         j += 1;
     }
+    let inner: Vec<&str> = inner.iter().map(String::as_str).collect();
     if j >= lines.len() {
         // Everything to the end of input was swallowed by the block. This is the single
         // most destructive malformation in org: one missing line silently deletes the
@@ -567,6 +568,24 @@ fn parse_block(
         _ => Element::ExampleBlock(inner.join("\n")),
     };
     (element, next)
+}
+
+/// Undo org's comma escape on one line of block content.
+///
+/// A line inside a block that would otherwise look like document structure is written
+/// with a leading comma — `,* heading`, `,#+KEYWORD:` — and the exporter removes exactly
+/// one comma. Without this, documentation *about* org shows the escape characters its
+/// author had to type, which is precisely the audience most likely to notice.
+fn unescape_block_line(line: &str) -> String {
+    let trimmed = line.trim_start();
+    let Some(rest) = trimmed.strip_prefix(',') else {
+        return line.to_string();
+    };
+    if !(rest.starts_with('*') || rest.starts_with("#+") || rest.starts_with(',')) {
+        return line.to_string();
+    }
+    let indent = &line[..line.len() - trimmed.len()];
+    format!("{indent}{rest}")
 }
 
 /// `:NAME:` … `:END:` at block level. A PROPERTIES drawer directly under a heading is

@@ -364,6 +364,7 @@ all-of-org. Phase 0 checked this line against a real 179-file corpus and found i
 | **14** | **Authoring: excerpts, word count, reading time, `truncate`, and draft pages** | **done** |
 | **15** | **Table of contents, section numbers, and org's `#+OPTIONS:` per-file switches** | **done** |
 | **16** | **`serve`: development server with long-poll live reload, loopback-bound** | **done** |
+| **17** | **Bundled TOML and Org syntaxes, a user syntax directory, and org's comma escape** | **done** |
 
 ### v0.2 in / out
 
@@ -678,7 +679,7 @@ development server), `toml` (config), `chrono`, `camino`, `walkdir`, `clap`, `an
 
 ```
 cargo build
-cargo test                                                # 152 tests
+cargo test                                                # 156 tests
 cargo run -- init my-site                                 # scaffold a new site
 cargo run -- build fixtures/minimal.org -o minimal.html   # single file
 cargo run -- build fixtures/site -o _site                 # whole site (incremental)

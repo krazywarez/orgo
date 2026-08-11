@@ -1,0 +1,105 @@
+%YAML 1.2
+---
+# TOML, for syntect. Not one of the definitions syntect bundles, and the first thing a
+# config-heavy site needs — every org-ssg.toml example in the documentation is one.
+#
+# Scope names are the standard TextMate ones, so any syntect theme colours this without
+# knowing it exists.
+name: TOML
+file_extensions: [toml, tml]
+scope: source.toml
+
+contexts:
+  main:
+    - include: comments
+    - include: tables
+    - include: keys
+    - include: values
+
+  comments:
+    - match: '#'
+      scope: punctuation.definition.comment.toml
+      push:
+        - meta_scope: comment.line.number-sign.toml
+        - match: $\n?
+          pop: true
+
+  tables:
+    # [[array.of.tables]] before [table], so the doubled bracket wins.
+    - match: '^\s*(\[\[)([^\]]*)(\]\])'
+      captures:
+        1: punctuation.definition.table.array.toml
+        2: entity.name.section.toml
+        3: punctuation.definition.table.array.toml
+    - match: '^\s*(\[)([^\]]*)(\])'
+      captures:
+        1: punctuation.definition.table.toml
+        2: entity.name.section.toml
+        3: punctuation.definition.table.toml
+
+  keys:
+    - match: '([A-Za-z0-9_\-]+|"[^"]*"|''[^'']*'')\s*(=)'
+      captures:
+        1: variable.other.key.toml
+        2: keyword.operator.assignment.toml
+
+  values:
+    - include: strings
+    - match: '\b(true|false)\b'
+      scope: constant.language.toml
+    # Dates and times before numbers, or the year is read as an integer.
+    - match: '\b\d{4}-\d{2}-\d{2}([Tt ]\d{2}:\d{2}:\d{2}(\.\d+)?([Zz]|[+\-]\d{2}:\d{2})?)?'
+      scope: constant.numeric.date.toml
+    - match: '\b\d{2}:\d{2}:\d{2}(\.\d+)?'
+      scope: constant.numeric.time.toml
+    - match: '\b0x[0-9A-Fa-f_]+\b'
+      scope: constant.numeric.hex.toml
+    - match: '\b0o[0-7_]+\b'
+      scope: constant.numeric.oct.toml
+    - match: '\b0b[01_]+\b'
+      scope: constant.numeric.bin.toml
+    - match: '[+\-]?\b\d[\d_]*(\.[\d_]+)?([eE][+\-]?\d+)?\b'
+      scope: constant.numeric.toml
+    - match: '\b(inf|nan)\b'
+      scope: constant.numeric.toml
+
+  strings:
+    # Multi-line forms first: """ would otherwise match as an empty "" plus a stray ".
+    - match: '"""'
+      scope: punctuation.definition.string.begin.toml
+      push:
+        - meta_scope: string.quoted.double.block.toml
+        - match: '"""'
+          scope: punctuation.definition.string.end.toml
+          pop: true
+        - include: escapes
+    - match: "'''"
+      scope: punctuation.definition.string.begin.toml
+      push:
+        - meta_scope: string.quoted.single.block.toml
+        - match: "'''"
+          scope: punctuation.definition.string.end.toml
+          pop: true
+    - match: '"'
+      scope: punctuation.definition.string.begin.toml
+      push:
+        - meta_scope: string.quoted.double.toml
+        - match: '"'
+          scope: punctuation.definition.string.end.toml
+          pop: true
+        - match: $\n?
+          pop: true
+        - include: escapes
+    - match: "'"
+      scope: punctuation.definition.string.begin.toml
+      push:
+        - meta_scope: string.quoted.single.toml
+        - match: "'"
+          scope: punctuation.definition.string.end.toml
+          pop: true
+        - match: $\n?
+          pop: true
+
+  escapes:
+    - match: '\\(u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8}|[btnfr"\\/]|\s*\n)'
+      scope: constant.character.escape.toml

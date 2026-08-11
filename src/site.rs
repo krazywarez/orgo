@@ -836,7 +836,7 @@ pub fn build_site(src: &Utf8Path, out: &Utf8Path, opts: &BuildOptions) -> Result
         }
     }
 
-    let highlighter = SyntectHighlighter::new();
+    let highlighter = SyntectHighlighter::with_syntaxes(Some(&src.join(&cfg.highlight.syntaxes_dir)));
     let site = site_context(&cfg);
     let listing = page_listing(&cfg, &preps);
     let mut report = SiteReport::default();

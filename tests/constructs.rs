@@ -391,3 +391,114 @@ fn well_formed_fixtures_produce_no_diagnostics() {
         );
     }
 }
+
+// ---------------------------------------------------------------------------
+// Bundled syntax definitions, and org's comma escape
+// ---------------------------------------------------------------------------
+
+/// syntect bundles neither TOML nor Org. Both are gaps this project hits on its own
+/// first documentation page: every config example is TOML, and a tool for org users gets
+/// written about in org.
+#[test]
+fn toml_and_org_blocks_are_highlighted() {
+    for (lang, code, expect_scope) in [
+        (
+            "toml",
+            "# comment\n[site]\ntitle = \"x\"\nport = 3000\nok = true\n",
+            "entity name section toml",
+        ),
+        (
+            // The heading is comma-escaped, which org *requires* inside a block: an
+            // unescaped `*` at column 0 ends the block in Emacs too, verified against it.
+            "org",
+            ",#+TITLE: A page\n\n,* TODO [#A] Heading  :tag:\n\nSome *bold* text.\n",
+            "markup heading org",
+        ),
+    ] {
+        let source = format!("#+BEGIN_SRC {lang}\n{code}#+END_SRC\n");
+        let document = parse(Utf8PathBuf::from("t.org").as_path(), &source).expect("parse");
+        let Html(html) = render(&ResolvedDoc { document }, &SyntectHighlighter::new());
+
+        assert!(
+            html.contains(&format!("class=\"language-{lang} highlight\"")),
+            "{lang} should be highlighted, not fall back to plain code:\n{html}"
+        );
+        assert!(
+            html.contains(expect_scope),
+            "{lang} should produce the scope {expect_scope:?}:\n{html}"
+        );
+    }
+}
+
+/// TOML's lexical corners: a table array is not a table, a date is not an integer, and a
+/// comment is not a table header.
+#[test]
+fn the_toml_syntax_distinguishes_its_shapes() {
+    let code = "#+BEGIN_SRC toml\n# note\n[[collections]]\nwhen = 2026-08-11\nn = 12\ns = \"q\"\nb = false\n#+END_SRC\n";
+    let document = parse(Utf8PathBuf::from("t.org").as_path(), code).expect("parse");
+    let Html(html) = render(&ResolvedDoc { document }, &SyntectHighlighter::new());
+
+    for scope in [
+        "comment line number-sign toml",
+        "entity name section toml",
+        "constant numeric date toml",
+        "string quoted double toml",
+        "constant language toml",
+    ] {
+        assert!(html.contains(scope), "expected scope {scope:?}:\n{html}");
+    }
+}
+
+/// Org escapes a line inside a block that would look like structure by prefixing a
+/// comma, and the exporter removes it. Without this, documentation *about* org shows the
+/// escape characters its author had to type — to exactly the audience most likely to
+/// notice. Verified against Emacs, which strips them.
+#[test]
+fn the_comma_escape_is_removed_from_block_content() {
+    let source = concat!(
+        "#+BEGIN_SRC org\n",
+        ",#+TITLE: A page\n",
+        ",* A heading\n",
+        ",,* not a heading, one comma removed\n",
+        "plain line\n",
+        "#+END_SRC\n",
+    );
+    let document = parse(Utf8PathBuf::from("t.org").as_path(), source).expect("parse");
+    let Html(html) = render(&ResolvedDoc { document }, &SyntectHighlighter::new());
+    // Highlighting splits the line across spans, so compare the text, not the markup.
+    let text = strip_tags(&html);
+
+    assert!(text.contains("#+TITLE: A page"), "the comma is gone:\n{html}");
+    assert!(!text.contains(",#+TITLE:"), "and not merely moved:\n{html}");
+    assert!(
+        text.contains(",* not a heading"),
+        "a doubled comma loses exactly one:\n{html}"
+    );
+    assert!(text.contains("plain line"), "other lines are untouched:\n{html}");
+}
+
+/// Text content of an HTML fragment, with tags removed and entities decoded.
+fn strip_tags(html: &str) -> String {
+    let mut text = String::new();
+    let mut rest = html;
+    while let Some(open) = rest.find('<') {
+        text.push_str(&rest[..open]);
+        match rest[open..].find('>') {
+            Some(close) => rest = &rest[open + close + 1..],
+            None => break,
+        }
+    }
+    text.push_str(rest);
+    text.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
+}
+
+/// A comma that is not an escape is content, and must survive.
+#[test]
+fn an_ordinary_leading_comma_is_not_stripped() {
+    let source = "#+BEGIN_SRC text\n, a list continuation\n,not an escape\n#+END_SRC\n";
+    let document = parse(Utf8PathBuf::from("t.org").as_path(), source).expect("parse");
+    let Html(html) = render(&ResolvedDoc { document }, &SyntectHighlighter::new());
+    let text = strip_tags(&html);
+    assert!(text.contains(", a list continuation"), "{html}");
+    assert!(text.contains(",not an escape"), "{html}");
+}

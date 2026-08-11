@@ -29,6 +29,7 @@ expose_page_list = false
 
 [highlight]
 theme = "InspiredGitHub"
+syntaxes_dir = "syntaxes"
 
 [build]
 drafts = false
@@ -119,9 +120,10 @@ adding a post a one-page rebuild.
 
 * [highlight]
 
-| Key | Default |
-|-----+---------|
-| =theme= | ="InspiredGitHub"= |
+| Key | Default | Meaning |
+|-----+---------+---------|
+| =theme= | ="InspiredGitHub"= | A syntect theme name. |
+| =syntaxes_dir= | ="syntaxes"= | Extra =.sublime-syntax= files. |
 
 Any theme syntect ships: =InspiredGitHub=, =Solarized (dark)=, =Solarized (light)=,
 =base16-ocean.dark=, =base16-ocean.light=, =base16-eighties.dark=, =base16-mocha.dark=.
@@ -129,6 +131,11 @@ An unknown name is an error listing the valid ones.
 
 Highlighting emits *CSS classes*, never inline styles, so themes live in a stylesheet.
 Each build writes =syntax.css= into the output and every page links it.
+
+org-ssg bundles TOML and Org on top of syntect's built-in languages. Anything else
+missing is a file away: put a =.sublime-syntax= definition in =syntaxes_dir= and it is
+loaded. A definition that fails to parse is reported and skipped, because one bad file
+should not stop a site from building.
 
 * [build]
 

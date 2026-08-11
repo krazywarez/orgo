@@ -42,11 +42,60 @@ pub trait Highlighter {
 /// two must agree or the CSS will not match the markup.
 const CLASS_STYLE: ClassStyle = ClassStyle::Spaced;
 
-/// Syntect's default syntax definitions, loaded once per process (loading is far more
-/// expensive than highlighting, and a site build highlights many blocks).
+/// Syntax definitions syntect does not bundle, compiled into the binary.
+///
+/// Both are gaps this project hits on its own first page: every `org-ssg.toml` example is
+/// TOML, and a tool for org users is going to be written about in org. Embedding them
+/// rather than shipping files means they work with no setup, which is the same promise
+/// the rest of the zero-config path makes.
+const BUNDLED_SYNTAXES: &[(&str, &str)] = &[
+    ("TOML", include_str!("../syntaxes/TOML.sublime-syntax")),
+    ("Org", include_str!("../syntaxes/Org.sublime-syntax")),
+];
+
+/// Syntect's default syntax definitions plus [`BUNDLED_SYNTAXES`], loaded once per
+/// process (loading is far more expensive than highlighting, and a site build highlights
+/// many blocks).
 fn syntax_set() -> &'static SyntaxSet {
     static SET: OnceLock<SyntaxSet> = OnceLock::new();
-    SET.get_or_init(SyntaxSet::load_defaults_newlines)
+    SET.get_or_init(|| build_syntax_set(None))
+}
+
+/// Build a syntax set: syntect's defaults, the bundled additions, and optionally a
+/// directory of user `.sublime-syntax` files.
+///
+/// A malformed bundled definition is a bug in this crate and panics. A malformed *user*
+/// definition is reported and skipped, because one bad file in a directory should not
+/// stop a site from building.
+fn build_syntax_set(user_dir: Option<&camino::Utf8Path>) -> SyntaxSet {
+    let mut builder = SyntaxSet::load_defaults_newlines().into_builder();
+    for (name, source) in BUNDLED_SYNTAXES {
+        let definition =
+            syntect::parsing::SyntaxDefinition::load_from_str(source, true, Some(name))
+                .unwrap_or_else(|e| panic!("bundled {name} syntax is malformed: {e}"));
+        builder.add(definition);
+    }
+    if let Some(dir) = user_dir.filter(|d| d.is_dir()) {
+        if let Err(e) = builder.add_from_folder(dir, true) {
+            eprintln!("warning: ignoring syntax definitions in {dir}: {e}");
+        }
+    }
+    builder.build()
+}
+
+/// A syntax set including a user directory of `.sublime-syntax` files.
+///
+/// Cached per directory: a build highlights many blocks, and rebuilding the set for each
+/// would cost more than the highlighting.
+fn syntax_set_with(user_dir: &camino::Utf8Path) -> &'static SyntaxSet {
+    use std::collections::HashMap;
+    use std::sync::Mutex;
+    static SETS: OnceLock<Mutex<HashMap<camino::Utf8PathBuf, &'static SyntaxSet>>> =
+        OnceLock::new();
+    let sets = SETS.get_or_init(|| Mutex::new(HashMap::new()));
+    let mut sets = sets.lock().expect("syntax set cache");
+    sets.entry(user_dir.to_owned())
+        .or_insert_with(|| Box::leak(Box::new(build_syntax_set(Some(user_dir)))))
 }
 
 fn theme_set() -> &'static ThemeSet {
@@ -81,6 +130,29 @@ impl SyntectHighlighter {
             syntaxes: syntax_set(),
         }
     }
+
+    /// A highlighter that also knows the `.sublime-syntax` files in `dir`, for languages
+    /// neither syntect nor this crate bundles.
+    pub fn with_syntaxes(dir: Option<&camino::Utf8Path>) -> Self {
+        match dir {
+            Some(dir) if dir.is_dir() => SyntectHighlighter {
+                syntaxes: syntax_set_with(dir),
+            },
+            _ => Self::new(),
+        }
+    }
+}
+
+/// Every language the highlighter recognises, for documentation and error messages.
+pub fn available_languages() -> Vec<&'static str> {
+    let mut names: Vec<&str> = syntax_set()
+        .syntaxes()
+        .iter()
+        .map(|s| s.name.as_str())
+        .collect();
+    names.sort_unstable();
+    names.dedup();
+    names
 }
 
 impl Default for SyntectHighlighter {

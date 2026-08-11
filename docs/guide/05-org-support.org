@@ -68,9 +68,24 @@ Recognised, among others: =bash= / =sh=, =c=, =c++=, =css=, =clojure=, =diff=, =
 =makefile=, =markdown=, =matlab=, =objective-c=, =ocaml=, =perl=, =php=, =python=, =r=,
 =ruby=, =rust=, =scala=, =sql=, =tcl=, =xml=, =yaml=.
 
-*Not* bundled, and worth knowing before you write a page full of them: *TOML*, *INI*,
-*Org* and *Emacs Lisp*. The pages of this documentation are a live example — its
-=#+BEGIN_SRC toml= blocks are readable but uncoloured.
+org-ssg adds two syntect does not ship: *TOML* and *Org*. Both are what this project's
+own documentation needed on its first page — every config example is TOML, and a tool for
+org users gets written about in org — so they are compiled into the binary and work with
+no setup.
+
+Still missing, and worth knowing before you write a page full of them: *INI* and *Emacs
+Lisp*. For those, drop a =.sublime-syntax= file into the directory named by
+=[highlight] syntaxes_dir= (default =syntaxes/=) and it is picked up. A file that fails
+to parse is reported and skipped rather than failing the build.
+
+*** The comma escape
+
+A line inside a block that would otherwise look like document structure is written with a
+leading comma — =,* heading=, =,#+KEYWORD:= — and org-ssg removes exactly one comma on
+output, as Emacs does. Every org example in this documentation relies on it.
+
+The escape is not optional politeness: an unescaped =*= at column zero *ends the block*,
+in Emacs as much as here. If a code block seems to stop early, that is why.
 
 ** Tables and footnotes
 

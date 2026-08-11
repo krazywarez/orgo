@@ -259,6 +259,12 @@ impl Default for Templates {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Highlight {
+    /// Directory of extra `.sublime-syntax` files, relative to the source root.
+    ///
+    /// syntect bundles a long list of languages and this crate adds TOML and Org, but a
+    /// missing language should not need a new release — drop a definition here and it is
+    /// picked up. A file that fails to parse is reported and skipped.
+    pub syntaxes_dir: Utf8PathBuf,
     /// A syntect built-in theme name — `InspiredGitHub`, `Solarized (dark)`,
     /// `base16-ocean.dark`, `base16-eighties.dark`, `base16-mocha.dark`,
     /// `base16-ocean.light`. Highlighting emits CSS classes, and this theme is what the
@@ -269,6 +275,7 @@ pub struct Highlight {
 impl Default for Highlight {
     fn default() -> Self {
         Highlight {
+            syntaxes_dir: Utf8PathBuf::from("syntaxes"),
             theme: "InspiredGitHub".to_string(),
         }
     }
@@ -428,6 +435,8 @@ expose_page_list = false
 # A syntect theme name: InspiredGitHub, Solarized (dark), base16-ocean.dark,
 # base16-eighties.dark, base16-mocha.dark, base16-ocean.light.
 theme = "InspiredGitHub"
+# Extra .sublime-syntax files for languages neither syntect nor org-ssg bundles.
+syntaxes_dir = "syntaxes"
 
 [build]
 # Include pages marked `#+DRAFT:`. Off by default — the point of marking a draft is that
