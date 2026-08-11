@@ -42,11 +42,6 @@ pub trait Highlighter {
 /// two must agree or the CSS will not match the markup.
 const CLASS_STYLE: ClassStyle = ClassStyle::Spaced;
 
-/// The syntect theme whose colours become [`syntax_css`]. Mirrored in
-/// [`BuildConfig::highlighter_theme`](crate::incremental::BuildConfig) so a theme change
-/// flows into the config hash and invalidates every page.
-pub const SYNTAX_THEME: &str = "InspiredGitHub";
-
 /// Syntect's default syntax definitions, loaded once per process (loading is far more
 /// expensive than highlighting, and a site build highlights many blocks).
 fn syntax_set() -> &'static SyntaxSet {
@@ -54,18 +49,24 @@ fn syntax_set() -> &'static SyntaxSet {
     SET.get_or_init(SyntaxSet::load_defaults_newlines)
 }
 
-/// The stylesheet the emitted highlight classes refer to. Highlighting emits CSS
-/// classes rather than inline styles (spec §3.2), so a build must also emit this.
-pub fn syntax_css() -> &'static str {
-    static CSS: OnceLock<String> = OnceLock::new();
-    CSS.get_or_init(|| {
-        let themes = ThemeSet::load_defaults();
-        themes
-            .themes
-            .get(SYNTAX_THEME)
-            .and_then(|theme| css_for_theme_with_class_style(theme, CLASS_STYLE).ok())
-            .unwrap_or_default()
-    })
+fn theme_set() -> &'static ThemeSet {
+    static THEMES: OnceLock<ThemeSet> = OnceLock::new();
+    THEMES.get_or_init(ThemeSet::load_defaults)
+}
+
+/// The stylesheet the emitted highlight classes refer to, for a named syntect theme.
+/// Highlighting emits CSS classes rather than inline styles (spec §3.2), so a build must
+/// also emit this. `None` means the theme name is not one syntect ships — the caller
+/// reports that rather than quietly emitting an empty stylesheet, which would look like
+/// highlighting is broken.
+pub fn syntax_css(theme: &str) -> Option<String> {
+    let theme = theme_set().themes.get(theme)?;
+    css_for_theme_with_class_style(theme, CLASS_STYLE).ok()
+}
+
+/// Every theme name [`syntax_css`] accepts, for error messages and documentation.
+pub fn available_themes() -> Vec<&'static str> {
+    theme_set().themes.keys().map(String::as_str).collect()
 }
 
 /// The v1 highlighter: syntect tokenizing to CSS-class spans (spec §3.2, §4.2). A block
@@ -129,6 +130,7 @@ fn language_class(lang: Option<&str>) -> String {
 /// Carries the highlighter plus the footnote collector across the tree walk (spec §2.4).
 struct Renderer<'a> {
     hl: &'a dyn Highlighter,
+    opts: RenderOptions,
     /// Block footnote definitions, keyed by label (collected before the walk).
     block_defs: HashMap<String, Vec<Element>>,
     /// Inline footnote definitions discovered at reference sites.
@@ -137,10 +139,34 @@ struct Renderer<'a> {
     order: Vec<String>,
 }
 
-/// Render a resolved document to an HTML fragment.
+/// Options affecting how the tree becomes HTML. Presentation choices that belong to the
+/// site rather than to the document.
+#[derive(Debug, Clone, Copy)]
+pub struct RenderOptions {
+    /// Added to every heading's level, so a level-1 org heading can render as `<h2>`
+    /// beneath a page title supplied by the layout. See
+    /// [`HtmlOutput::heading_offset`](crate::config::HtmlOutput::heading_offset).
+    pub heading_offset: u8,
+}
+
+impl Default for RenderOptions {
+    fn default() -> Self {
+        RenderOptions {
+            heading_offset: crate::config::HtmlOutput::default().heading_offset,
+        }
+    }
+}
+
+/// Render a resolved document to an HTML fragment, with default options.
 pub fn render(doc: &ResolvedDoc, highlighter: &dyn Highlighter) -> Html {
+    render_with(doc, highlighter, &RenderOptions::default())
+}
+
+/// Render a resolved document to an HTML fragment.
+pub fn render_with(doc: &ResolvedDoc, highlighter: &dyn Highlighter, opts: &RenderOptions) -> Html {
     let mut r = Renderer {
         hl: highlighter,
+        opts: *opts,
         block_defs: HashMap::new(),
         inline_defs: HashMap::new(),
         order: Vec::new(),
@@ -163,7 +189,7 @@ impl Renderer<'_> {
 
     fn render_section(&mut self, section: &Section, out: &mut String) {
         if let Some(h) = &section.heading {
-            let level = h.level.clamp(1, 6);
+            let level = h.level.saturating_add(self.opts.heading_offset).clamp(1, 6);
             let anchor = h
                 .custom_id
                 .clone()

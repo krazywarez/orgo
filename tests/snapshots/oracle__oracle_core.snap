@@ -16,9 +16,9 @@ agreement: 45/54 skeleton lines (83.3%)
   </code>
   "."
   </p>
-  <h1>
+  <h2>
   "Ordered and checked"
-  </h1>
+  </h2>
   <ol>
   <li>
   "first item"
@@ -49,9 +49,9 @@ agreement: 45/54 skeleton lines (83.3%)
   </li>
 - </ul>
 + </ol>
-  <h1>
+  <h2>
   "Links and code"
-  </h1>
+  </h2>
   <p>
   "An external"
   <a href="https://example.org">

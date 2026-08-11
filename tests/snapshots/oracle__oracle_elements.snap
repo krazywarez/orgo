@@ -5,9 +5,9 @@ expression: report
 agreement: 64/82 skeleton lines (78.0%)
 (- org-ssg, + emacs)
 
-  <h1>
+  <h2>
   "Code and tables"
-  </h1>
+  </h2>
   <pre>
 - <code>
   "fn main() { println!(\"hello\"); }"
@@ -47,9 +47,9 @@ agreement: 64/82 skeleton lines (78.0%)
   </tr>
   </tbody>
   </table>
-  <h1>
+  <h2>
   "Links and footnotes"
-  </h1>
+  </h2>
   <p>
   "An external link:"
   <a href="https://example.com">
@@ -71,9 +71,9 @@ agreement: 64/82 skeleton lines (78.0%)
   </a>
   </sup>
   </p>
-  <h1>
+  <h2>
   "Blocks"
-  </h1>
+  </h2>
   <blockquote>
   <p>
   "A quoted paragraph."

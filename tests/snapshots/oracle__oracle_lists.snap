@@ -5,9 +5,9 @@ expression: report
 agreement: 100/111 skeleton lines (90.1%)
 (- org-ssg, + emacs)
 
-  <h1>
+  <h2>
   "Nesting"
-  </h1>
+  </h2>
   <ul>
   <li>
   "outer item"
@@ -29,9 +29,9 @@ agreement: 100/111 skeleton lines (90.1%)
   "second outer"
   </li>
   </ul>
-  <h1>
+  <h2>
   "Ordered"
-  </h1>
+  </h2>
   <ol>
   <li>
   "first"
@@ -51,9 +51,9 @@ agreement: 100/111 skeleton lines (90.1%)
   "third"
   </li>
   </ol>
-  <h1>
+  <h2>
   "Checkboxes"
-  </h1>
+  </h2>
   <ul>
   <li>
 - <input>
@@ -77,9 +77,9 @@ agreement: 100/111 skeleton lines (90.1%)
   "partially done"
   </li>
   </ul>
-  <h1>
+  <h2>
   "Description"
-  </h1>
+  </h2>
   <dl>
   <dt>
   "term one"
@@ -105,9 +105,9 @@ agreement: 100/111 skeleton lines (90.1%)
   "definitions hold inline markup"
   </dd>
   </dl>
-  <h1>
+  <h2>
   "Multi-paragraph items"
-  </h1>
+  </h2>
   <ul>
   <li>
   <p>

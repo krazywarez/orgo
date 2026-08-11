@@ -160,7 +160,9 @@ fn highlighting_emits_classes_not_inline_styles() {
         "highlighting must not emit inline styles:\n{html}"
     );
     assert!(
-        org_ssg::render::syntax_css().contains(".storage"),
+        org_ssg::render::syntax_css("InspiredGitHub")
+            .expect("a built-in theme")
+            .contains(".storage"),
         "the generated stylesheet must define the emitted classes"
     );
 }

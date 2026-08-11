@@ -8,9 +8,9 @@ agreement: 38/42 skeleton lines (90.5%)
   <p>
   "A single paragraph of preamble text before any heading."
   </p>
-  <h1>
+  <h2>
   "First Heading"
-  </h1>
+  </h2>
   <p>
   "Some body text with"
 - <strong>
@@ -30,9 +30,9 @@ agreement: 38/42 skeleton lines (90.5%)
   </code>
   "."
   </p>
-  <h2>
+  <h3>
   "A Subheading tag1 tag2"
-  </h2>
+  </h3>
   <ul>
   <li>
   "an unordered item"
@@ -41,9 +41,9 @@ agreement: 38/42 skeleton lines (90.5%)
   "another with a checkbox [ ]"
   </li>
   </ul>
-  <h1>
+  <h2>
   "Second Heading"
-  </h1>
+  </h2>
   <p>
   "See"
   <a href="#first">

@@ -6,19 +6,24 @@ expression: "page(&pages, \"index.org\").html"
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Home</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Home &middot; org-ssg site</title>
 <link rel="stylesheet" href="syntax.css">
 </head>
 <body>
+<header>
+<a class="site-title" href="index.html">org-ssg site</a>
 <nav>
 <a href="about.html">About</a>
 <a href="guide.html">Guide</a>
 <a href="#">Home</a>
 </nav>
+</header>
 <main>
+<h1>Home</h1>
 <p>Welcome. See the <a href="guide.html">guide</a> and jump straight to its <a href="guide.html#setup">setup section</a> across files.</p>
 <p>Also see <a href="#overview">Overview</a> further down this page.</p>
-<h1 id="overview">Overview</h1>
+<h2 id="overview">Overview</h2>
 <p>The overview lives on the home page.</p>
 </main>
 </body>

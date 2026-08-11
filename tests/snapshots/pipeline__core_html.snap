@@ -3,7 +3,7 @@ source: tests/pipeline.rs
 expression: "render_fixture(\"core.org\")"
 ---
 <p>Intro paragraph with a bare URL <a href="https://example.com">https://example.com</a> and some <code>inline code</code>.</p>
-<h1 id="ordered-and-checked">Ordered and checked</h1>
+<h2 id="ordered-and-checked">Ordered and checked</h2>
 <ol>
 <li>first item</li>
 <li>second item with <em>emphasis</em></li>
@@ -12,7 +12,7 @@ expression: "render_fixture(\"core.org\")"
 <li><input type="checkbox" disabled> todo item</li>
 <li><input type="checkbox" disabled checked> done item</li>
 </ul>
-<h1 id="links-and-code">Links and code</h1>
+<h2 id="links-and-code">Links and code</h2>
 <p>An external <a href="https://example.org">site</a> and a bare <a href="https://bare.example">https://bare.example</a>.</p>
 <pre><code class="language-rust highlight"><span class="source rust"><span class="meta function rust"><span class="meta function rust"><span class="storage type function rust">fn</span> </span><span class="entity name function rust">main</span></span><span class="meta function rust"><span class="meta function parameters rust"><span class="punctuation section parameters begin rust">(</span></span><span class="meta function rust"><span class="meta function parameters rust"><span class="punctuation section parameters end rust">)</span></span></span></span><span class="meta function rust"> </span><span class="meta function rust"><span class="meta block rust"><span class="punctuation section block begin rust">{</span>
     <span class="support macro rust">println!</span><span class="meta group rust"><span class="punctuation section group begin rust">(</span></span><span class="meta group rust"><span class="string quoted double rust"><span class="punctuation definition string begin rust">&quot;</span>hello<span class="punctuation definition string end rust">&quot;</span></span></span><span class="meta group rust"><span class="punctuation section group end rust">)</span></span><span class="punctuation terminator rust">;</span>

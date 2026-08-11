@@ -2,7 +2,7 @@
 source: tests/constructs.rs
 expression: "render_fixture(\"lists.org\")"
 ---
-<h1 id="nesting">Nesting</h1>
+<h2 id="nesting">Nesting</h2>
 <ul>
 <li>outer item<ul>
 <li>inner item<ul>
@@ -14,7 +14,7 @@ expression: "render_fixture(\"lists.org\")"
 </li>
 <li>second outer</li>
 </ul>
-<h1 id="ordered">Ordered</h1>
+<h2 id="ordered">Ordered</h2>
 <ol>
 <li>first</li>
 <li>second<ol>
@@ -24,13 +24,13 @@ expression: "render_fixture(\"lists.org\")"
 </li>
 <li>third</li>
 </ol>
-<h1 id="checkboxes">Checkboxes</h1>
+<h2 id="checkboxes">Checkboxes</h2>
 <ul>
 <li><input type="checkbox" disabled> not done</li>
 <li><input type="checkbox" disabled checked> done</li>
 <li><input type="checkbox" disabled> partially done</li>
 </ul>
-<h1 id="description">Description</h1>
+<h2 id="description">Description</h2>
 <dl>
 <dt>term one</dt>
 <dd>the first definition</dd>
@@ -39,7 +39,7 @@ expression: "render_fixture(\"lists.org\")"
 <dt><em>marked up</em> term</dt>
 <dd>definitions hold inline markup</dd>
 </dl>
-<h1 id="multi-paragraph-items">Multi-paragraph items</h1>
+<h2 id="multi-paragraph-items">Multi-paragraph items</h2>
 <ul>
 <li><p>an item whose body has two paragraphs</p>
 <p>the second paragraph, indented under the bullet</p>

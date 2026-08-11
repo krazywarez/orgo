@@ -85,7 +85,7 @@ fn full_and_incremental_are_byte_identical_and_second_build_renders_nothing() {
         &full,
         &BuildOptions {
             no_cache: true,
-            strict: false,
+            ..Default::default()
         },
     )
     .unwrap();
@@ -329,7 +329,7 @@ fn parallel_builds_are_deterministic_in_output_and_report_order() {
             out,
             &BuildOptions {
                 no_cache: true,
-                strict: false,
+                ..Default::default()
             },
         )
         .unwrap()

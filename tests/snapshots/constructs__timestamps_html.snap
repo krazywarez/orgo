@@ -2,13 +2,13 @@
 source: tests/constructs.rs
 expression: "render_fixture(\"timestamps.org\")"
 ---
-<h1 id="single">Single</h1>
+<h2 id="single">Single</h2>
 <p>An active date <time class="timestamp" datetime="2024-01-15">2024-01-15</time> and an inactive one <time class="timestamp inactive" datetime="2024-01-15">2024-01-15</time>.</p>
 <p>With a time: <time class="timestamp" datetime="2024-01-15T10:30">2024-01-15 10:30</time>.</p>
-<h1 id="ranges">Ranges</h1>
+<h2 id="ranges">Ranges</h2>
 <p>A same-day time range <time class="timestamp" datetime="2024-01-15T10:00">2024-01-15 10:00</time>&#8211;<time class="timestamp" datetime="2024-01-15T11:45">11:45</time>.</p>
 <p>A multi-day range <time class="timestamp" datetime="2024-01-15">2024-01-15</time>&#8211;<time class="timestamp" datetime="2024-01-20">2024-01-20</time>.</p>
-<h1 id="ignored-decorations">Ignored decorations</h1>
+<h2 id="ignored-decorations">Ignored decorations</h2>
 <p>A repeater is dropped: <time class="timestamp" datetime="2024-01-15">2024-01-15</time>.</p>
-<h1 id="not-timestamps">Not timestamps</h1>
+<h2 id="not-timestamps">Not timestamps</h2>
 <p>Comparisons like 3 &lt; 4 and [not a stamp] stay literal text.</p>

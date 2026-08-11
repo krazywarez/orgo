@@ -16,10 +16,9 @@
 ;; learn what stock org does — normalizing that away would be marking our own homework.
 (setq org-export-with-toc nil              ; we emit no table of contents
       org-export-with-section-numbers nil  ; we do not number headings
-      org-html-toplevel-hlevel 1           ; org defaults to h2 for a level-1 heading,
-                                           ; because a template supplies the page <h1>.
-                                           ; Aligning here keeps a global +1 offset from
-                                           ; drowning every real finding in the diff.
+      ;; org-html-toplevel-hlevel is left at its default of 2. org-ssg's own default
+      ;; heading_offset is 1, which produces the same <h2>, so both sides now agree
+      ;; without the oracle being told to.
       org-html-htmlize-output-type nil     ; plain <pre>, not htmlize spans: we highlight
                                            ; with syntect, so comparing code *text* is
                                            ; the meaningful part

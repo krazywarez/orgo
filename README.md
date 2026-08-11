@@ -13,6 +13,86 @@ hashing**, treated as a first-class architectural concern from day one. The disc
 it imposes on the data model — pure, hashable, dependency-tracked units — is the real
 deliverable, even while the corpus is small enough that a full rebuild is instant.
 
+## Quick start
+
+```bash
+cargo run -- init my-site      # config + an editable copy of the layout + a page
+cargo run -- build my-site -o _site
+```
+
+Or skip the scaffolding entirely — point it at any directory of `.org` files:
+
+```bash
+cargo run -- build ~/notes -o _site
+```
+
+**Zero configuration is a supported path, not a demo.** With no `org-ssg.toml`, no
+templates and no org-ssg-specific markup in your files, you get a complete site: pages,
+navigation, syntax-highlighted code and the stylesheet to colour it. Configuration
+changes what you get; it is never what makes it work.
+
+Discovery skips what should not be published — dot-directories such as `.git`, the config
+file, the templates directory, and the output directory when it sits inside the source, so
+`org-ssg build . -o _site` does the obvious thing.
+
+## Configuration
+
+Everything is optional. `org-ssg init` writes a fully commented `org-ssg.toml`; every
+value below is the default.
+
+```toml
+[site]
+title = "org-ssg site"
+base_url = ""          # absolute URL, no trailing slash; empty = relative URLs only
+description = ""
+language = "en"
+
+[nav]
+mode = "top-level"     # top-level | all | explicit | none
+# pages = ["index.org", "about.org"]   # for mode = "explicit"; order is preserved
+
+[templates]
+dir = "templates"      # base.html replaces the built-in layout
+expose_page_list = false
+
+[highlight]
+theme = "InspiredGitHub"
+
+[html]
+heading_offset = 1     # a level-1 org heading becomes <h2>, beneath the layout's <h1>
+```
+
+### Templates
+
+Drop a `base.html` into the templates directory and it replaces the built-in layout
+entirely. Any other `.html` file there is available to `{% include %}` and
+`{% extends %}`. Templates are [minijinja](https://docs.rs/minijinja) (Jinja2 syntax) and
+receive:
+
+| Variable | What it is |
+|---|---|
+| `body` | the rendered page HTML — use `{{ body \| safe }}` |
+| `page` | `.title`, `.url`, `.source`, `.date`, `.tags`, `.keywords` |
+| `site` | `.title`, `.base_url`, `.description`, `.language` |
+| `nav` | list of `{title, url}`, relative to this page |
+| `root` | `../`-prefix back to the site root from this page |
+| `stylesheet` | URL of the generated `syntax.css` |
+| `pages` | every page's metadata — only when `expose_page_list = true` |
+
+`page.keywords` carries **every** `#+KEYWORD:` in the file under its lowercased name, so
+your own metadata works without this crate knowing about it: `#+CUSTOM_THING: x` is
+`{{ page.keywords.custom_thing }}`.
+
+Editing a template re-renders the pages that use it — template sources are a hash input,
+so a design change never leaves a site half-updated.
+
+### `#+SLUG:`
+
+A page's output filename comes from its `#+SLUG:` when it has one, so
+`2018-11-28-aes-encryption.org` can publish as `aes-encryption.html`. Without one the
+source filename is used. Slugs are sanitized to a single safe path component, and two
+pages claiming one URL is a build error rather than a silently dropped page.
+
 ## Pipeline
 
 ```
@@ -24,6 +104,7 @@ is the only inherently global stage — it is where the link dependency graph is
 
 | Stage | Module | Notes |
 |---|---|---|
+| config | `src/config.rs` | `org-ssg.toml`: site metadata, nav mode, templates, theme. A hash input. |
 | PARSE | `src/parser.rs` | Hand-written recursive descent: line lexer → element builder → inline tokenizer. |
 | audit | `src/audit.rs` | Phase 0 corpus audit: construct frequencies against the IN/OUT line. |
 | model | `src/model.rs` | The org element tree — Elements (block) vs Objects (inline). |
@@ -72,6 +153,7 @@ all-of-org. Phase 0 checked this line against a real 179-file corpus and found i
 | 5 | Link resolution + symbol table (INDEX + RESOLVE, used-target list, broken-link reporting) | done |
 | 6 | Incremental build layer (hashing, dep graph, invalidation) done; `watch` is a simple poll loop | done |
 | **7** | **Hardening: rayon parallelism, error locations in parse diagnostics** | **done** |
+| **8** | **General use: config file, user templates, nav modes, `init` scaffold, safe discovery** | **done** |
 
 ### v0.2 in / out
 
@@ -173,9 +255,12 @@ and the `watch` fs-notify integration.
 The v1 scope was, by its own admission, *recommended* — a guess about which slice of org
 matters. Phase 0 replaces both halves of that guess with a measurement: an audit that asks
 what a real corpus actually uses, and an oracle that asks whether we render it the way
-Emacs does. The corpus is the 179 files behind [cleberg.net](https://cleberg.net), which is
-published today by weblorg — a wrapper around org's own HTML exporter. That makes it both
-the workload and the incumbent.
+Emacs does.
+
+The audit runs against any corpus — point it at your own notes before trusting this tool
+with them. The numbers below come from a 179-file site published today by weblorg, a
+wrapper around org's own HTML exporter, which makes it both a realistic workload and a
+directly comparable incumbent.
 
 ```
 cargo run -- audit <src-dir>   # what does this corpus use, and is it in scope?
@@ -309,10 +394,9 @@ blog post used to re-render the entire site; now it renders one page.** A top-le
 title still invalidates everything, correctly, since every page displays it.
 
 **Trade-off worth knowing:** on a site whose sections live in subdirectories, only genuinely
-root-level pages appear. cleberg.net keeps its landing pages at `content/salary/index.org`
-and friends, so its nav comes out as a single `index.org` entry where the live site shows
-four. Treating a directory's `index.org` as top-level too is a one-line change to
-`is_top_level` if that is the behaviour you want.
+root-level pages appear — a site keeping its landing pages at `salary/index.org` and friends
+gets a one-entry nav. That is what `nav.mode = "explicit"` is for: list the pages you want,
+in the order you want them.
 
 **From v0.1 (core subset):** headings with nesting and anchors (every heading is now
 anchored — `:CUSTOM_ID:`/`:ID:` else a slug of its text) and trailing tags; paragraphs;
@@ -332,7 +416,8 @@ PARSE/RESOLVE/RENDER), `chrono`, `camino`, `walkdir`, `clap`, `anyhow`/`thiserro
 
 ```
 cargo build
-cargo test
+cargo test                                                # 86 tests
+cargo run -- init my-site                                 # scaffold a new site
 cargo run -- build fixtures/minimal.org -o minimal.html   # single file
 cargo run -- build fixtures/site -o _site                 # whole site (incremental)
 cargo run -- audit fixtures/site                          # corpus audit (Phase 0)

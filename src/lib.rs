@@ -9,6 +9,7 @@
 //! deciding which pages actually need rewriting.
 
 pub mod audit;
+pub mod config;
 pub mod incremental;
 pub mod index;
 pub mod model;

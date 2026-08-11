@@ -5,9 +5,9 @@ expression: report
 agreement: 51/59 skeleton lines (86.4%)
 (- org-ssg, + emacs)
 
-  <h1>
+  <h2>
   "Quote"
-  </h1>
+  </h2>
   <blockquote>
   <p>
   "A quoted paragraph with"
@@ -22,27 +22,27 @@ agreement: 51/59 skeleton lines (86.4%)
   "And a second paragraph."
   </p>
   </blockquote>
-  <h1>
+  <h2>
   "Center"
-  </h1>
+  </h2>
   <p>
   "Centred text."
   </p>
-  <h1>
+  <h2>
   "Example"
-  </h1>
+  </h2>
   <pre>
   "Verbatim *not bold* text. Indentation preserved."
   </pre>
-  <h1>
+  <h2>
   "Export"
-  </h1>
+  </h2>
   <aside>
   "Raw HTML passes through."
   </aside>
-  <h1>
+  <h2>
   "Source"
-  </h1>
+  </h2>
   <pre>
 - <code>
   "def greet(name): return f\"hello {name}\""
@@ -53,9 +53,9 @@ agreement: 51/59 skeleton lines (86.4%)
   "plain block, no language"
 - </code>
   </pre>
-  <h1>
+  <h2>
   "Nested"
-  </h1>
+  </h2>
   <blockquote>
   <p>
   "A quote containing a source block:"

@@ -5,15 +5,15 @@ expression: report
 agreement: 28/42 skeleton lines (66.7%)
 (- org-ssg, + emacs)
 
-  <h1>
+  <h2>
   "Bare image"
-  </h1>
+  </h2>
   <p>
   <img src="diagram.png">
   </p>
-  <h1>
+  <h2>
   "Captioned figure"
-  </h1>
+  </h2>
 - <figure>
 + <p>
   <img src="pipeline.svg">
@@ -25,9 +25,9 @@ agreement: 28/42 skeleton lines (66.7%)
 + <p>
 + "Figure 1: The pipeline, end to end"
 + </p>
-  <h1>
+  <h2>
   "Caption with markup"
-  </h1>
+  </h2>
 - <figure>
 + <p>
   <img src="chart.png">
@@ -45,17 +45,17 @@ agreement: 28/42 skeleton lines (66.7%)
 - </figcaption>
 - </figure>
 + </p>
-  <h1>
+  <h2>
   "Quoted attribute values"
-  </h1>
+  </h2>
 - <figure>
 + <p>
   <img src="cat.jpg">
 - </figure>
 + </p>
-  <h1>
+  <h2>
   "Image with a description is a link"
-  </h1>
+  </h2>
   <p>
   <a href="diagram.png">
   "the diagram"

@@ -34,24 +34,10 @@ pub const CACHE_FORMAT_VERSION: u32 = 4;
 /// blake3 hex identity for a content/config/template/render-key hash class (spec §4.1).
 pub type Hash = ContentHash;
 
-/// Resolved global build config. Its hash is a component of every page's render key
-/// (spec §4.1): a change here can invalidate the whole site. Kept minimal for v0.3 —
-/// there is no user-facing config yet — but structured so real knobs (base URL, TODO
-/// keyword set, highlighter theme id, inline features) flow into the hash when added.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BuildConfig {
-    pub output_extension: String,
-    pub highlighter_theme: String,
-}
-
-impl Default for BuildConfig {
-    fn default() -> Self {
-        BuildConfig {
-            output_extension: "html".to_string(),
-            highlighter_theme: crate::render::SYNTAX_THEME.to_string(),
-        }
-    }
-}
+/// The resolved global build config is [`crate::config::Config`]; its hash is a
+/// component of every page's render key (spec §4.1), so editing `org-ssg.toml`
+/// invalidates the pages it affects.
+pub use crate::config::Config as BuildConfig;
 
 /// Compose bytes into a blake3 hash. The one place hashing happens for composite keys.
 fn hash_bytes(bytes: &[u8]) -> Hash {
@@ -93,7 +79,7 @@ pub fn site_structure_hash(entries: &[(String, String)]) -> Hash {
 /// blake3 over the template sources (spec §4.1, hash class 3). One combined hash over
 /// all templates; when partials land, split this per-template so a single-partial edit
 /// invalidates only its users.
-pub fn template_hash(sources: &[(&str, &str)]) -> Hash {
+pub fn template_hash(sources: &[(String, String)]) -> Hash {
     let mut hasher = blake3::Hasher::new();
     for (name, src) in sources {
         hasher.update(name.as_bytes());

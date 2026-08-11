@@ -3,9 +3,9 @@ source: tests/constructs.rs
 expression: "render_fixture(\"outofscope.org\")"
 ---
 <p>Every construct here is on the README's explicit OUT list. The contract is not that we handle them — it is that they degrade predictably and never crash the build.</p>
-<h1 id="babel">Babel</h1>
+<h2 id="babel">Babel</h2>
 <pre><code class="language-sh highlight"><span class="source shell bash"><span class="meta function-call shell"><span class="support function echo shell">echo</span></span><span class="meta function-call arguments shell"> <span class="string quoted double shell"><span class="punctuation definition string begin shell">&quot;</span>the block renders; :results is never executed<span class="punctuation definition string end shell">&quot;</span></span></span></span></code></pre>
-<h1 id="table-formulas">Table formulas</h1>
+<h2 id="table-formulas">Table formulas</h2>
 <table>
 <thead>
 <tr><th>item</th><th>cost</th></tr>
@@ -15,14 +15,14 @@ expression: "render_fixture(\"outofscope.org\")"
 <tr><td>b</td><td>2</td></tr>
 </tbody>
 </table>
-<h1 id="latex">LaTeX</h1>
+<h2 id="latex">LaTeX</h2>
 <p>Inline math $x^2 + y^2$ and a display block:</p>
 <p>\begin{equation} E = mc^2 \end{equation}</p>
-<h1 id="macros-and-radio-targets">Macros and radio targets</h1>
+<h2 id="macros-and-radio-targets">Macros and radio targets</h2>
 <p>A macro call {{{author}}} and a &lt;&lt;&lt;radio target&gt;&gt;&gt; stay literal.</p>
-<h1 id="drawers">Drawers</h1>
-<h1 id="verse">Verse</h1>
+<h2 id="drawers">Drawers</h2>
+<h2 id="verse">Verse</h2>
 <pre>An unmodelled block type
 keeps its content verbatim.</pre>
-<h1 id="entities">Entities</h1>
+<h2 id="entities">Entities</h2>
 <p>The full entity set is out of scope, so \alpha stays literal.</p>

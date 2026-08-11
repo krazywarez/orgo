@@ -7,10 +7,11 @@ use camino::{Utf8Path, Utf8PathBuf};
 use clap::{Parser, Subcommand};
 
 use org_ssg::parser::parse;
-use org_ssg::render::{render, syntax_css, Html, SyntectHighlighter};
+use org_ssg::config::Config;
+use org_ssg::render::{self, render, Html, SyntectHighlighter};
 use org_ssg::resolve::ResolvedDoc;
 use org_ssg::site::{build_site, BuildOptions, SYNTAX_STYLESHEET};
-use org_ssg::template::Templater;
+use org_ssg::template::{PageContext, SiteContext, Templater};
 
 #[derive(Parser)]
 #[command(name = "org-ssg", version, about = "Org-mode static site generator")]
@@ -32,9 +33,12 @@ enum Command {
         /// Bypass the incremental cache and re-render every page (spec §4.5).
         #[arg(long)]
         no_cache: bool,
-        /// Treat broken internal links as errors (spec §4.3.4).
+        /// Treat broken links and parse diagnostics as errors (spec §4.3.4).
         #[arg(long)]
         strict: bool,
+        /// Config file to use, overriding `org-ssg.toml` in the source directory.
+        #[arg(long, value_name = "FILE")]
+        config: Option<Utf8PathBuf>,
     },
     /// Watch a source directory and rebuild incrementally on change (simple poll loop).
     Watch {
@@ -55,6 +59,13 @@ enum Command {
         /// Source directory (or single `.org` file) to audit.
         input: Utf8PathBuf,
     },
+    /// Scaffold a new site: config, an editable copy of the default layout, and a page.
+    Init {
+        /// Directory to create the site in (created if missing; defaults to the
+        /// current directory).
+        #[arg(default_value = ".")]
+        directory: Utf8PathBuf,
+    },
 }
 
 fn main() -> Result<()> {
@@ -65,11 +76,16 @@ fn main() -> Result<()> {
             output,
             no_cache,
             strict,
+            config,
         } => {
             if input.is_dir() {
                 let out = output
                     .context("site build requires an output directory: build <src-dir> -o <out-dir>")?;
-                let opts = BuildOptions { no_cache, strict };
+                let opts = BuildOptions {
+                    no_cache,
+                    strict,
+                    config_path: config.clone(),
+                };
                 let report = build_site(&input, &out, &opts)?;
                 println!(
                     "built {} page(s) ({} rendered, {} cached), copied {} asset(s) from {} -> {} ({} unresolved link(s), {} diagnostic(s))",
@@ -98,6 +114,7 @@ fn main() -> Result<()> {
             print!("{}", org_ssg::audit::report(&result));
             Ok(())
         }
+        Command::Init { directory } => init(&directory),
         Command::Clean { output } => {
             if output.exists() {
                 fs::remove_dir_all(&output)
@@ -109,6 +126,56 @@ fn main() -> Result<()> {
             Ok(())
         }
     }
+}
+
+/// Scaffold a working site. Writes only files that do not already exist, so running it
+/// in a directory that has content is safe and additive rather than destructive.
+fn init(dir: &Utf8Path) -> Result<()> {
+    use org_ssg::config::{CONFIG_FILE, STARTER_CONFIG};
+    use org_ssg::template::starter_template;
+
+    fs::create_dir_all(dir).with_context(|| format!("creating {dir}"))?;
+    fs::create_dir_all(dir.join("templates")).with_context(|| format!("creating {dir}/templates"))?;
+
+    let index = concat!(
+        "#+TITLE: Hello\n",
+        "#+DATE: today\n",
+        "\n",
+        "Welcome to your new site. Edit this file, then run the build again.\n",
+        "\n",
+        "* A heading\n",
+        "\n",
+        "Org markup works as you would expect: *bold*, /italic/, ~code~, and\n",
+        "[[https://orgmode.org][links]].\n",
+        "\n",
+        "#+BEGIN_SRC rust\n",
+        "fn main() {\n",
+        "    println!(\"syntax highlighting is on by default\");\n",
+        "}\n",
+        "#+END_SRC\n",
+    );
+
+    let files: [(Utf8PathBuf, &str); 3] = [
+        (dir.join(CONFIG_FILE), STARTER_CONFIG),
+        (dir.join("templates/base.html"), starter_template()),
+        (dir.join("index.org"), index),
+    ];
+
+    let mut created = Vec::new();
+    for (path, contents) in &files {
+        if path.exists() {
+            println!("kept existing {path}");
+            continue;
+        }
+        fs::write(path, contents).with_context(|| format!("writing {path}"))?;
+        created.push(path.clone());
+    }
+
+    for path in &created {
+        println!("created {path}");
+    }
+    println!("\nNext: org-ssg build {dir} -o _site");
+    Ok(())
 }
 
 /// Minimal poll-based watch loop: rebuild incrementally whenever a source file changes.
@@ -187,13 +254,40 @@ fn build_file(input: &Utf8Path, output: &Utf8Path) -> Result<()> {
     let highlighter = SyntectHighlighter::new();
     let Html(fragment) = render(&resolved, &highlighter);
 
-    let templater = Templater::new();
+    // A single-file build still honours a config beside the source, so `build one.org`
+    // and a whole-site build produce the same-looking page.
+    let dir = input.parent().unwrap_or_else(|| Utf8Path::new("."));
+    let config = Config::load(dir)?;
+    config.validate()?;
+    let templater = Templater::load(Some(&dir.join(&config.templates.dir)))?;
+    let css_text = render::syntax_css(&config.highlight.theme).ok_or_else(|| {
+        anyhow::anyhow!(
+            "unknown highlight.theme {:?}. Available: {}",
+            config.highlight.theme,
+            render::available_themes().join(", ")
+        )
+    })?;
+
+    let site = SiteContext {
+        title: config.site.title.clone(),
+        base_url: config.site.base_url.clone(),
+        description: config.site.description.clone(),
+        language: config.site.language.clone(),
+    };
+    let page_ctx = PageContext {
+        title: title.clone(),
+        url: output.file_name().unwrap_or("index.html").to_string(),
+        source: input.to_string(),
+        date: None,
+        tags: Vec::new(),
+        keywords: Default::default(),
+    };
     let page = templater
-        .render_page(&title, &fragment, &[], SYNTAX_STYLESHEET)
+        .render_page(&site, &page_ctx, &fragment, &[], SYNTAX_STYLESHEET, "", None)
         .with_context(|| format!("templating {input}"))?;
     fs::write(output, page).with_context(|| format!("writing output file {output}"))?;
 
     let css = output.with_file_name(SYNTAX_STYLESHEET);
-    fs::write(&css, syntax_css()).with_context(|| format!("writing stylesheet {css}"))?;
+    fs::write(&css, css_text).with_context(|| format!("writing stylesheet {css}"))?;
     Ok(())
 }

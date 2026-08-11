@@ -5,9 +5,9 @@ expression: report
 agreement: 25/62 skeleton lines (40.3%)
 (- org-ssg, + emacs)
 
-  <h1>
+  <h2>
   "Single"
-  </h1>
+  </h2>
   <p>
 - "An active date"
 - <time>
@@ -28,9 +28,9 @@ agreement: 25/62 skeleton lines (40.3%)
 - "."
 + "With a time: <2024-01-15 Mon 10:30>."
   </p>
-  <h1>
+  <h2>
   "Ranges"
-  </h1>
+  </h2>
   <p>
 - "A same-day time range"
 - <time>
@@ -55,9 +55,9 @@ agreement: 25/62 skeleton lines (40.3%)
 - "."
 + "A multi-day range <2024-01-15 Mon>–<2024-01-20 Sat>."
   </p>
-  <h1>
+  <h2>
   "Ignored decorations"
-  </h1>
+  </h2>
   <p>
 - "A repeater is dropped:"
 - <time>
@@ -66,9 +66,9 @@ agreement: 25/62 skeleton lines (40.3%)
 - "."
 + "A repeater is dropped: <2024-01-15 Mon +1w>."
   </p>
-  <h1>
+  <h2>
   "Not timestamps"
-  </h1>
+  </h2>
   <p>
   "Comparisons like 3 < 4 and [not a stamp] stay literal text."
   </p>
