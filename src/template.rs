@@ -50,6 +50,9 @@ pub struct PageContext {
     /// shapes (`[2025-09-05 Fri 10:21:00]`, `<2024-05-01>`, `2024-05-01`), and a listing
     /// wants one it can sort and print. `None` when the date is free text like "someday".
     pub date_iso: Option<String>,
+    /// The year from `date_iso`, so a listing can group by it with minijinja's
+    /// `groupby` filter — which takes an attribute name and cannot slice a date itself.
+    pub year: Option<String>,
     /// `#+FILETAGS:` split on `:`.
     pub tags: Vec<String>,
     /// A short summary for listings: `#+DESCRIPTION:` when the page sets one, otherwise

@@ -314,6 +314,7 @@ fn build_file(input: &Utf8Path, output: &Utf8Path) -> Result<()> {
         source: input.to_string(),
         date: None,
         date_iso: None,
+        year: None,
         tags: Vec::new(),
         excerpt: String::new(),
         word_count: 0,

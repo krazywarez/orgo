@@ -479,6 +479,7 @@ fn listing_context(listing: &Listing) -> PageContext {
         source: String::new(),
         date: None,
         date_iso: None,
+        year: None,
         tags: Vec::new(),
         excerpt: String::new(),
         word_count: 0,
@@ -1266,6 +1267,10 @@ fn page_context(doc: &Document, output: &Utf8Path, config: &Config) -> PageConte
         url: output.to_string(),
         source: doc.source_path.to_string(),
         date_iso: keyword("DATE").as_deref().and_then(iso_date),
+        year: keyword("DATE")
+            .as_deref()
+            .and_then(iso_date)
+            .map(|d| d[..4].to_string()),
         date: keyword("DATE"),
         excerpt: keyword("DESCRIPTION")
             .filter(|d| !d.trim().is_empty())

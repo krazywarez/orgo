@@ -51,6 +51,33 @@ syntax it was written in — =[2025-09-05 Fri 10:21:00]=, =<2024-05-01 Wed>= or 
 *Pages with no parseable date sort last in either direction*, so an undated draft never
 leads a dated archive.
 
+** Grouping a listing by year
+
+An archive usually wants year headings, and that is a *template* decision rather than a
+config one — the entries are already in the right order, they just need breaking up.
+=page.year= exists for exactly this, because minijinja's =groupby= takes an attribute name
+and cannot slice a date itself:
+
+#+BEGIN_SRC html
+<ul class="post-list">
+{% for year, posts in pages | groupby("year") | reverse %}
+  <li class="post-list-year">{{ year if year else "undated" }}</li>
+  {% for entry in posts %}
+  <li><time datetime="{{ entry.date_iso }}">{{ entry.date_iso }}</time>
+      <a href="{{ root }}{{ entry.url }}">{{ entry.title }}</a></li>
+  {% endfor %}
+{% endfor %}
+</ul>
+#+END_SRC
+
+=groupby= sorts its groups ascending, so =| reverse= puts the newest year first — matching
+the =order = "desc"= the entries themselves already use, and leaving undated pages in a
+group of their own at the end.
+
+Name that group in the template rather than with =groupby='s =default== argument, which
+covers an attribute that is *missing* and not one that is null — an undated page has a
+=year=, and it is =none=.
+
 ** nav = true
 
 The listing page joins the site navigation. This is how a section landing page — =/blog/=,

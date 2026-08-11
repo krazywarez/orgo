@@ -2128,3 +2128,39 @@ fn a_pages_rule_without_a_template_is_rejected() {
     let err = config.validate().expect_err("empty template must fail");
     assert!(format!("{err:#}").contains("blog"), "names it: {err:#}");
 }
+
+/// An archive wants year headings, and that is a template decision — but grouping by year
+/// needs a year to group on, which a `YYYY-MM-DD` string cannot supply to `groupby`.
+#[test]
+fn a_listing_can_group_its_entries_by_year() {
+    let root = tmpdir("listyear");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_blog(&src, "");
+    std::fs::write(
+        src.join("templates/list.html"),
+        "<html><body><ul>\
+         {% for year, posts in pages | groupby(\"year\") | reverse %}\
+         <li class=\"year\">{{ year if year else \"undated\" }}</li>\
+         {% for p in posts %}<li>{{ p.title }}</li>{% endfor %}\
+         {% endfor %}</ul></body></html>",
+    )
+    .unwrap();
+    // A post with no date must still appear, under the default group.
+    std::fs::write(src.join("blog/undated.org"), "#+TITLE: Undated\n\nBody.\n").unwrap();
+    let out = root.join("out");
+    build(&src, &out);
+
+    let html = page(&out, "blog/index.html");
+    let years: Vec<&str> = html
+        .split("class=\"year\">")
+        .skip(1)
+        .map(|s| s.split('<').next().unwrap())
+        .collect();
+    assert_eq!(
+        years,
+        vec!["2025", "2024", "undated"],
+        "newest year first, undated last:\n{html}"
+    );
+    assert!(html.contains("Undated"), "the undated post is still listed");
+}

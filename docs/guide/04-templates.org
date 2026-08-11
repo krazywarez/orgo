@@ -95,6 +95,7 @@ Empty on generated pages, which build their content from =pages= or =groups= ins
 | =source= | Source path relative to the source root, e.g. =blog/post.org=. |
 | =date= | =#+DATE:= verbatim, in whatever org syntax was written. |
 | =date_iso= | The =YYYY-MM-DD= inside it, or =none=. |
+| =year= | The year from that date, for grouping a listing. |
 | =tags= | =#+FILETAGS:=, split. |
 | =excerpt= | =#+DESCRIPTION:=, or the first paragraph. |
 | =word_count= | Words of prose, excluding code blocks. |
