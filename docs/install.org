@@ -4,7 +4,7 @@
 
 * Requirements
 
-- *Rust 1.82 or newer.* Install from [[https://rustup.rs][rustup.rs]] if you do not have it. There is no other
+- *Rust 1.88 or newer.* Install from [[https://rustup.rs][rustup.rs]] if you do not have it. There is no other
   runtime requirement: the binary is self-contained, with syntax definitions and
   highlighting themes compiled in.
 - *Emacs (optional).* Only the differential test suite uses it, to compare output against
@@ -13,7 +13,7 @@
 * From source
 
 #+BEGIN_SRC sh
-git clone <repository-url> orgo
+git clone https://github.com/ccleberg/orgo
 cd orgo
 cargo build --release
 #+END_SRC

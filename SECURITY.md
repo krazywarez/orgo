@@ -11,7 +11,7 @@ Fixes land in a new release rather than as patches to an old one.
 
 ## Reporting
 
-Email <hello@cleberg.net>, or open a private advisory through GitHub's *Security* tab.
+Email <security@krz.sh>, or open a private advisory through GitHub's *Security* tab.
 Please do not open a public issue for something exploitable.
 
 ## What is worth reporting
