@@ -94,7 +94,8 @@ each, measured back to back on one machine:
 
 That middle row is the interesting one. weblorg alone does not group a blog index by year,
 write a tags page, rewrite image URLs, minify CSS or emit a sitemap — so I
-wrote ~600 lines of Python to do those on top of it. orgo does the first three natively.
+wrote ~600 lines of Python to do those on top of it. orgo does four of the five natively —
+the sitemap included, since writing this table is what prompted it.
 
 Read the numbers with three things in mind. The weblorg figures include Emacs starting and
 loading its packages, which you pay on every publish and cannot avoid. orgo emits 13 pages

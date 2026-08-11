@@ -2378,3 +2378,88 @@ fn entries_carry_no_content_unless_asked() {
     let html = page(&out, "blog/index.html");
     assert!(!html.contains("false"), "no entry carries a body:\n{html}");
 }
+
+// ---------------------------------------------------------------------------
+// Sitemap
+// ---------------------------------------------------------------------------
+
+fn sitemap_site(src: &Utf8PathBuf, config: &str) {
+    std::fs::create_dir_all(src.join("blog")).unwrap();
+    std::fs::create_dir_all(src.join("templates")).unwrap();
+    std::fs::write(src.join("index.org"), "#+TITLE: Home\n\nWelcome.\n").unwrap();
+    std::fs::write(
+        src.join("blog/post.org"),
+        "#+TITLE: Post\n#+DATE: <2026-01-15 Thu>\n\nBody.\n",
+    )
+    .unwrap();
+    std::fs::write(src.join("blog/undated.org"), "#+TITLE: Undated\n\nBody.\n").unwrap();
+    std::fs::write(src.join("style.css"), "body{}").unwrap();
+    std::fs::write(
+        src.join("templates/list.html"),
+        "<html><body>{% for p in pages %}<li>{{ p.title }}</li>{% endfor %}</body></html>",
+    )
+    .unwrap();
+    std::fs::write(src.join("orgo.toml"), config).unwrap();
+}
+
+/// A sitemap covers every page the build emits, generated ones included — a crawler has no
+/// other way to learn that `/blog/` exists.
+#[test]
+fn a_sitemap_lists_every_page_including_generated_ones() {
+    let root = tmpdir("sitemap");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    sitemap_site(
+        &src,
+        "[site]\nbase_url = \"https://example.com\"\n\n\
+         [[collections]]\nsource = \"blog\"\noutput = \"blog/index.html\"\n\
+         template = \"list.html\"\ntitle = \"Blog\"\n",
+    );
+    let out = root.join("out");
+    build(&src, &out);
+
+    let xml = page(&out, "sitemap.xml");
+    for url in [
+        "https://example.com/index.html",
+        "https://example.com/blog/post.html",
+        "https://example.com/blog/index.html",
+    ] {
+        assert!(xml.contains(url), "{url} is in the sitemap:\n{xml}");
+    }
+    // A date the author wrote is the only honest `lastmod` available; a page without one
+    // gets no element rather than a filesystem timestamp a fresh clone would reset.
+    assert!(xml.contains("<lastmod>2026-01-15</lastmod>"), "{xml}");
+    assert_eq!(xml.matches("<lastmod>").count(), 1, "only the dated page:\n{xml}");
+    // Assets and the stylesheet are not pages.
+    assert!(!xml.contains("style.css") && !xml.contains("syntax.css"), "{xml}");
+}
+
+/// A sitemap has nowhere to put a relative URL, so without a base URL there is nothing
+/// honest to write — and a build with no `base_url` set is the zero-config default.
+#[test]
+fn no_base_url_means_no_sitemap() {
+    let root = tmpdir("sitemapnobase");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    sitemap_site(&src, "");
+    let out = root.join("out");
+    build(&src, &out);
+
+    assert!(!out.join("sitemap.xml").exists(), "no base_url, no sitemap");
+}
+
+/// And it can be turned off outright.
+#[test]
+fn the_sitemap_can_be_disabled() {
+    let root = tmpdir("sitemapoff");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    sitemap_site(
+        &src,
+        "[site]\nbase_url = \"https://example.com\"\n\n[build]\nsitemap = false\n",
+    );
+    let out = root.join("out");
+    build(&src, &out);
+
+    assert!(!out.join("sitemap.xml").exists(), "disabled means absent");
+}

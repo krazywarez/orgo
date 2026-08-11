@@ -893,6 +893,50 @@ fn render_page(
 /// Site-root-relative name of the generated syntax stylesheet. Every page links to it.
 pub const SYNTAX_STYLESHEET: &str = "syntax.css";
 
+/// Site-root-relative name of the generated sitemap.
+pub const SITEMAP: &str = "sitemap.xml";
+
+/// `sitemap.xml` for every HTML page in `pages`, in URL order.
+///
+/// Only HTML: a sitemap is a list of pages for a crawler to read, and a feed or a
+/// stylesheet is neither. `lastmod` is the page's own `#+DATE:` where it has one — the
+/// nearest honest thing available without trusting a filesystem timestamp that a fresh
+/// clone would reset.
+fn sitemap(base_url: &str, pages: &[Utf8PathBuf], dated: &HashMap<&Utf8Path, &str>) -> String {
+    let mut urls: Vec<&Utf8PathBuf> = pages
+        .iter()
+        .filter(|p| p.extension() == Some("html"))
+        .collect();
+    urls.sort();
+    urls.dedup();
+
+    let base = base_url.trim_end_matches('/');
+    let mut out = String::from(
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
+         <urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n",
+    );
+    for url in urls {
+        out.push_str("<url>\n");
+        out.push_str(&format!("<loc>{base}/{}</loc>\n", escape_xml(url.as_str())));
+        if let Some(date) = dated.get(url.as_path()) {
+            out.push_str(&format!("<lastmod>{date}</lastmod>\n"));
+        }
+        out.push_str("</url>\n");
+    }
+    out.push_str("</urlset>\n");
+    out
+}
+
+/// The five XML predefined entities. A `&` in a URL is the common one, from a query
+/// string that survived into a filename.
+fn escape_xml(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&apos;")
+}
+
 /// Full site build with the incremental layer (spec §4). Renders only the pages whose
 /// `render_key` changed or that link into a changed file's targets; reuses the on-disk
 /// output of everything else; persists an updated cache manifest.
@@ -1122,6 +1166,19 @@ pub fn build_site(src: &Utf8Path, out: &Utf8Path, opts: &BuildOptions) -> Result
     // (it is a few KB and depends only on the theme, which lives in the config hash).
     fs::write(out.join(SYNTAX_STYLESHEET), &syntax_css)
         .with_context(|| format!("writing {SYNTAX_STYLESHEET} under {out}"))?;
+
+    // A sitemap covers every page the build emits, authored and generated alike, so it is
+    // written here rather than declared as a collection: a collection lists the pages it
+    // was pointed at, and this one has to know about all of them including itself.
+    if cfg.build.sitemap && !cfg.site.base_url.is_empty() {
+        let dated: HashMap<&Utf8Path, &str> = preps
+            .iter()
+            .filter_map(|p| Some((p.output.as_path(), p.context.date_iso.as_deref()?)))
+            .collect();
+        let xml = sitemap(&cfg.site.base_url, &report.pages, &dated);
+        fs::write(out.join(SITEMAP), xml)
+            .with_context(|| format!("writing {SITEMAP} under {out}"))?;
+    }
 
     // Assets are a dumb copy in v0.3 (spec §8 Q11): copy every run. Cheap, and keeps the
     // full-vs-incremental byte equivalence trivially true for non-`.org` files.

@@ -34,6 +34,7 @@ syntaxes_dir = "syntaxes"
 [build]
 drafts = false
 assets = []
+sitemap = true
 
 [html]
 heading_offset = 1
@@ -192,9 +193,20 @@ should not stop a site from building.
 |-----+---------+---------|
 | =drafts= | =false= | Include pages marked =#+DRAFT:=. |
 | =assets= | =[]= | Extra directories copied to the *site root*. |
+| =sitemap= | =true= | Write =sitemap.xml=. Needs =site.base_url=. |
 
 =--drafts= on the command line turns this on for one run. The flag can only turn drafts
 on; it never turns off a config that asked for them.
+
+** sitemap.xml
+
+Every page the build emits, generated ones included — a crawler has no other way to learn
+that =/blog/= exists. =lastmod= is the page's own =#+DATE:= where it has one, and absent
+where it does not: a filesystem timestamp would say the day you cloned the repository.
+
+*Nothing is written until =site.base_url= is set.* A sitemap has nowhere to put a relative
+URL, so a zero-config build produces no sitemap rather than an invalid one. Set a base URL
+and it appears; set =sitemap = false= and it does not.
 
 ** Static files that live elsewhere
 

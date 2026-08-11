@@ -113,6 +113,18 @@ Both zeros matter. Unresolved links are internal links pointing at nothing; diag
 are malformed org that degraded rather than failing. With =--strict= neither can reach
 this line, because either would have failed the build.
 
+* Telling a search engine where things are
+
+A build with =site.base_url= set writes =sitemap.xml= at the site root, listing every
+page. Point a =robots.txt= at it if you want one:
+
+#+BEGIN_EXAMPLE
+Sitemap: https://example.com/sitemap.xml
+#+END_EXAMPLE
+
+=robots.txt= is an ordinary file — put it beside your org files, or in a directory named
+by =[build] assets=, and it is copied through.
+
 * After an upgrade
 
 The first build on a new version is worth running with =--no-cache=, so you compare the
