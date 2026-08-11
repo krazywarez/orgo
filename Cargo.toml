@@ -7,8 +7,8 @@ license = "0BSD"
 readme = "README.md"
 keywords = ["org-mode", "static-site-generator", "emacs", "html", "blog"]
 categories = ["command-line-utilities", "text-processing"]
-repository = "https://github.com/ccleberg/orgo"
-homepage = "https://ccleberg.github.io/orgo/"
+repository = "https://github.com/krazywarez/orgo"
+homepage = "https://krazywarez.github.io/orgo/"
 
 # The compiler floor, checked in CI rather than assumed. orgo's own code needs 1.82
 # (`Option::is_none_or`); the floor is 1.88 because dependencies in Cargo.lock declare it

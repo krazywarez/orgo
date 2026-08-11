@@ -13,7 +13,7 @@
 * From source
 
 #+BEGIN_SRC sh
-git clone https://github.com/ccleberg/orgo
+git clone https://github.com/krazywarez/orgo
 cd orgo
 cargo build --release
 #+END_SRC
