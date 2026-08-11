@@ -1,0 +1,26 @@
+# Dependabot version updates.
+#
+# Two ecosystems, both weekly: the crates this is built from, and the actions the
+# workflows pin by SHA. The action pins are the reason this matters more than usual —
+# a pinned SHA never moves on its own, which is the point, and also means nothing tells
+# you it has gone stale unless something does.
+version: 2
+updates:
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # A dependency bump can change rendered output — syntect owns the highlighting, and
+    # its syntax definitions are data. Grouping keeps that reviewable as one diff rather
+    # than five PRs landing in an order nobody chose.
+    groups:
+      rust-dependencies:
+        patterns: ["*"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      actions:
+        patterns: ["*"]
