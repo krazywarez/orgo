@@ -595,6 +595,43 @@ fn a_collection_can_join_the_nav() {
     );
 }
 
+/// `mode = "none"` means none. A collection asking for a nav that was turned off does
+/// not get to be the only thing in it.
+#[test]
+fn nav_mode_none_drops_a_collection_that_asked_for_the_nav() {
+    let root = tmpdir("navnonelist");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_blog(&src, "nav = true\n\n[nav]\nmode = \"none\"\n");
+    let out = root.join("out");
+    build(&src, &out);
+
+    let nav = nav_of(&page(&out, "index.html"));
+    assert!(!nav.contains("Blog"), "nav is empty:\n{nav}");
+}
+
+/// A generated page can be positioned like any other: an explicit nav names it by its
+/// output path, and it lands exactly there rather than being appended after the pages
+/// that have source files.
+#[test]
+fn an_explicit_nav_can_order_a_generated_page_before_an_authored_one() {
+    let root = tmpdir("navgenorder");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_blog(
+        &src,
+        "nav = true\n\n[nav]\nmode = \"explicit\"\n\
+         pages = [\"blog/index.html\", \"index.org\"]\n",
+    );
+    let out = root.join("out");
+    build(&src, &out);
+
+    let nav = nav_of(&page(&out, "index.html"));
+    let blog = nav.find("Blog").expect("the listing page is in the nav");
+    let home = nav.find("Home").expect("the authored page is in the nav");
+    assert!(blog < home, "configured order wins:\n{nav}");
+}
+
 /// A listing page depends on every page it lists — and on nothing else. Adding a post
 /// must re-render the index without re-rendering the rest of the site.
 #[test]

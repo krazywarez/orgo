@@ -103,6 +103,20 @@ If your sections live in subdirectories, none of them are top-level pages. Put t
 section's *generated* index in the nav instead, with =nav = true= on its collection —
 that is the page a nav entry should point at anyway.
 
+A generated page has no source file, so name it in =pages= by its *output* path:
+
+#+BEGIN_SRC toml
+[nav]
+mode = "explicit"
+pages = ["blog/index.html", "garden/index.html", "about.org"]
+#+END_SRC
+
+That is the only way to interleave the two: a collection that sets =nav = true= without
+being listed is appended after everything you did list, so ="about.org"= alone would put
+=About= first and the sections after it. Listing all of them puts each exactly where you
+said. Either spelling works for an authored page too — its source path or its output
+path — though the source path is the one that survives a =#+SLUG:=.
+
 * [templates]
 
 | Key | Default | Meaning |
