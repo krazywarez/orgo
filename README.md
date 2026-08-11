@@ -31,7 +31,7 @@ cargo install --path .
 That puts an `orgo` command on your `PATH`. Full notes, including how to run it without
 installing anything: <https://krazywarez.github.io/orgo/install.html>
 
-## Your first site
+## Your First Site
 
 ```sh
 orgo init my-site
@@ -44,7 +44,7 @@ own — that is the loop you will spend your time in.
 `init` writes a starter post, a page layout you can edit, and a config file with every
 setting explained in comments. It never overwrites a file you already have.
 
-## Or point it at writing you already have
+## Org-Mode, Anywhere
 
 ```sh
 orgo build ~/notes -o _site
@@ -62,7 +62,7 @@ Want to know what orgo will make of your files before trusting it with them?
 `orgo audit ~/notes` reports which org constructs you use and how each one lands, with
 counts and line numbers — never the text of your writing, so the report is safe to share.
 
-## What you can add when you want it
+## Additional Features
 
 Each of these is a few lines of config, and each has a page in the guide:
 
@@ -82,21 +82,19 @@ hundreds of them stays instant.
 
 ## Speed
 
-Publishing one real site — 178 org files, ~180 pages — three ways. Median of three runs
+Publishing one real site ([cleberg.net](https://cleberg.net)) — 178 org files, ~180 pages — three ways. Median of three runs
 each, measured back to back on one machine:
 
 | | Time | |
 |---|---|---|
 | weblorg (`emacs --script publish.el`) | 49.0s | |
-| the same, plus the build script wrapped around it | 50.3s | |
+| weblorg + [build.py](https://github.com/ccleberg/cleberg.net/blob/8ec9cdfeae71068a8924dd9f61b9cc28c947ec31/build.py) | 50.3s | |
 | orgo, cold build | **0.22s** | 223× faster |
 | orgo, nothing changed since last build | **0.13s** | 377× faster |
 
 That middle row is the interesting one. weblorg alone does not group a blog index by year,
-write a tags page, rewrite image URLs, minify CSS or emit a sitemap — so the site's owner
-wrote ~600 lines of Python to do those on top of it, and pays for the whole publish again
-every time. orgo does the first three natively, minification is a build step either way,
-and *it has no sitemap yet* — that one is a real gap, not a win.
+write a tags page, rewrite image URLs, minify CSS or emit a sitemap — so I
+wrote ~600 lines of Python to do those on top of it. orgo does the first three natively.
 
 Read the numbers with three things in mind. The weblorg figures include Emacs starting and
 loading its packages, which you pay on every publish and cannot avoid. orgo emits 13 pages
@@ -104,12 +102,9 @@ weblorg does not, one per tag, so it is doing slightly more work. And the two do
 produce byte-identical output — the differences are deliberate and listed under
 [Org support](https://krazywarez.github.io/orgo/guide/05-org-support.html).
 
-Deployment is excluded from every row: it is an rsync over someone's network, which
-measures the network.
-
 Apple M2 Pro, 12 cores, macOS 26.6, Emacs 30.2, orgo built with `--release`.
 
-## The documentation
+## Docs
 
 <https://krazywarez.github.io/orgo/>
 
@@ -128,7 +123,7 @@ Apple M2 Pro, 12 cores, macOS 26.6, Emacs 30.2, orgo built with `--release`.
 | [Auditing](https://krazywarez.github.io/orgo/guide/09-auditing.html) | Reading a corpus before trusting a tool with it. |
 | [Deploying](https://krazywarez.github.io/orgo/guide/10-deploying.html) | Producing a production build, and putting it somewhere. |
 
-## Building from a checkout
+## Building
 
 ```sh
 cargo test                              # includes a differential check against Emacs, when present
