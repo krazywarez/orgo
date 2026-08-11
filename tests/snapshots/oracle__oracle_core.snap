@@ -5,7 +5,7 @@ expression: report
 agreement: 51/58 skeleton lines (87.9%)
 deliberate: 7 line(s) — list-per-bullet-type ×2, pre-code ×2, semantic-emphasis ×2
 unexplained: 0 line(s)
-(- org-ssg, + emacs, ~ a difference we mean to have)
+(- orgo, + emacs, ~ a difference we mean to have)
 
   <p>
   "Intro paragraph with a bare URL"

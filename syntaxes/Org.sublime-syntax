@@ -5,7 +5,7 @@
 # needs it.
 #
 # This highlights org as *source text you are reading about*, which is a different job
-# from parsing it: org-ssg's own parser (src/parser.rs) is what turns org into a
+# from parsing it: orgo's own parser (src/parser.rs) is what turns org into a
 # document. Where the two could disagree, this one stays conservative — a highlighter
 # that colours something wrongly is a cosmetic bug, and one that swallows a line is not.
 name: Org

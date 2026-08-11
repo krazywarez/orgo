@@ -5,7 +5,7 @@ expression: report
 agreement: 30/34 skeleton lines (88.2%)
 deliberate: 4 line(s) — no-colgroup ×1
 unexplained: 0 line(s)
-(- org-ssg, + emacs, ~ a difference we mean to have)
+(- orgo, + emacs, ~ a difference we mean to have)
 
   <table>
 ~ no-colgroup (4 line(s))

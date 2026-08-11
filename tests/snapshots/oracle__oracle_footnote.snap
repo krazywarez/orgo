@@ -5,7 +5,7 @@ expression: report
 agreement: 30/53 skeleton lines (56.6%)
 deliberate: 29 line(s) — footnote-anchor-naming ×3, footnote-section-shape ×6, semantic-emphasis ×2
 unexplained: 0 line(s)
-(- org-ssg, + emacs, ~ a difference we mean to have)
+(- orgo, + emacs, ~ a difference we mean to have)
 
   <p>
   "Text with a reference."

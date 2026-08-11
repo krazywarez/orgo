@@ -74,7 +74,7 @@ code {
 }
 
 /* Code blocks are dark in both colour schemes, matching the syntect theme named in
-   org-ssg.toml. One generated stylesheet cannot follow prefers-color-scheme, so the page
+   orgo.toml. One generated stylesheet cannot follow prefers-color-scheme, so the page
    commits to the theme's palette instead of leaving highlighted code unreadable in one
    of the two. */
 pre {

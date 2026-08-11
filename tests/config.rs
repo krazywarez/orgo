@@ -2,7 +2,7 @@
 //! generator for one site or for anyone's.
 //!
 //! The theme running through these tests is that **the zero-config path has to work**.
-//! A directory of `.org` files with no `org-ssg.toml`, no templates and no knowledge of
+//! A directory of `.org` files with no `orgo.toml`, no templates and no knowledge of
 //! this tool must build into a real site; configuration is how you change the output,
 //! never how you make it work at all.
 
@@ -10,15 +10,15 @@ use std::sync::atomic::{AtomicU32, Ordering};
 
 use camino::Utf8PathBuf;
 
-use org_ssg::config::{Config, NavMode};
-use org_ssg::site::{build_site, BuildOptions};
+use orgo::config::{Config, NavMode};
+use orgo::site::{build_site, BuildOptions};
 
 fn tmpdir(tag: &str) -> Utf8PathBuf {
     static N: AtomicU32 = AtomicU32::new(0);
     let n = N.fetch_add(1, Ordering::Relaxed);
     let base = Utf8PathBuf::from_path_buf(std::env::temp_dir())
         .expect("utf-8 temp dir")
-        .join(format!("org-ssg-cfg-{}-{tag}-{n}", std::process::id()));
+        .join(format!("orgo-cfg-{}-{tag}-{n}", std::process::id()));
     let _ = std::fs::remove_dir_all(&base);
     std::fs::create_dir_all(&base).unwrap();
     base
@@ -36,7 +36,7 @@ fn write_site(src: &Utf8PathBuf) {
     .unwrap();
 }
 
-fn build(src: &Utf8PathBuf, out: &Utf8PathBuf) -> org_ssg::site::SiteReport {
+fn build(src: &Utf8PathBuf, out: &Utf8PathBuf) -> orgo::site::SiteReport {
     build_site(src, out, &BuildOptions::default()).expect("build")
 }
 
@@ -81,9 +81,9 @@ fn a_malformed_config_is_an_error_but_a_missing_one_is_not() {
 
     assert_eq!(Config::load(&src).unwrap(), Config::default());
 
-    std::fs::write(src.join("org-ssg.toml"), "[site\ntitle = broken").unwrap();
+    std::fs::write(src.join("orgo.toml"), "[site\ntitle = broken").unwrap();
     let err = Config::load(&src).expect_err("malformed config must fail");
-    assert!(format!("{err:#}").contains("org-ssg.toml"), "names the file: {err:#}");
+    assert!(format!("{err:#}").contains("orgo.toml"), "names the file: {err:#}");
 }
 
 /// A misspelled key is a silent no-op in most config formats, which is exactly how
@@ -93,7 +93,7 @@ fn an_unknown_config_key_is_rejected() {
     let root = tmpdir("unknownkey");
     let src = root.join("src");
     std::fs::create_dir_all(&src).unwrap();
-    std::fs::write(src.join("org-ssg.toml"), "[site]\ntittle = \"typo\"\n").unwrap();
+    std::fs::write(src.join("orgo.toml"), "[site]\ntittle = \"typo\"\n").unwrap();
 
     let err = Config::load(&src).expect_err("unknown key must fail");
     assert!(
@@ -126,7 +126,7 @@ fn nav_modes_select_different_pages() {
         std::fs::create_dir_all(&src).unwrap();
         write_site(&src);
         std::fs::write(
-            src.join("org-ssg.toml"),
+            src.join("orgo.toml"),
             format!("[nav]\nmode = \"{mode}\"\n"),
         )
         .unwrap();
@@ -155,7 +155,7 @@ fn explicit_nav_uses_the_configured_order() {
     std::fs::create_dir_all(&src).unwrap();
     write_site(&src);
     std::fs::write(
-        src.join("org-ssg.toml"),
+        src.join("orgo.toml"),
         "[nav]\nmode = \"explicit\"\npages = [\"blog/post.org\", \"index.org\"]\n",
     )
     .unwrap();
@@ -178,7 +178,7 @@ fn explicit_nav_rejects_a_page_that_does_not_exist() {
     std::fs::create_dir_all(&src).unwrap();
     write_site(&src);
     std::fs::write(
-        src.join("org-ssg.toml"),
+        src.join("orgo.toml"),
         "[nav]\nmode = \"explicit\"\npages = [\"nope.org\"]\n",
     )
     .unwrap();
@@ -304,7 +304,7 @@ fn the_page_list_is_opt_in_and_widens_invalidation() {
     std::fs::create_dir_all(src.join("templates")).unwrap();
     write_site(&src);
     std::fs::write(
-        src.join("org-ssg.toml"),
+        src.join("orgo.toml"),
         "[templates]\nexpose_page_list = true\n",
     )
     .unwrap();
@@ -352,7 +352,7 @@ fn heading_offset_shifts_content_headings_below_the_page_title() {
         "a level-1 org heading renders as <h2> by default"
     );
 
-    std::fs::write(src.join("org-ssg.toml"), "[html]\nheading_offset = 0\n").unwrap();
+    std::fs::write(src.join("orgo.toml"), "[html]\nheading_offset = 0\n").unwrap();
     let out2 = root.join("out2");
     build(&src, &out2);
     assert!(
@@ -369,7 +369,7 @@ fn an_unknown_highlight_theme_is_rejected_with_the_available_ones() {
     let src = root.join("src");
     std::fs::create_dir_all(&src).unwrap();
     write_site(&src);
-    std::fs::write(src.join("org-ssg.toml"), "[highlight]\ntheme = \"nope\"\n").unwrap();
+    std::fs::write(src.join("orgo.toml"), "[highlight]\ntheme = \"nope\"\n").unwrap();
 
     let err = build_site(&src, &root.join("out"), &BuildOptions::default())
         .expect_err("unknown theme must fail");
@@ -385,7 +385,7 @@ fn an_unknown_highlight_theme_is_rejected_with_the_available_ones() {
 // Discovery
 // ---------------------------------------------------------------------------
 
-/// `org-ssg build . -o _site` is the obvious thing to type. Without excluding the output
+/// `orgo build . -o _site` is the obvious thing to type. Without excluding the output
 /// directory, the build copies its own output back into itself, growing `_site/_site/…`
 /// on every run.
 #[test]
@@ -421,7 +421,7 @@ fn dot_directories_and_build_inputs_are_never_published() {
     write_site(&src);
     std::fs::write(src.join(".git/config"), "[remote]\nurl = private\n").unwrap();
     std::fs::write(src.join(".env"), "SECRET=hunter2\n").unwrap();
-    std::fs::write(src.join("org-ssg.toml"), "[site]\ntitle = \"T\"\n").unwrap();
+    std::fs::write(src.join("orgo.toml"), "[site]\ntitle = \"T\"\n").unwrap();
     std::fs::write(src.join("templates/base.html"), "<html>{{ body | safe }}</html>").unwrap();
     std::fs::write(src.join("style.css"), "body{}\n").unwrap();
     let out = root.join("out");
@@ -430,7 +430,7 @@ fn dot_directories_and_build_inputs_are_never_published() {
     assert!(!out.join(".git").exists(), ".git must never be published");
     assert!(!out.join(".env").exists(), "dotfiles must never be published");
     assert!(
-        !out.join("org-ssg.toml").exists(),
+        !out.join("orgo.toml").exists(),
         "the config is a build input, not content"
     );
     assert!(
@@ -472,7 +472,7 @@ fn write_blog(src: &Utf8PathBuf, extra_config: &str) {
     )
     .unwrap();
     std::fs::write(
-        src.join("org-ssg.toml"),
+        src.join("orgo.toml"),
         format!(
             "[[collections]]\nsource = \"blog\"\noutput = \"blog/index.html\"\n\
              template = \"list.html\"\ntitle = \"Blog\"\n{extra_config}"
@@ -758,12 +758,12 @@ fn a_feed_is_just_a_listing_page_with_an_xml_template() {
          <pubDate>{{ p.date_iso }}</pubDate></item>{% endfor %}</channel></rss>",
     )
     .unwrap();
-    let mut config = std::fs::read_to_string(src.join("org-ssg.toml")).unwrap();
+    let mut config = std::fs::read_to_string(src.join("orgo.toml")).unwrap();
     config.push_str(
         "\n[[collections]]\nsource = \"blog\"\noutput = \"feed.xml\"\n\
          template = \"feed.xml\"\ntitle = \"Feed\"\n",
     );
-    std::fs::write(src.join("org-ssg.toml"), config).unwrap();
+    std::fs::write(src.join("orgo.toml"), config).unwrap();
     let out = root.join("out");
     build(&src, &out);
 
@@ -833,16 +833,16 @@ fn colliding_collection_outputs_are_rejected() {
     std::fs::create_dir_all(&src).unwrap();
     write_blog(&src, "");
 
-    let mut config = std::fs::read_to_string(src.join("org-ssg.toml")).unwrap();
+    let mut config = std::fs::read_to_string(src.join("orgo.toml")).unwrap();
     config.push_str("\n[[collections]]\nsource = \"\"\noutput = \"blog/index.html\"\n");
-    std::fs::write(src.join("org-ssg.toml"), &config).unwrap();
+    std::fs::write(src.join("orgo.toml"), &config).unwrap();
     let err = build_site(&src, &root.join("out"), &BuildOptions::default())
         .expect_err("two collections writing one file must fail");
     assert!(format!("{err:#}").contains("blog/index.html"), "{err:#}");
 
     // And a listing that would overwrite a real page.
     std::fs::write(
-        src.join("org-ssg.toml"),
+        src.join("orgo.toml"),
         "[[collections]]\nsource = \"blog\"\noutput = \"index.html\"\ntemplate = \"list.html\"\n",
     )
     .unwrap();
@@ -859,7 +859,7 @@ fn a_missing_collection_template_names_the_ones_that_exist() {
     std::fs::create_dir_all(&src).unwrap();
     write_blog(&src, "");
     std::fs::write(
-        src.join("org-ssg.toml"),
+        src.join("orgo.toml"),
         "[[collections]]\nsource = \"blog\"\noutput = \"blog/index.html\"\ntemplate = \"nope.html\"\n",
     )
     .unwrap();
@@ -912,7 +912,7 @@ fn write_tagged_blog(src: &Utf8PathBuf, extra: &str) {
     )
     .unwrap();
     std::fs::write(
-        src.join("org-ssg.toml"),
+        src.join("orgo.toml"),
         format!(
             "[[collections]]\nsource = \"blog\"\ngroup_by = \"tags\"\n\
              output = \"tags/{{tag}}.html\"\ntemplate = \"tag.html\"\ntitle = \"Tagged: {{tag}}\"\n\
@@ -1044,7 +1044,7 @@ fn a_collection_can_group_by_any_keyword() {
     )
     .unwrap();
     std::fs::write(
-        src.join("org-ssg.toml"),
+        src.join("orgo.toml"),
         "[[collections]]\nsource = \"blog\"\ngroup_by = \"category\"\n\
          output = \"cat/{tag}.html\"\ntemplate = \"tag.html\"\ntitle = \"{tag}\"\n",
     )
@@ -1081,7 +1081,7 @@ fn grouping_without_a_placeholder_is_rejected() {
     std::fs::create_dir_all(&src).unwrap();
     write_tagged_blog(&src, "");
     std::fs::write(
-        src.join("org-ssg.toml"),
+        src.join("orgo.toml"),
         "[[collections]]\nsource = \"blog\"\ngroup_by = \"tags\"\n\
          output = \"tags/all.html\"\ntemplate = \"tag.html\"\n",
     )
@@ -1149,7 +1149,7 @@ fn write_paginated_blog(src: &Utf8PathBuf, count: usize, extra: &str) {
     )
     .unwrap();
     std::fs::write(
-        src.join("org-ssg.toml"),
+        src.join("orgo.toml"),
         format!(
             "[[collections]]\nsource = \"blog\"\noutput = \"blog/index.html\"\n\
              template = \"list.html\"\ntitle = \"Blog\"\n{extra}"
@@ -1275,7 +1275,7 @@ fn groups_paginate_independently() {
         .unwrap();
     }
     std::fs::write(
-        src.join("org-ssg.toml"),
+        src.join("orgo.toml"),
         "[[collections]]\nsource = \"blog\"\ngroup_by = \"tags\"\n\
          output = \"tags/{tag}.html\"\ntemplate = \"list.html\"\ntitle = \"{tag}\"\n\
          paginate = 2\npaginate_output = \"tags/{tag}/page/{n}.html\"\n",
@@ -1317,7 +1317,7 @@ fn pagination_placeholders_are_validated() {
 
     // Grouped without {tag} in the page pattern.
     std::fs::write(
-        src.join("org-ssg.toml"),
+        src.join("orgo.toml"),
         "[[collections]]\nsource = \"blog\"\ngroup_by = \"tags\"\n\
          output = \"tags/{tag}.html\"\ntemplate = \"list.html\"\n\
          paginate = 2\npaginate_output = \"tags/page/{n}.html\"\n",
@@ -1380,7 +1380,7 @@ fn write_feed_site(src: &Utf8PathBuf, base_url: &str) {
     )
     .unwrap();
     std::fs::write(
-        src.join("org-ssg.toml"),
+        src.join("orgo.toml"),
         format!(
             "[site]\nbase_url = \"{base_url}\"\n\n\
              [[collections]]\nsource = \"blog\"\noutput = \"feed.xml\"\n\
@@ -1442,7 +1442,7 @@ fn absolute_without_a_base_url_is_an_error_that_says_what_to_set() {
         .expect_err("absolute with no base_url must fail");
     let message = format!("{err:#}");
     assert!(message.contains("base_url"), "names the setting: {message}");
-    assert!(message.contains("org-ssg.toml"), "names where to set it: {message}");
+    assert!(message.contains("orgo.toml"), "names where to set it: {message}");
     assert!(message.contains("feed.xml"), "names the template: {message}");
 }
 
@@ -1484,7 +1484,7 @@ fn the_default_layout_emits_a_canonical_link_only_with_a_base_url() {
         std::fs::create_dir_all(&src).unwrap();
         write_site(&src);
         std::fs::write(
-            src.join("org-ssg.toml"),
+            src.join("orgo.toml"),
             format!("[site]\nbase_url = \"{base}\"\n"),
         )
         .unwrap();
@@ -1509,7 +1509,7 @@ fn changing_base_url_re_renders_the_site() {
     std::fs::create_dir_all(&src).unwrap();
     write_site(&src);
     std::fs::write(
-        src.join("org-ssg.toml"),
+        src.join("orgo.toml"),
         "[site]\nbase_url = \"https://example.com\"\n",
     )
     .unwrap();
@@ -1518,7 +1518,7 @@ fn changing_base_url_re_renders_the_site() {
     assert!(build(&src, &out).rendered.is_empty(), "unchanged rebuild renders nothing");
 
     std::fs::write(
-        src.join("org-ssg.toml"),
+        src.join("orgo.toml"),
         "[site]\nbase_url = \"https://moved.example\"\n",
     )
     .unwrap();
@@ -1556,7 +1556,7 @@ fn write_excerpt_site(src: &Utf8PathBuf, extra_config: &str) {
     )
     .unwrap();
     std::fs::write(
-        src.join("org-ssg.toml"),
+        src.join("orgo.toml"),
         format!(
             "[[collections]]\nsource = \"blog\"\noutput = \"blog/index.html\"\n\
              template = \"list.html\"\ntitle = \"Blog\"\n{extra_config}"
@@ -1731,9 +1731,9 @@ fn a_link_to_a_draft_is_reported_as_broken() {
 /// "no" has to mean no.
 #[test]
 fn draft_truthiness_is_forgiving_but_respects_an_explicit_negative() {
-    use org_ssg::model::Keywords;
+    use orgo::model::Keywords;
     let draft = |value: &str| {
-        org_ssg::util::is_draft(&Keywords {
+        orgo::util::is_draft(&Keywords {
             entries: vec![("DRAFT".to_string(), value.to_string())],
         })
     };
@@ -1744,7 +1744,7 @@ fn draft_truthiness_is_forgiving_but_respects_an_explicit_negative() {
         assert!(!draft(no), "{no:?} should mean published");
     }
     assert!(
-        !org_ssg::util::is_draft(&Keywords::default()),
+        !orgo::util::is_draft(&Keywords::default()),
         "no keyword at all means published"
     );
 }
@@ -1773,7 +1773,7 @@ fn write_toc_site(src: &Utf8PathBuf, options: &str, config: &str) {
          <nav>{{ walk(page.toc) }}</nav>{{ body | safe }}</body></html>",
     )
     .unwrap();
-    std::fs::write(src.join("org-ssg.toml"), config).unwrap();
+    std::fs::write(src.join("orgo.toml"), config).unwrap();
 }
 
 /// A table of contents is a tree, and reconstructing one from a flat list of levels
@@ -1889,7 +1889,7 @@ fn section_numbering_resets_at_each_level() {
          * One\n** A\n** B\n* Two\n** C\n*** Deep\n* Three\n",
     )
     .unwrap();
-    std::fs::write(src.join("org-ssg.toml"), "").unwrap();
+    std::fs::write(src.join("orgo.toml"), "").unwrap();
     let out = root.join("out");
     build(&src, &out);
 
@@ -1914,8 +1914,8 @@ fn section_numbering_resets_at_each_level() {
 /// `#+OPTIONS:` is a space-separated list of switches, and org spells "off" several ways.
 #[test]
 fn export_options_parse_as_org_writes_them() {
-    use org_ssg::model::Keywords;
-    use org_ssg::util::option_enabled;
+    use orgo::model::Keywords;
+    use orgo::util::option_enabled;
     let keywords = |v: &str| Keywords {
         entries: vec![("OPTIONS".to_string(), v.to_string())],
     };
@@ -1955,7 +1955,7 @@ fn write_two_layouts(src: &Utf8PathBuf, config: &str) {
          <p>Reply by email</p></body></html>",
     )
     .unwrap();
-    std::fs::write(src.join("org-ssg.toml"), config).unwrap();
+    std::fs::write(src.join("orgo.toml"), config).unwrap();
 }
 
 /// A section's layout is a property of the section: one rule covers every page under it,
@@ -2124,7 +2124,7 @@ fn adding_a_pages_rule_rerenders_the_pages_it_covers() {
     build(&src, &out);
 
     std::fs::write(
-        src.join("org-ssg.toml"),
+        src.join("orgo.toml"),
         "[[pages]]\nmatch = \"blog\"\ntemplate = \"post.html\"\n",
     )
     .unwrap();
@@ -2142,7 +2142,7 @@ fn adding_a_pages_rule_rerenders_the_pages_it_covers() {
 #[test]
 fn a_pages_rule_without_a_template_is_rejected() {
     let mut config = Config::default();
-    config.pages.push(org_ssg::config::PageRule {
+    config.pages.push(orgo::config::PageRule {
         pattern: Utf8PathBuf::from("blog"),
         template: String::new(),
     });
@@ -2211,7 +2211,7 @@ fn same_day_entries_sort_by_time_of_day() {
     )
     .unwrap();
     std::fs::write(
-        src.join("org-ssg.toml"),
+        src.join("orgo.toml"),
         "[[collections]]\nsource = \"blog\"\noutput = \"blog/index.html\"\n\
          template = \"list.html\"\ntitle = \"Blog\"\nsort = \"date\"\norder = \"desc\"\n",
     )
@@ -2249,7 +2249,7 @@ fn an_asset_root_publishes_to_the_site_root() {
     std::fs::write(root.join("theme/static/robots.txt"), "User-agent: *\n").unwrap();
     std::fs::write(root.join("theme/static/img/logo.svg"), "<svg/>").unwrap();
     std::fs::write(
-        src.join("org-ssg.toml"),
+        src.join("orgo.toml"),
         "[build]\nassets = [\"../theme/static\"]\n",
     )
     .unwrap();
@@ -2280,7 +2280,7 @@ fn two_assets_claiming_one_url_is_an_error() {
     std::fs::create_dir_all(root.join("static")).unwrap();
     std::fs::write(root.join("static/style.css"), "body{color:red}").unwrap();
     std::fs::write(
-        src.join("org-ssg.toml"),
+        src.join("orgo.toml"),
         "[build]\nassets = [\"../static\"]\n",
     )
     .unwrap();
@@ -2301,7 +2301,7 @@ fn a_missing_asset_root_is_an_error() {
     std::fs::create_dir_all(&src).unwrap();
     write_site(&src);
     std::fs::write(
-        src.join("org-ssg.toml"),
+        src.join("orgo.toml"),
         "[build]\nassets = [\"../nope\"]\n",
     )
     .unwrap();
@@ -2330,7 +2330,7 @@ fn a_collection_can_carry_its_entries_rendered_bodies() {
     )
     .unwrap();
     std::fs::write(
-        src.join("org-ssg.toml"),
+        src.join("orgo.toml"),
         "[[collections]]\nsource = \"blog\"\noutput = \"feed.xml\"\n\
          template = \"feed.xml\"\ntitle = \"Feed\"\ninclude_content = true\n",
     )

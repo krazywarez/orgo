@@ -35,7 +35,7 @@ pub const CACHE_FORMAT_VERSION: u32 = 7;
 pub type Hash = ContentHash;
 
 /// The resolved global build config is [`crate::config::Config`]; its hash is a
-/// component of every page's render key (spec §4.1), so editing `org-ssg.toml`
+/// component of every page's render key (spec §4.1), so editing `orgo.toml`
 /// invalidates the pages it affects.
 pub use crate::config::Config as BuildConfig;
 
@@ -199,7 +199,7 @@ pub struct Manifest {
 /// The cache-manifest file lives inside the output directory (spec §4.5: an on-disk
 /// cache dir). `clean` removes the output directory, taking the cache with it.
 pub fn manifest_path(out: &Utf8Path) -> Utf8PathBuf {
-    out.join(".org-ssg-cache.json")
+    out.join(".orgo-cache.json")
 }
 
 /// Load the manifest, returning `None` on ANY of: missing file, read/parse error, or a

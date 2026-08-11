@@ -16,8 +16,8 @@ use std::sync::atomic::{AtomicU32, Ordering};
 
 use camino::Utf8PathBuf;
 
-use org_ssg::incremental::{manifest_path, Manifest, CACHE_FORMAT_VERSION};
-use org_ssg::site::{build_site, BuildOptions};
+use orgo::incremental::{manifest_path, Manifest, CACHE_FORMAT_VERSION};
+use orgo::site::{build_site, BuildOptions};
 
 /// A fresh, empty temp directory unique to this process + call.
 fn tmpdir(tag: &str) -> Utf8PathBuf {
@@ -25,7 +25,7 @@ fn tmpdir(tag: &str) -> Utf8PathBuf {
     let n = N.fetch_add(1, Ordering::Relaxed);
     let base = Utf8PathBuf::from_path_buf(std::env::temp_dir())
         .expect("utf-8 temp dir")
-        .join(format!("org-ssg-it-{}-{tag}-{n}", std::process::id()));
+        .join(format!("orgo-it-{}-{tag}-{n}", std::process::id()));
     if base.exists() {
         std::fs::remove_dir_all(&base).unwrap();
     }
@@ -47,7 +47,7 @@ fn output_files(out: &Utf8PathBuf) -> BTreeMap<String, Vec<u8>> {
             continue;
         }
         let path = Utf8PathBuf::from_path_buf(entry.path().to_owned()).unwrap();
-        if path.file_name() == Some(".org-ssg-cache.json") {
+        if path.file_name() == Some(".orgo-cache.json") {
             continue;
         }
         let rel = path.strip_prefix(out).unwrap().to_string();
@@ -476,7 +476,7 @@ fn editing_one_template_rebuilds_only_the_pages_that_use_it() {
     )
     .unwrap();
     std::fs::write(
-        src.join("org-ssg.toml"),
+        src.join("orgo.toml"),
         "[[pages]]\nmatch = \"blog\"\ntemplate = \"post.html\"\n",
     )
     .unwrap();

@@ -2,7 +2,7 @@ name: Release
 
 # Build binaries for a tag and attach them to a GitHub release.
 #
-# WHY BINARIES AT ALL, given `cargo install org-ssg` exists: installing from source needs
+# WHY BINARIES AT ALL, given `cargo install orgo` exists: installing from source needs
 # a Rust toolchain and about a minute of compiling syntect. Someone evaluating a site
 # generator should be able to download one file and point it at their notes.
 #
@@ -74,9 +74,9 @@ jobs:
       - name: Package
         shell: bash
         run: |
-          staging="org-ssg-${{ github.event.inputs.tag || github.ref_name }}-${{ matrix.target }}"
+          staging="orgo-${{ github.event.inputs.tag || github.ref_name }}-${{ matrix.target }}"
           mkdir "$staging"
-          cp "target/${{ matrix.target }}/release/org-ssg" "$staging/"
+          cp "target/${{ matrix.target }}/release/orgo" "$staging/"
           cp README.md LICENSE CHANGELOG.md "$staging/"
           tar czf "$staging.tar.gz" "$staging"
           shasum -a 256 "$staging.tar.gz" > "$staging.tar.gz.sha256"

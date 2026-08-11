@@ -2,7 +2,7 @@
 #+DESCRIPTION: How the cache decides what to re-render, and why that shape is the architecture.
 #+LEDE: Editing one post rebuilds four pages, whatever the size of the site.
 
-Incremental rebuilding is not an optimisation bolted on to org-ssg; it is the constraint
+Incremental rebuilding is not an optimisation bolted on to orgo; it is the constraint
 the data model was built around. Parsing is a pure function of one file's bytes, link
 resolution reports the edges it used, and rendering is a pure function of a resolved
 document. Those properties are what make caching sound — and they are also what make the
@@ -14,13 +14,13 @@ invalidates what explains the behaviour you will see.
 * What you observe
 
 #+BEGIN_EXAMPLE
-$ org-ssg build content -o _site
+$ orgo build content -o _site
 built 182 page(s) (182 rendered, 0 cached) ...
 
-$ org-ssg build content -o _site
+$ orgo build content -o _site
 built 182 page(s) (0 rendered, 182 cached) ...
 
-$ vim content/blog/post.org && org-ssg build content -o _site
+$ vim content/blog/post.org && orgo build content -o _site
 built 182 page(s) (4 rendered, 178 cached) ...
 #+END_EXAMPLE
 
@@ -35,7 +35,7 @@ Every page has a key composed from four hashes:
 |-----------+--------------|
 | content | The source file's bytes change. |
 | resolved links | A link's target moves, is renamed, or disappears. |
-| config | =org-ssg.toml= changes, or the shared chrome does. |
+| config | =orgo.toml= changes, or the shared chrome does. |
 | templates | *This page's* layout changes, or something that layout extends or includes. |
 
 If a page's key matches the cached one and its output file still exists, the file on disk
@@ -54,7 +54,7 @@ A template whose include is computed at render time — ={% include chooser %}= 
 followed, so it is treated as depending on every template. Over-invalidating costs time;
 under-invalidating publishes a stale page.
 
-The cache lives in =<output>/.org-ssg-cache.json= and is tagged with a format version. A
+The cache lives in =<output>/.orgo-cache.json= and is tagged with a format version. A
 version mismatch, a missing file or a corrupt file all fall back to a full rebuild — the
 cache is an optimisation, never a correctness dependency. There is a test for each of
 those three fallbacks.
@@ -124,5 +124,5 @@ correctly on their own. It exists to answer "is the cache lying to me?" — and 
 is, that is a bug worth reporting, with the two builds' output to compare.
 
 #+BEGIN_SRC sh
-org-ssg build content -o _site --no-cache
+orgo build content -o _site --no-cache
 #+END_SRC

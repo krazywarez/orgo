@@ -39,7 +39,7 @@ That is deliberate: it is what that link would be on the published site, and bet
 now than by a reader.
 
 #+BEGIN_SRC sh
-org-ssg serve content -o _site --drafts
+orgo serve content -o _site --drafts
 #+END_SRC
 
 The keyword is read forgivingly. =t=, =yes=, =1= and a bare =#+DRAFT:= all mean draft,
@@ -125,7 +125,7 @@ Every =#+KEYWORD:= reaches templates under its lowercased name:
 {% if page.keywords.subtitle %}<p class="subtitle">{{ page.keywords.subtitle }}</p>{% endif %}
 #+END_SRC
 
-Nothing needs to be registered, and org-ssg needs no release to support a keyword you
+Nothing needs to be registered, and orgo needs no release to support a keyword you
 invented.
 
 * Assets
@@ -138,9 +138,9 @@ Four things are *never* published:
 
 - Dot-entries such as =.git= and =.env=. A source directory is often a repository, and
   publishing its history next to the homepage is a real way to leak a project.
-- =org-ssg.toml=, which is a build input.
+- =orgo.toml=, which is a build input.
 - The templates directory, likewise.
-- The output directory, when it lives inside the source — so =org-ssg build . -o _site=
+- The output directory, when it lives inside the source — so =orgo build . -o _site=
   does the obvious thing rather than copying its own output back into itself.
 
 Note that excluding dot-entries also means =.well-known/= cannot be published.

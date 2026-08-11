@@ -3,7 +3,7 @@
 #+LEDE: Construct frequencies, unknown-name census, and no document text in the output.
 
 #+BEGIN_SRC sh
-org-ssg audit ~/notes
+orgo audit ~/notes
 #+END_SRC
 
 The audit answers two questions about a body of org files:
@@ -11,7 +11,7 @@ The audit answers two questions about a body of org files:
 1. *Coverage.* Of the constructs this corpus uses, which are supported? A construct that
    is common here and unsupported is a problem with the tool's scope, not with your
    writing.
-2. *Blind spots.* Which names appear that org-ssg has no opinion about at all? These are
+2. *Blind spots.* Which names appear that orgo has no opinion about at all? These are
    the dangerous ones — not "known unsupported" but unknown.
 
 * Reading the output
@@ -40,7 +40,7 @@ KEYWORDS
 - =IN= is supported; =OUT= is excluded by design and degrades as described in
   [[file:05-org-support.org][Org support]].
 - The *coverage* line is the number to look at first.
-- =???= marks a name org-ssg does not recognise at all — in this example =#+SLUG:=, from
+- =???= marks a name orgo does not recognise at all — in this example =#+SLUG:=, from
   a run made before it was supported.
 
 Four censuses follow the construct table: every distinct =#+KEYWORD:=, block type,
@@ -80,13 +80,13 @@ green run; it simply measures one thing less.
 
 #+BEGIN_SRC sh
 # What is in there?
-org-ssg audit ~/notes
+orgo audit ~/notes
 
 # Build it and see what the builder itself complains about.
-org-ssg build ~/notes -o /tmp/preview --strict
+orgo build ~/notes -o /tmp/preview --strict
 
 # Look at the result.
-org-ssg serve ~/notes -o /tmp/preview
+orgo serve ~/notes -o /tmp/preview
 #+END_SRC
 
 =--strict= surfaces broken internal links and malformed constructs as failures rather

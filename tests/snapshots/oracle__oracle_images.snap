@@ -5,7 +5,7 @@ expression: report
 agreement: 30/42 skeleton lines (71.4%)
 deliberate: 14 line(s) — figure-element ×8, semantic-emphasis ×2
 unexplained: 0 line(s)
-(- org-ssg, + emacs, ~ a difference we mean to have)
+(- orgo, + emacs, ~ a difference we mean to have)
 
   <h2>
   "Bare image"

@@ -13,10 +13,10 @@
 
 use camino::Utf8PathBuf;
 
-use org_ssg::model::Document;
-use org_ssg::parser::parse;
-use org_ssg::render::{render, Html, SyntectHighlighter};
-use org_ssg::resolve::ResolvedDoc;
+use orgo::model::Document;
+use orgo::parser::parse;
+use orgo::render::{render, Html, SyntectHighlighter};
+use orgo::resolve::ResolvedDoc;
 
 fn parse_fixture(name: &str) -> Document {
     let path = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -160,7 +160,7 @@ fn highlighting_emits_classes_not_inline_styles() {
         "highlighting must not emit inline styles:\n{html}"
     );
     assert!(
-        org_ssg::render::syntax_css("InspiredGitHub")
+        orgo::render::syntax_css("InspiredGitHub")
             .expect("a built-in theme")
             .contains(".storage"),
         "the generated stylesheet must define the emitted classes"
@@ -559,7 +559,7 @@ fn special_strings_leave_code_alone() {
     );
 }
 
-/// `#+OPTIONS: -:nil` is how a document opts out, and org-ssg honours org's own switch
+/// `#+OPTIONS: -:nil` is how a document opts out, and orgo honours org's own switch
 /// rather than inventing one.
 #[test]
 fn a_document_can_turn_special_strings_off() {

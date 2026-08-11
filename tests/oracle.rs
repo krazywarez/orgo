@@ -1,6 +1,6 @@
 //! The `emacs --batch` ground-truth oracle (spec §5, Phase 0).
 //!
-//! Every other test in this suite checks org-ssg against org-ssg: a snapshot says our
+//! Every other test in this suite checks orgo against orgo: a snapshot says our
 //! output has not *changed*, never that it is *right*. Those two questions are different,
 //! and only one of them matters to someone whose site is currently published by Emacs.
 //! This file answers the second by exporting the same fixture with org's own HTML
@@ -26,9 +26,9 @@ use std::process::Command;
 
 use camino::Utf8PathBuf;
 
-use org_ssg::parser::parse;
-use org_ssg::render::{render, Html, SyntectHighlighter};
-use org_ssg::resolve::ResolvedDoc;
+use orgo::parser::parse;
+use orgo::render::{render, Html, SyntectHighlighter};
+use orgo::resolve::ResolvedDoc;
 
 fn manifest_dir() -> Utf8PathBuf {
     Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -62,7 +62,7 @@ fn org_export(fixture: &str) -> String {
     String::from_utf8(output.stdout).expect("emacs emits UTF-8")
 }
 
-/// Render a fixture with org-ssg.
+/// Render a fixture with orgo.
 fn our_export(fixture: &str) -> String {
     let path = manifest_dir().join("fixtures").join(fixture);
     let source = std::fs::read_to_string(&path).expect("read fixture");
@@ -252,12 +252,12 @@ fn decode_entities(s: &str) -> String {
 // Divergence report
 // ---------------------------------------------------------------------------
 
-/// One divergence org-ssg makes on purpose, so the report can separate "we chose this"
+/// One divergence orgo makes on purpose, so the report can separate "we chose this"
 /// from "we got this wrong".
 ///
 /// Without this split the agreement percentage is noise: the timestamps fixture sat at
 /// 40% while being entirely correct, because org writes `<2024-01-15 Mon>` as text and
-/// org-ssg writes a `<time datetime>` element. A number that cannot fall when a real
+/// orgo writes a `<time datetime>` element. A number that cannot fall when a real
 /// defect appears is not measuring anything.
 struct Deliberate {
     name: &'static str,
@@ -335,7 +335,7 @@ const DELIBERATE: &[Deliberate] = &[
         },
         in_notes_only: false,
     },
-    // Org emits a `<colgroup>` of empty `<col>`s to carry column alignment; org-ssg
+    // Org emits a `<colgroup>` of empty `<col>`s to carry column alignment; orgo
     // leaves alignment to the stylesheet.
     Deliberate {
         name: "no-colgroup",
@@ -511,7 +511,7 @@ fn align(ours: &[String], theirs: &[String]) -> Vec<Op> {
 }
 
 /// A unified diff of the two skeletons, with hunks that are deliberate collapsed to a
-/// named line. `-` is org-ssg, `+` is Emacs.
+/// named line. `-` is orgo, `+` is Emacs.
 ///
 /// The number that matters is the last one: *unexplained* lines. Agreement can be low
 /// while unexplained is zero, and that is a passing state.
@@ -566,7 +566,7 @@ fn divergence(ours: &[String], theirs: &[String]) -> String {
         "agreement: {agreed}/{total} skeleton lines ({pct:.1}%)\n\
          deliberate: {deliberate} line(s){}\n\
          unexplained: {unexplained} line(s)\n\
-         (- org-ssg, + emacs, ~ a difference we mean to have)\n\n{body}",
+         (- orgo, + emacs, ~ a difference we mean to have)\n\n{body}",
         if rules.is_empty() {
             String::new()
         } else {
@@ -575,7 +575,7 @@ fn divergence(ours: &[String], theirs: &[String]) -> String {
     )
 }
 
-/// Snapshot the divergence between org-ssg and Emacs for one fixture.
+/// Snapshot the divergence between orgo and Emacs for one fixture.
 fn compare(fixture: &str) -> Option<String> {
     if !emacs_available() {
         eprintln!("skipping oracle comparison for {fixture}: no emacs on PATH");
@@ -612,7 +612,7 @@ oracle_test!(oracle_elements, "elements.org");
 ///
 /// The percentages above are context, not a target — the timestamps fixture agrees on
 /// 40% of its lines and is entirely correct, because org writes a date as text where
-/// org-ssg writes `<time datetime>`. What must hold is that nothing diverges for a
+/// orgo writes `<time datetime>`. What must hold is that nothing diverges for a
 /// reason nobody has written down. A new unexplained line means either a defect to fix
 /// or a decision to record in `DELIBERATE`.
 #[test]

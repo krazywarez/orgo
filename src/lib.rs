@@ -1,4 +1,4 @@
-//! org-ssg — an org-mode static site generator.
+//! orgo — an org-mode static site generator.
 //!
 //! Org is the source language, not an input to be normalized into markdown. The org
 //! element tree ([`model`]) *is* the document model; we render it straight to HTML.

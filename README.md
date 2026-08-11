@@ -1,4 +1,4 @@
-# org-ssg
+# orgo
 
 An org-mode static site generator, in Rust. Org is treated as the *source language*,
 not an inconvenient input to be normalized into markdown. The org element tree —
@@ -14,7 +14,7 @@ it imposes on the data model — pure, hashable, dependency-tracked units — is
 deliverable, even while the corpus is small enough that a full rebuild is instant.
 
 **Full documentation is in [`docs/`](docs/)** — a site written in org and built by
-org-ssg itself. Build and read it with:
+orgo itself. Build and read it with:
 
 ```bash
 cargo run -- serve docs -o docs/_site
@@ -33,23 +33,23 @@ Or skip the scaffolding entirely — point it at any directory of `.org` files:
 cargo run -- build ~/notes -o _site
 ```
 
-**Zero configuration is a supported path, not a demo.** With no `org-ssg.toml`, no
-templates and no org-ssg-specific markup in your files, you get a complete site: pages,
+**Zero configuration is a supported path, not a demo.** With no `orgo.toml`, no
+templates and no orgo-specific markup in your files, you get a complete site: pages,
 navigation, syntax-highlighted code and the stylesheet to colour it. Configuration
 changes what you get; it is never what makes it work.
 
 Discovery skips what should not be published — dot-directories such as `.git`, the config
 file, the templates directory, and the output directory when it sits inside the source, so
-`org-ssg build . -o _site` does the obvious thing.
+`orgo build . -o _site` does the obvious thing.
 
 ## Configuration
 
-Everything is optional. `org-ssg init` writes a fully commented `org-ssg.toml`; every
+Everything is optional. `orgo init` writes a fully commented `orgo.toml`; every
 value below is the default.
 
 ```toml
 [site]
-title = "org-ssg site"
+title = "orgo site"
 base_url = ""          # absolute URL, no trailing slash; needed for feeds/canonical links
 description = ""
 language = "en"
@@ -224,7 +224,7 @@ group.
 
 **A feed is a listing page with an XML template**, not a separate feature — templates are
 loaded by full filename and any extension, so `output = "feed.xml"` with
-`template = "feed.xml"` is all it takes. `org-ssg init` writes a working RSS template.
+`template = "feed.xml"` is all it takes. `orgo init` writes a working RSS template.
 
 A feed is read away from the site that served it, so relative links in one are simply
 broken. Set `site.base_url` and use the `absolute` filter:
@@ -319,7 +319,7 @@ is the only inherently global stage — it is where the link dependency graph is
 
 | Stage | Module | Notes |
 |---|---|---|
-| config | `src/config.rs` | `org-ssg.toml`: site metadata, nav mode, templates, theme. A hash input. |
+| config | `src/config.rs` | `orgo.toml`: site metadata, nav mode, templates, theme. A hash input. |
 | PARSE | `src/parser.rs` | Hand-written recursive descent: line lexer → element builder → inline tokenizer. |
 | audit | `src/audit.rs` | Phase 0 corpus audit: construct frequencies against the IN/OUT line. |
 | model | `src/model.rs` | The org element tree — Elements (block) vs Objects (inline). |
@@ -424,7 +424,7 @@ feature):**
   The config component folds in a **site-structure hash** (every page's `(path, title)`),
   because the shared nav bar is global chrome — a title change or a page add/remove alters
   the nav on every page and so must re-render them all (otherwise byte-equivalence breaks).
-- **Persisted cache manifest** (`<out>/.org-ssg-cache.json`, JSON), carrying per-page
+- **Persisted cache manifest** (`<out>/.orgo-cache.json`, JSON), carrying per-page
   records, the config/template hashes, and the serialized dependency graph, tagged with
   `CACHE_FORMAT_VERSION`. A version mismatch, a missing file, or a corrupt file all fall
   back to a clean full rebuild — the cache is an optimization, never a correctness
@@ -523,7 +523,7 @@ it over the original and touches the directory, which is one edit and several ev
 Two rules decide what counts as a change, and they are not the same rules the build uses
 to find content:
 
-- **A build input is a change.** Editing `org-ssg.toml` or a template rebuilds, even
+- **A build input is a change.** Editing `orgo.toml` or a template rebuilds, even
   though discovery skips both as non-content. The question is "would this change the
   site?", not "is this a page?".
 - **Our own output is not.** `watch . -o _site` puts the output inside the source, so a
@@ -544,7 +544,7 @@ Emacs does.
 The audit runs against any corpus — point it at your own notes before trusting this tool
 with them. The numbers below come from a 179-file site published today by weblorg, a
 wrapper around org's own HTML exporter, which makes it both a realistic workload and a
-directly comparable incumbent. With collections configured, org-ssg now reproduces
+directly comparable incumbent. With collections configured, orgo now reproduces
 **all 182 of that site's URLs**.
 
 ```
@@ -560,7 +560,7 @@ whole out-of-scope tail is 8 uses: four `#+TBLFM:` in a post *about* org-mode, t
 
 **`#+SLUG:` was a hole big enough to sink the project.** 178 of 179 files set it, and the
 published URL comes from it, not from the filename: `2018-11-28-aes-encryption.org` is
-served at `blog/aes-encryption.html`. org-ssg derived output paths from source filenames,
+served at `blog/aes-encryption.html`. orgo derived output paths from source filenames,
 so **169 of 179 pages would have been published at the wrong URL** — every inbound link and
 every search result, broken, by a tool that reported a clean build. Output paths now come
 from `#+SLUG:` when present ([`util::output_path`](src/util.rs)); slugs are sanitized so an
@@ -588,10 +588,10 @@ report gets reviewed and shows up as a diff, where a permanently red test gets i
 Three invariants are asserted outright, and all three hold — heading structure, list
 nesting, and source-block text match Emacs exactly.
 
-**No bugs in org-ssg.** Every remaining divergence is a deliberate choice to emit better
+**No bugs in orgo.** Every remaining divergence is a deliberate choice to emit better
 HTML than org does:
 
-| | org-ssg | Emacs | why |
+| | orgo | Emacs | why |
 |---|---|---|---|
 | emphasis | `<em>`/`<strong>` | `<i>`/`<b>` | semantic, not presentational |
 | captioned image | `<figure>`/`<figcaption>` | `<p>` + `"Figure 1: …"` | real figure semantics |
@@ -695,7 +695,7 @@ a major version — is what you actually build a site against:
 
 | Stable | Detail |
 |---|---|
-| `org-ssg.toml` keys | Names, types and meaning. New keys are minor releases; removing one is major. |
+| `orgo.toml` keys | Names, types and meaning. New keys are minor releases; removing one is major. |
 | Template context | `page`, `site`, `nav`, `root`, `pages`, `group`, `groups`, `paginator`, `stylesheet`, and the `absolute` / `rfc822` / `truncate` filters. |
 | CLI | Command names, flags, and exit codes. |
 | URLs | How a source path becomes an output path, including `#+SLUG:`. A generator that moves your URLs breaks every link anyone has to you. |
@@ -704,14 +704,14 @@ Explicitly **not stable**, so that the above can be:
 
 - **The incremental cache.** Versioned, discarded on mismatch, never a correctness
   dependency. It changes whenever it needs to, in any release.
-- **Rendered HTML details.** org-ssg tracks what Emacs exports from the same file, and
+- **Rendered HTML details.** orgo tracks what Emacs exports from the same file, and
   closing a gap changes markup. Changes that affect output are called out in
   [CHANGELOG.md](CHANGELOG.md) — the class names the documentation names (`post-list`,
   `figure-number`, `section-number-N`, `footnote-ref`) are the ones to write CSS against.
 - **The Rust API.** The crate is published so the binary can be installed with
   `cargo install`; the library exists to serve it, and its types move as the tool does.
 
-The **MSRV is 1.88**, checked in CI on every change. org-ssg's own code compiles on
+The **MSRV is 1.88**, checked in CI on every change. orgo's own code compiles on
 1.82; the floor comes from dependencies. Raising it is a minor version, never a patch.
 
 ## Dependencies

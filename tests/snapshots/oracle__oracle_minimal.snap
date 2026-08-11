@@ -5,7 +5,7 @@ expression: report
 agreement: 38/42 skeleton lines (90.5%)
 deliberate: 4 line(s) — semantic-emphasis ×4
 unexplained: 0 line(s)
-(- org-ssg, + emacs, ~ a difference we mean to have)
+(- orgo, + emacs, ~ a difference we mean to have)
 
   <p>
   "A single paragraph of preamble text before any heading."

@@ -1,5 +1,5 @@
 #+TITLE: Install
-#+DESCRIPTION: Build org-ssg from source, put it on your PATH, and check that it works.
+#+DESCRIPTION: Build orgo from source, put it on your PATH, and check that it works.
 #+LEDE: One Rust toolchain, one command, no runtime dependencies.
 
 * Requirements
@@ -13,15 +13,15 @@
 * From source
 
 #+BEGIN_SRC sh
-git clone <repository-url> org-ssg
-cd org-ssg
+git clone <repository-url> orgo
+cd orgo
 cargo build --release
 #+END_SRC
 
-The binary lands at =target/release/org-ssg=. Copy it somewhere on your =PATH=:
+The binary lands at =target/release/orgo=. Copy it somewhere on your =PATH=:
 
 #+BEGIN_SRC sh
-cp target/release/org-ssg ~/.local/bin/
+cp target/release/orgo ~/.local/bin/
 #+END_SRC
 
 Or let cargo do it, which puts it in =~/.cargo/bin=:
@@ -33,7 +33,7 @@ cargo install --path .
 * Running without installing
 
 Every command in this documentation works through cargo if you would rather not install
-anything. Replace =org-ssg= with =cargo run --= and add =--release= for a fast build:
+anything. Replace =orgo= with =cargo run --= and add =--release= for a fast build:
 
 #+BEGIN_SRC sh
 cargo run --release -- build my-site -o _site
@@ -45,9 +45,9 @@ syntax highlighting dominates and is not optimised in a debug profile.
 * Check that it works
 
 #+BEGIN_SRC sh
-org-ssg --version
-org-ssg init /tmp/org-ssg-check
-org-ssg build /tmp/org-ssg-check -o /tmp/org-ssg-check/_site
+orgo --version
+orgo init /tmp/orgo-check
+orgo build /tmp/orgo-check -o /tmp/orgo-check/_site
 #+END_SRC
 
 You should see a line reporting the pages built:
@@ -56,10 +56,10 @@ You should see a line reporting the pages built:
 built 5 page(s) (5 rendered, 0 cached), copied 0 asset(s) ... (0 unresolved link(s), 0 diagnostic(s))
 #+END_EXAMPLE
 
-Open =/tmp/org-ssg-check/_site/index.html= in a browser, or serve it properly:
+Open =/tmp/orgo-check/_site/index.html= in a browser, or serve it properly:
 
 #+BEGIN_SRC sh
-org-ssg serve /tmp/org-ssg-check -o /tmp/org-ssg-check/_site
+orgo serve /tmp/orgo-check -o /tmp/orgo-check/_site
 #+END_SRC
 
 * Running the test suite
@@ -82,13 +82,13 @@ still gets a green test run — it simply measures one thing less.
 
 * Upgrading
 
-org-ssg stores an incremental cache in =<output>/.org-ssg-cache.json=, tagged with a
+orgo stores an incremental cache in =<output>/.orgo-cache.json=, tagged with a
 format version. A newer binary that changes how output is produced bumps that version,
 and a version it does not recognise is discarded in favour of a full rebuild. You never
 need to clear the cache by hand after an upgrade — but if you want to:
 
 #+BEGIN_SRC sh
-org-ssg clean _site
+orgo clean _site
 #+END_SRC
 
 * Next

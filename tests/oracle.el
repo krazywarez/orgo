@@ -1,4 +1,4 @@
-;;; oracle.el --- ground-truth HTML export for the org-ssg differential tests  -*- lexical-binding: t -*-
+;;; oracle.el --- ground-truth HTML export for the orgo differential tests  -*- lexical-binding: t -*-
 
 ;; Exports the org file named by $ORG_ORACLE_INPUT to HTML on stdout, using org's own
 ;; exporter — the same one weblorg wraps to publish the corpus this project targets.
@@ -16,7 +16,7 @@
 ;; learn what stock org does — normalizing that away would be marking our own homework.
 (setq org-export-with-toc nil              ; we emit no table of contents
       org-export-with-section-numbers nil  ; we do not number headings
-      ;; org-html-toplevel-hlevel is left at its default of 2. org-ssg's own default
+      ;; org-html-toplevel-hlevel is left at its default of 2. orgo's own default
       ;; heading_offset is 1, which produces the same <h2>, so both sides now agree
       ;; without the oracle being told to.
       org-html-htmlize-output-type nil     ; plain <pre>, not htmlize spans: we highlight
@@ -24,7 +24,7 @@
                                            ; the meaningful part
       org-html-head-include-default-style nil
       org-html-head-include-scripts nil
-      ;; Fixtures link to ids that live in org-ssg's own symbol table, not in an
+      ;; Fixtures link to ids that live in orgo's own symbol table, not in an
       ;; `org-id' database. Without this, org aborts the whole export on the first one.
       org-export-with-broken-links t
       make-backup-files nil)

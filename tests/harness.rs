@@ -5,8 +5,8 @@
 //! - an `insta` JSON snapshot of a hand-built element-tree value, standing in for the
 //!   element-tree snapshots the parser will produce from Phase 1 onward.
 
-use org_ssg::model::{Link, LinkTarget, Object};
-use org_ssg::parser::content_hash;
+use orgo::model::{Link, LinkTarget, Object};
+use orgo::parser::content_hash;
 
 #[test]
 fn content_hash_is_deterministic_blake3() {

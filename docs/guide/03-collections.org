@@ -230,7 +230,7 @@ title = "Feed"
 #+END_SRC
 
 This needs =site.base_url=, because a feed with relative links is invalid everywhere it
-is read. =org-ssg init= writes this template and leaves the collection commented out
+is read. =orgo init= writes this template and leaves the collection commented out
 until there is a base URL to make absolute links from.
 
 * Every setting

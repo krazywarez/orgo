@@ -2,7 +2,7 @@
 #+DESCRIPTION: Exactly which org syntax is handled, which is not, and how the rest degrades.
 #+LEDE: A deliberate subset, with the boundary enforced by tests rather than by hope.
 
-org-ssg parses a defined slice of org. The boundary is not aspirational: every supported
+orgo parses a defined slice of org. The boundary is not aspirational: every supported
 construct has a golden-file test, and every excluded one has a test asserting how it
 degrades. That is what stops the parser drifting toward all-of-org.
 
@@ -37,7 +37,7 @@ machine-readable =datetime=.
 
 *** Text conversions
 
-Org rewrites some prose on export, and so does org-ssg:
+Org rewrites some prose on export, and so does orgo:
 
 | Written | Published |
 |---------+-----------|
@@ -94,7 +94,7 @@ An =html= export block passes through verbatim; every other backend is dropped, 
 emitting LaTeX into an HTML page is worse than emitting nothing.
 
 *Any other name is a special block*: =#+BEGIN_NOTE= becomes =<div class="note">= holding
-*parsed org*, which is what makes the convention usable without org-ssg knowing the word
+*parsed org*, which is what makes the convention usable without orgo knowing the word
 "note". A =COMMENT= block is not published.
 
 *** Which languages highlight
@@ -108,7 +108,7 @@ Recognised, among others: =bash= / =sh=, =c=, =c++=, =css=, =clojure=, =diff=, =
 =makefile=, =markdown=, =matlab=, =objective-c=, =ocaml=, =perl=, =php=, =python=, =r=,
 =ruby=, =rust=, =scala=, =sql=, =tcl=, =xml=, =yaml=.
 
-org-ssg adds two syntect does not ship: *TOML* and *Org*. Both are what this project's
+orgo adds two syntect does not ship: *TOML* and *Org*. Both are what this project's
 own documentation needed on its first page — every config example is TOML, and a tool for
 org users gets written about in org — so they are compiled into the binary and work with
 no setup.
@@ -121,7 +121,7 @@ to parse is reported and skipped rather than failing the build.
 *** The comma escape
 
 A line inside a block that would otherwise look like document structure is written with a
-leading comma — =,* heading=, =,#+KEYWORD:= — and org-ssg removes exactly one comma on
+leading comma — =,* heading=, =,#+KEYWORD:= — and orgo removes exactly one comma on
 output, as Emacs does. Every org example in this documentation relies on it.
 
 The escape is not optional politeness: an unescaped =*= at column zero *ends the block*,
@@ -169,7 +169,7 @@ broken.
 | =#+CAPTION:=, =#+ATTR_HTML:= | Attach to the image *directly* below them — a blank line in between attaches to nothing, as in org. A captioned image is numbered =Figure N:=. |
 
 Every other =#+KEYWORD:= is available to templates as
-={{ page.keywords.that_keyword }}=, so metadata org-ssg has never heard of still reaches
+={{ page.keywords.that_keyword }}=, so metadata orgo has never heard of still reaches
 your layout.
 
 * Not supported, and what happens instead
@@ -219,7 +219,7 @@ source-block text are asserted to match exactly.
 
 The rest differs deliberately:
 
-| | org-ssg | Emacs |
+| | orgo | Emacs |
 |-+---------+-------|
 | emphasis | =<em>= / =<strong>= | =<i>= / =<b>= |
 | captioned image | =<figure>= / =<figcaption>= | =<p>= + "Figure 1: …" |
@@ -229,6 +229,6 @@ The rest differs deliberately:
 | code | =<pre><code>= | =<pre>= |
 
 One genuine semantic difference: org treats a single blank line between a =1.= list and a
-following =-= list as *one* list, keeping the first item's bullet type. org-ssg starts a
+following =-= list as *one* list, keeping the first item's bullet type. orgo starts a
 second list. That was kept on measurement — the pattern occurred zero times across a
 179-file reference corpus — rather than on taste.

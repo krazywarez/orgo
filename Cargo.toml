@@ -1,17 +1,16 @@
 [package]
-name = "org-ssg"
+name = "orgo"
 version = "0.19.1"
 edition = "2021"
 description = "Org-mode static site generator that renders the org element tree straight to HTML"
-license = "MIT"
+license = "0BSD"
 readme = "README.md"
 keywords = ["org-mode", "static-site-generator", "emacs", "html", "blog"]
 categories = ["command-line-utilities", "text-processing"]
-# Set before the first `cargo publish`: crates.io shows it on the crate page, and a
-# missing link is the first thing anyone evaluating a generator looks for.
-# repository = "https://git.krz.sh/cmc/org-ssg.git/"
+repository = "https://github.com/ccleberg/orgo"
+homepage = "https://ccleberg.github.io/orgo/"
 
-# The compiler floor, checked in CI rather than assumed. org-ssg's own code needs 1.82
+# The compiler floor, checked in CI rather than assumed. orgo's own code needs 1.82
 # (`Option::is_none_or`); the floor is 1.88 because dependencies in Cargo.lock declare it
 # — `plist` and `time`, both by way of syntect. Raising this is a minor-version change,
 # never a patch.
@@ -23,11 +22,11 @@ rust-version = "1.88"
 exclude = ["docs/", "target/", "/.github/"]
 
 [lib]
-name = "org_ssg"
+name = "orgo"
 path = "src/lib.rs"
 
 [[bin]]
-name = "org-ssg"
+name = "orgo"
 path = "src/main.rs"
 
 [dependencies]

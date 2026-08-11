@@ -1,9 +1,9 @@
-#+TITLE: org-ssg
+#+TITLE: orgo
 #+DESCRIPTION: An org-mode static site generator in Rust, where the org element tree is the document model.
 #+LEDE: Org is the source language, not an inconvenient input to be normalised into markdown.
 #+OPTIONS: toc:nil
 
-org-ssg turns a directory of =.org= files into a static website. It treats org as the
+orgo turns a directory of =.org= files into a static website. It treats org as the
 *source language*: the org element tree — headings, drawers, blocks, links with their
 org-specific semantics — /is/ the document model, and that tree is rendered straight to
 HTML. There is no markdown-shaped intermediate representation, because the point is to
@@ -26,10 +26,10 @@ Open [[http://127.0.0.1:3000][127.0.0.1:3000]], edit any =.org= file, and the br
 
 Point it at a directory of org files and you get a complete site: pages, navigation,
 syntax-highlighted code, and the stylesheet that colours it. Nothing about your files has
-to change, and no =org-ssg.toml= is required.
+to change, and no =orgo.toml= is required.
 
 #+BEGIN_SRC sh
-org-ssg build ~/notes -o _site
+orgo build ~/notes -o _site
 #+END_SRC
 
 Configuration changes what you get. It is never what makes it work.
@@ -54,7 +54,7 @@ listed in [[file:guide/05-org-support.org][Org support]].
 ** It tells you what your corpus actually uses
 
 #+BEGIN_SRC sh
-org-ssg audit ~/notes
+orgo audit ~/notes
 #+END_SRC
 
 The audit reports which org constructs appear in a corpus, how often, and whether each is
@@ -75,6 +75,6 @@ notes stays safe to paste into an issue.
 
 * Status
 
-This documentation site is itself an org-ssg site — the sources are in =docs/= and it is
+This documentation site is itself an orgo site — the sources are in =docs/= and it is
 built with the command in [[file:quickstart.org][Quick start]]. If a feature is described here, it is being used
 to render the page describing it.

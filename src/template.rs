@@ -375,7 +375,7 @@ impl<'a> RenderContext<'a> {
     }
 }
 
-/// The starter tag-index template written by `org-ssg init`: shows how `groups` is
+/// The starter tag-index template written by `orgo init`: shows how `groups` is
 /// iterated, and how a group page is linked.
 pub const STARTER_TAGS_TEMPLATE: &str = r#"<!DOCTYPE html>
 <html lang="{{ site.language }}">
@@ -410,7 +410,7 @@ pub const STARTER_TAGS_TEMPLATE: &str = r#"<!DOCTYPE html>
 </html>
 "#;
 
-/// The starter listing template written by `org-ssg init`: a blog index, showing how a
+/// The starter listing template written by `orgo init`: a blog index, showing how a
 /// collection's `pages` are iterated.
 pub const STARTER_LIST_TEMPLATE: &str = r#"<!DOCTYPE html>
 <html lang="{{ site.language }}">
@@ -486,7 +486,7 @@ fn add_filters(env: &mut Environment<'static>, base_url: &str) {
                 return Err(minijinja::Error::new(
                     minijinja::ErrorKind::InvalidOperation,
                     "the `absolute` filter needs site.base_url, which is empty; \
-                     set it in org-ssg.toml (e.g. base_url = \"https://example.com\")",
+                     set it in orgo.toml (e.g. base_url = \"https://example.com\")",
                 ));
             }
             if path.starts_with("http://") || path.starts_with("https://") {
@@ -538,7 +538,7 @@ fn add_filters(env: &mut Environment<'static>, base_url: &str) {
     });
 }
 
-/// The starter RSS feed written by `org-ssg init`. A listing page with an XML template:
+/// The starter RSS feed written by `orgo init`. A listing page with an XML template:
 /// no feed-specific machinery, just `absolute` and `rfc822` doing what syndication needs.
 ///
 /// Emitted commented-out guidance rather than a broken feed when `site.base_url` is
@@ -667,7 +667,7 @@ fn render_error_detail(error: minijinja::Error) -> String {
     out
 }
 
-/// The starter layout written by `org-ssg init`: the built-in template, on disk, ready
+/// The starter layout written by `orgo init`: the built-in template, on disk, ready
 /// to edit.
 pub fn starter_template() -> &'static str {
     BASE_TEMPLATE

@@ -6,7 +6,7 @@
 //!
 //! Two things matter more than the watching itself:
 //!
-//! 1. **Not watching our own output.** `org-ssg watch . -o _site` puts the output inside
+//! 1. **Not watching our own output.** `orgo watch . -o _site` puts the output inside
 //!    the source. Rebuilding writes files, writing files raises events, and events
 //!    trigger a rebuild — a loop that never stops and never idles. [`ChangeFilter`] is
 //!    what prevents it, and it is a pure function precisely so it can be tested without

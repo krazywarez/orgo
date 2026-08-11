@@ -7,7 +7,7 @@
 =build=, =serve= and =watch= all take the same pair:
 
 #+BEGIN_SRC sh
-org-ssg <command> <SOURCE> -o <OUTPUT>
+orgo <command> <SOURCE> -o <OUTPUT>
 #+END_SRC
 
 *SOURCE is the URL root*, not "the project". =SOURCE/blog/post.org= is published at
@@ -22,7 +22,7 @@ consumes its own output.
 * build
 
 #+BEGIN_SRC sh
-org-ssg build <INPUT> -o <OUTPUT> [--no-cache] [--strict] [--drafts] [--config FILE]
+orgo build <INPUT> -o <OUTPUT> [--no-cache] [--strict] [--drafts] [--config FILE]
 #+END_SRC
 
 If =INPUT= is a directory, it is walked and built into a linked site at =OUTPUT=. If it
@@ -35,7 +35,7 @@ though with no other documents to resolve against, internal links keep a best-ef
 | =--no-cache= | Ignore the incremental cache and re-render every page. |
 | =--strict= | Broken internal links and parse diagnostics become a non-zero exit. |
 | =--drafts= | Include pages marked =#+DRAFT:=. |
-| =--config FILE= | Use this config instead of =org-ssg.toml= in the source directory. |
+| =--config FILE= | Use this config instead of =orgo.toml= in the source directory. |
 
 The summary line reports what happened:
 
@@ -52,13 +52,13 @@ Without it, a broken link is a warning and the build succeeds. With it, the buil
 and names every problem. Use it wherever a bad build should not ship:
 
 #+BEGIN_SRC sh
-org-ssg build content -o _site --strict
+orgo build content -o _site --strict
 #+END_SRC
 
 * serve
 
 #+BEGIN_SRC sh
-org-ssg serve <INPUT> -o <OUTPUT> [-p PORT] [--host HOST] [--drafts] [--config FILE]
+orgo serve <INPUT> -o <OUTPUT> [-p PORT] [--host HOST] [--drafts] [--config FILE]
 #+END_SRC
 
 Builds, watches, serves, and reloads the browser when a rebuild lands. This is the
@@ -74,7 +74,7 @@ command to use while writing.
 laptop, so reaching the local network is something you ask for:
 
 #+BEGIN_SRC sh
-org-ssg serve content -o _site --host 0.0.0.0
+orgo serve content -o _site --host 0.0.0.0
 #+END_SRC
 
 The live-reload script is injected into responses and never written to disk, so what you
@@ -83,7 +83,7 @@ deploy stays clean. Details in [[file:../guide/08-workflow.org][Watching and ser
 * watch
 
 #+BEGIN_SRC sh
-org-ssg watch <INPUT> -o <OUTPUT> [--no-cache] [--strict] [--drafts] [--config FILE]
+orgo watch <INPUT> -o <OUTPUT> [--no-cache] [--strict] [--drafts] [--config FILE]
 #+END_SRC
 
 Rebuilds on filesystem events with no server — for when something else is already serving
@@ -92,10 +92,10 @@ the output, or you just want the build to keep up as you write.
 * audit
 
 #+BEGIN_SRC sh
-org-ssg audit <INPUT>
+orgo audit <INPUT>
 #+END_SRC
 
-Reports which org constructs a corpus uses and how they land against what org-ssg
+Reports which org constructs a corpus uses and how they land against what orgo
 supports, plus a census of every keyword, block type, drawer and link scheme seen. Point
 it at your notes before trusting a tool with them. See [[file:../guide/09-auditing.org][Auditing a corpus]].
 
@@ -105,7 +105,7 @@ private notes is safe to share.
 * init
 
 #+BEGIN_SRC sh
-org-ssg init [DIRECTORY]
+orgo init [DIRECTORY]
 #+END_SRC
 
 Scaffolds a working site: a fully commented config, an editable copy of the built-in
@@ -118,7 +118,7 @@ that already has content — it fills in what is missing and leaves the rest alo
 * clean
 
 #+BEGIN_SRC sh
-org-ssg clean <OUTPUT>
+orgo clean <OUTPUT>
 #+END_SRC
 
 Removes the output directory, including the incremental cache manifest inside it. You

@@ -6,11 +6,11 @@
 
 use camino::Utf8PathBuf;
 
-use org_ssg::index::{SymbolTable, TargetId};
-use org_ssg::parser::parse;
-use org_ssg::render::{render, Html, SyntectHighlighter};
-use org_ssg::resolve::{resolve, ResolvedDoc};
-use org_ssg::site::{render_site, BuiltPage};
+use orgo::index::{SymbolTable, TargetId};
+use orgo::parser::parse;
+use orgo::render::{render, Html, SyntectHighlighter};
+use orgo::resolve::{resolve, ResolvedDoc};
+use orgo::site::{render_site, BuiltPage};
 
 fn fixtures() -> Utf8PathBuf {
     Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures")
@@ -169,13 +169,13 @@ fn links_resolve_through_the_slug() {
 /// be impossible by construction rather than by convention.
 #[test]
 fn slugs_cannot_escape_the_output_directory() {
-    use org_ssg::model::Keywords;
+    use orgo::model::Keywords;
     let source = Utf8PathBuf::from("blog/post.org");
     let slugged = |value: &str| {
         let keywords = Keywords {
             entries: vec![("SLUG".to_string(), value.to_string())],
         };
-        org_ssg::util::output_path(&source, &keywords).to_string()
+        orgo::util::output_path(&source, &keywords).to_string()
     };
     assert_eq!(slugged("../../etc/passwd"), "blog/etc-passwd.html");
     assert_eq!(slugged("/absolute"), "blog/absolute.html");
@@ -190,7 +190,7 @@ fn slugs_cannot_escape_the_output_directory() {
 /// invisible in the source filenames, so the build refuses rather than picking a winner.
 #[test]
 fn colliding_slugs_are_a_build_error() {
-    let dir = std::env::temp_dir().join(format!("org-ssg-slug-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("orgo-slug-{}", std::process::id()));
     let dir = Utf8PathBuf::from_path_buf(dir).expect("utf-8 temp dir");
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();

@@ -5,7 +5,7 @@ expression: report
 agreement: 64/82 skeleton lines (78.0%)
 deliberate: 26 line(s) — footnote-anchor-naming ×1, footnote-section-shape ×2, id-link-resolution ×1, no-colgroup ×1, pre-code ×2
 unexplained: 0 line(s)
-(- org-ssg, + emacs, ~ a difference we mean to have)
+(- orgo, + emacs, ~ a difference we mean to have)
 
   <h2>
   "Code and tables"

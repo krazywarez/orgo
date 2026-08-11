@@ -5,7 +5,7 @@ expression: report
 agreement: 67/77 skeleton lines (87.0%)
 deliberate: 11 line(s) — pre-code ×6, semantic-emphasis ×4, verse-trailing-break ×1
 unexplained: 0 line(s)
-(- org-ssg, + emacs, ~ a difference we mean to have)
+(- orgo, + emacs, ~ a difference we mean to have)
 
   <h2>
   "Quote"

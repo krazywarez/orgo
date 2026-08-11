@@ -30,7 +30,7 @@ use crate::site::{build_site, BuildOptions};
 
 /// Where the browser subscribes for reload events. Namespaced so it cannot collide with
 /// a real page.
-pub const RELOAD_PATH: &str = "/__org-ssg/reload";
+pub const RELOAD_PATH: &str = "/__orgo/reload";
 
 /// How long a poll waits before answering "nothing yet". Long enough that an idle tab is
 /// nearly silent, short enough to stay under any proxy or browser idle timeout.

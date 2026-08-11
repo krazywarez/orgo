@@ -1,6 +1,6 @@
 name: CI
 
-# Build, test and lint on both platforms org-ssg is used from, plus a compiler-floor job.
+# Build, test and lint on both platforms orgo is used from, plus a compiler-floor job.
 #
 # WHAT THIS CATCHES THAT LOCAL WORK DOES NOT:
 #
@@ -96,7 +96,7 @@ jobs:
       # Build only. The tests pull in dev-dependencies whose own floors move
       # independently, and chasing those would make this job about someone else's MSRV.
       #
-      # The floor is set by dependencies rather than by org-ssg — its own code compiles on
+      # The floor is set by dependencies rather than by orgo — its own code compiles on
       # 1.82 — which is precisely why it is checked here instead of reasoned about: a
       # dependency raising its floor is invisible until someone on an older compiler
       # tries to build.

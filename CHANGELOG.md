@@ -7,7 +7,7 @@ Two conventions worth knowing before reading:
 
 - **A cache-format bump is not a change you need to act on.** The incremental cache is
   versioned and discards itself; a bump means the next build re-renders everything once.
-- **Output changes are called out.** org-ssg aims at what Emacs exports from the same
+- **Output changes are called out.** orgo aims at what Emacs exports from the same
   file, so an entry that says "now renders X" means your pages will change. That is the
   product, not a regression — but it belongs in a changelog rather than a diff you find
   later.
@@ -47,7 +47,7 @@ Release engineering, so that a version number is worth reading.
   built with `--strict`. Emacs is installed on both, so the oracle suite runs for real
   instead of skipping.
 - **A checked MSRV**, 1.88 — which is how it came to be 1.88 rather than the 1.82
-  org-ssg's own code needs. The floor comes from dependencies, and nobody finds that out
+  orgo's own code needs. The floor comes from dependencies, and nobody finds that out
   by reasoning about it.
 - **Release binaries** for macOS (arm64, x86_64) and Linux (gnu, musl), built on tag into
   a draft release. The tag is checked against `Cargo.toml` before anything is built.
@@ -117,7 +117,7 @@ publishes from the same sources. **All of these change output.**
 ## 0.12.0
 
 - `serve`: a development server with live reload, bound to loopback.
-- A documentation site under `docs/`, built by org-ssg itself.
+- A documentation site under `docs/`, built by orgo itself.
 
 ## 0.11.0
 
@@ -153,7 +153,7 @@ publishes from the same sources. **All of these change output.**
 ## 0.5.0
 
 - Parse diagnostics carry `file:line`, and pages render in parallel.
-- The corpus audit (`org-ssg audit`) and the `emacs --batch` oracle.
+- The corpus audit (`orgo audit`) and the `emacs --batch` oracle.
 - `#+SLUG:` decides a page's output filename — found by auditing a real corpus, where it
   affected 169 of 182 URLs.
 

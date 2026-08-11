@@ -1,6 +1,6 @@
 //! `watch`: the change filter, and one end-to-end run against real filesystem events.
 //!
-//! The filter carries the weight here. `org-ssg watch . -o _site` puts the output inside
+//! The filter carries the weight here. `orgo watch . -o _site` puts the output inside
 //! the source, so a rebuild writes files, writing files raises events, and events trigger
 //! a rebuild — a loop that never stops. That it is a pure function is what makes the
 //! guarantee testable without waiting on a filesystem.
@@ -10,15 +10,15 @@ use std::time::{Duration, Instant};
 
 use camino::{Utf8Path, Utf8PathBuf};
 
-use org_ssg::site::{build_site, BuildOptions};
-use org_ssg::watch::ChangeFilter;
+use orgo::site::{build_site, BuildOptions};
+use orgo::watch::ChangeFilter;
 
 fn tmpdir(tag: &str) -> Utf8PathBuf {
     static N: AtomicU32 = AtomicU32::new(0);
     let n = N.fetch_add(1, Ordering::Relaxed);
     let base = Utf8PathBuf::from_path_buf(std::env::temp_dir())
         .expect("utf-8 temp dir")
-        .join(format!("org-ssg-watch-{}-{tag}-{n}", std::process::id()));
+        .join(format!("orgo-watch-{}-{tag}-{n}", std::process::id()));
     let _ = std::fs::remove_dir_all(&base);
     std::fs::create_dir_all(&base).unwrap();
     base
@@ -39,7 +39,7 @@ fn changes_under_the_output_directory_are_ignored() {
     let filter = ChangeFilter::new(&src, &out);
     assert!(!filter.is_relevant(Utf8Path::new("_site/index.html")));
     assert!(!filter.is_relevant(Utf8Path::new("_site/blog/post.html")));
-    assert!(!filter.is_relevant(Utf8Path::new("_site/.org-ssg-cache.json")));
+    assert!(!filter.is_relevant(Utf8Path::new("_site/.orgo-cache.json")));
     assert!(filter.is_relevant(Utf8Path::new("index.org")), "real sources still count");
 }
 
@@ -68,7 +68,7 @@ fn build_inputs_trigger_a_rebuild_even_though_discovery_skips_them() {
     std::fs::create_dir_all(&src).unwrap();
     let filter = ChangeFilter::new(&src, &root.join("out"));
 
-    assert!(filter.is_relevant(Utf8Path::new("org-ssg.toml")));
+    assert!(filter.is_relevant(Utf8Path::new("orgo.toml")));
     assert!(filter.is_relevant(Utf8Path::new("templates/base.html")));
     assert!(filter.is_relevant(Utf8Path::new("templates/feed.xml")));
     assert!(filter.is_relevant(Utf8Path::new("style.css")), "assets are copied through");
@@ -149,7 +149,7 @@ fn watching_rebuilds_the_site_when_a_source_file_changes() {
 
     let (src_t, out_t) = (src.clone(), out.clone());
     let handle = std::thread::spawn(move || {
-        let _ = org_ssg::watch::run(&src_t, &out_t, &BuildOptions::default());
+        let _ = orgo::watch::run(&src_t, &out_t, &BuildOptions::default());
     });
 
     // Give the watcher a moment to register before making the change it should see.

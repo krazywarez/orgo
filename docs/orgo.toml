@@ -1,10 +1,10 @@
-# Configuration for the org-ssg documentation site.
+# Configuration for the orgo documentation site.
 #
-# This site is built by org-ssg itself, so this file doubles as a worked example: every
+# This site is built by orgo itself, so this file doubles as a worked example: every
 # setting here is one the docs describe, used the way the docs recommend.
 
 [site]
-title = "org-ssg"
+title = "orgo"
 description = "An org-mode static site generator, in Rust."
 language = "en"
 # Left empty so the docs build with relative URLs and open from the filesystem. Set it to

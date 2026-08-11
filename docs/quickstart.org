@@ -5,8 +5,8 @@
 * Two commands
 
 #+BEGIN_SRC sh
-org-ssg init my-site
-org-ssg serve my-site -o _site
+orgo init my-site
+orgo serve my-site -o _site
 #+END_SRC
 
 Open [[http://127.0.0.1:3000][127.0.0.1:3000]]. Edit =my-site/index.org= in your editor, save, and the page reloads
@@ -19,7 +19,7 @@ already has content is safe and additive.
 
 #+BEGIN_EXAMPLE
 my-site/
-  org-ssg.toml            every setting, at its default, commented
+  orgo.toml            every setting, at its default, commented
   index.org               the home page
   blog/first-post.org     a post, to show the collection working
   templates/
@@ -35,7 +35,7 @@ You do not need =init=, a config file, or templates. Every command takes the sam
 paths:
 
 #+BEGIN_SRC sh
-org-ssg serve <SOURCE> -o <OUTPUT>
+orgo serve <SOURCE> -o <OUTPUT>
 #+END_SRC
 
 ** SOURCE is the URL root
@@ -49,14 +49,14 @@ repository around it:
 
 #+BEGIN_SRC sh
 cd ~/my-site
-org-ssg serve content -o _site        # → /blog/post.html
+orgo serve content -o _site        # → /blog/post.html
 #+END_SRC
 
 Pointing one level too high still builds, which is what makes it worth saying out loud.
 It just builds the wrong site:
 
 #+BEGIN_SRC sh
-org-ssg serve . -o _site              # → /content/blog/post.html
+orgo serve . -o _site              # → /content/blog/post.html
 #+END_SRC
 
 Every URL gains a =/content/= prefix, and every non-org file in the repository —
@@ -67,24 +67,24 @@ If you see either symptom, you picked the directory above the one you meant.
 
 | Your files | Command |
 |------------+---------|
-| =~/notes/*.org= | =org-ssg serve ~/notes -o /tmp/notes-site= |
-| =my-site/content/**/*.org= | =cd my-site && org-ssg serve content -o _site= |
-| =my-site/*.org= at the top level | =cd my-site && org-ssg serve . -o _site= |
+| =~/notes/*.org= | =orgo serve ~/notes -o /tmp/notes-site= |
+| =my-site/content/**/*.org= | =cd my-site && orgo serve content -o _site= |
+| =my-site/*.org= at the top level | =cd my-site && orgo serve . -o _site= |
 | Org files scattered in a code repo | Do not. Copy or symlink the ones you publish into one directory. |
 
 ** OUTPUT can live inside the source
 
-=org-ssg serve . -o _site= is fine: the output directory is recognised and skipped, so
+=orgo serve . -o _site= is fine: the output directory is recognised and skipped, so
 the build never copies its own output back into itself. Nothing dot-prefixed is published
 either, so =.git= stays out of a site built from a repository root.
 
 ** Where config and templates go
 
-Both live in the *source* directory — =SOURCE/org-ssg.toml= and =SOURCE/templates/= — and
+Both live in the *source* directory — =SOURCE/orgo.toml= and =SOURCE/templates/= — and
 neither is published. If you would rather keep the config elsewhere, name it:
 
 #+BEGIN_SRC sh
-org-ssg serve content -o _site --config config/org-ssg.toml
+orgo serve content -o _site --config config/orgo.toml
 #+END_SRC
 
 ** A worked example
@@ -95,13 +95,13 @@ A repository laid out as =content/= (org files), =theme/= (unrelated), =build.py
 cd ~/my-site
 
 # What is actually in there, before trusting anything with it.
-org-ssg audit content
+orgo audit content
 
 # Build it somewhere disposable and look.
-org-ssg serve content -o /tmp/preview
+orgo serve content -o /tmp/preview
 
 # Happy with it? Build for real, failing on broken links.
-org-ssg build content -o _site --strict
+orgo build content -o _site --strict
 #+END_SRC
 
 The audit reports which org constructs appear, how often, and whether each is supported —
@@ -159,7 +159,7 @@ The page is not written, and does not appear in listings or navigation. Preview 
 you work with =--drafts=:
 
 #+BEGIN_SRC sh
-org-ssg serve my-site -o _site --drafts
+orgo serve my-site -o _site --drafts
 #+END_SRC
 
 * Change the design
@@ -193,7 +193,7 @@ still looking at it. The full list of variables is in [[file:guide/04-templates.
 
 * Add a blog index
 
-Listing pages have no source file; they are declared in =org-ssg.toml=:
+Listing pages have no source file; they are declared in =orgo.toml=:
 
 #+BEGIN_SRC toml
 [[collections]]
@@ -212,7 +212,7 @@ settings. See [[file:guide/03-collections.org][Collections]].
 * Build for real
 
 #+BEGIN_SRC sh
-org-ssg build my-site -o _site --strict
+orgo build my-site -o _site --strict
 #+END_SRC
 
 =--strict= turns broken internal links and parse diagnostics into a non-zero exit, which
@@ -222,5 +222,5 @@ is what you want in CI. Deployment is just copying =_site= somewhere; see
 * Next
 
 - [[file:guide/01-cli.org][Command reference]] — every command and flag.
-- [[file:guide/02-configuration.org][Configuration]] — every setting in =org-ssg.toml=.
+- [[file:guide/02-configuration.org][Configuration]] — every setting in =orgo.toml=.
 - [[file:guide/05-org-support.org][Org support]] — exactly which org syntax is handled.

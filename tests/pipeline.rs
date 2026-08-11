@@ -6,10 +6,10 @@
 
 use camino::Utf8PathBuf;
 
-use org_ssg::model::Document;
-use org_ssg::parser::parse;
-use org_ssg::render::{render, Html, SyntectHighlighter};
-use org_ssg::resolve::ResolvedDoc;
+use orgo::model::Document;
+use orgo::parser::parse;
+use orgo::render::{render, Html, SyntectHighlighter};
+use orgo::resolve::ResolvedDoc;
 
 fn parse_fixture(name: &str) -> Document {
     let path = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR"))

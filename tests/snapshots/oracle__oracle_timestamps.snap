@@ -5,7 +5,7 @@ expression: report
 agreement: 25/62 skeleton lines (40.3%)
 deliberate: 37 line(s) — semantic-time ×5
 unexplained: 0 line(s)
-(- org-ssg, + emacs, ~ a difference we mean to have)
+(- orgo, + emacs, ~ a difference we mean to have)
 
   <h2>
   "Single"

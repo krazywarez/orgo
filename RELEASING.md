@@ -7,13 +7,14 @@ reports `0.17.0` is the kind of mistake nobody notices for months.
 
 ## Before the first publish
 
-`repository` in `Cargo.toml` is commented out, because a wrong URL on a crates.io page is
-worse than none. Set it, then:
-
 ```bash
 cargo login          # a crates.io token, once per machine
 cargo publish --dry-run
 ```
+
+`repository` and `homepage` in `Cargo.toml` point at GitHub and at the documentation site
+on Pages. If git.krz.sh becomes the primary remote, `repository` should follow it —
+crates.io shows that link on the crate page, and it should lead somewhere you read.
 
 ## Every release
 

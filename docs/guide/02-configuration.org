@@ -1,8 +1,8 @@
 #+TITLE: Configuration
-#+DESCRIPTION: Every setting in org-ssg.toml, what it changes, and what it costs.
+#+DESCRIPTION: Every setting in orgo.toml, what it changes, and what it costs.
 #+LEDE: All of it optional. A missing config is a valid config.
 
-org-ssg looks for =org-ssg.toml= in the source directory. Pass a different path with
+orgo looks for =orgo.toml= in the source directory. Pass a different path with
 =--config=. Every field has a default, so a directory of org files with no config still
 builds a complete site.
 
@@ -14,7 +14,7 @@ lose an afternoon.
 
 #+BEGIN_SRC toml
 [site]
-title = "org-ssg site"
+title = "orgo site"
 base_url = ""
 description = ""
 language = "en"
@@ -47,7 +47,7 @@ Plus any number of =[[collections]]= blocks, documented in [[file:03-collections
 
 | Key | Default | Meaning |
 |-----+---------+---------|
-| =title= | ="org-ssg site"= | Site name. Available as ={{ site.title }}=. |
+| =title= | ="orgo site"= | Site name. Available as ={{ site.title }}=. |
 | =base_url= | ="" | Absolute origin, *no trailing slash*. |
 | =description= | ="" | Available as ={{ site.description }}=. |
 | =language= | ="en"= | Goes in =<html lang>= in the built-in layout. |
@@ -181,7 +181,7 @@ An unknown name is an error listing the valid ones.
 Highlighting emits *CSS classes*, never inline styles, so themes live in a stylesheet.
 Each build writes =syntax.css= into the output and every page links it.
 
-org-ssg bundles TOML and Org on top of syntect's built-in languages. Anything else
+orgo bundles TOML and Org on top of syntect's built-in languages. Anything else
 missing is a file away: put a =.sublime-syntax= definition in =syntaxes_dir= and it is
 loaded. A definition that fails to parse is reported and skipped, because one bad file
 should not stop a site from building.
@@ -258,6 +258,6 @@ Off is spelled =nil=, =false=, =no=, =0= or =off=; anything else is on.
 
 * Configuration is a cache input
 
-The resolved config is hashed into every page's render key, so editing =org-ssg.toml=
+The resolved config is hashed into every page's render key, so editing =orgo.toml=
 re-renders exactly the pages it affects — which for most settings is all of them. You
 never need =--no-cache= after a config change.

@@ -6,15 +6,15 @@ use anyhow::{Context, Result};
 use camino::{Utf8Path, Utf8PathBuf};
 use clap::{Parser, Subcommand};
 
-use org_ssg::parser::parse;
-use org_ssg::config::{self, Config};
-use org_ssg::render::{self, render, Html, SyntectHighlighter};
-use org_ssg::resolve::ResolvedDoc;
-use org_ssg::site::{build_site, BuildOptions, SYNTAX_STYLESHEET};
-use org_ssg::template::{PageContext, RenderContext, SiteContext, Templater};
+use orgo::parser::parse;
+use orgo::config::{self, Config};
+use orgo::render::{self, render, Html, SyntectHighlighter};
+use orgo::resolve::ResolvedDoc;
+use orgo::site::{build_site, BuildOptions, SYNTAX_STYLESHEET};
+use orgo::template::{PageContext, RenderContext, SiteContext, Templater};
 
 #[derive(Parser)]
-#[command(name = "org-ssg", version, about = "Org-mode static site generator")]
+#[command(name = "orgo", version, about = "Org-mode static site generator")]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -36,7 +36,7 @@ enum Command {
         /// Treat broken links and parse diagnostics as errors (spec §4.3.4).
         #[arg(long)]
         strict: bool,
-        /// Config file to use, overriding `org-ssg.toml` in the source directory.
+        /// Config file to use, overriding `orgo.toml` in the source directory.
         #[arg(long, value_name = "FILE")]
         config: Option<Utf8PathBuf>,
         /// Include pages marked `#+DRAFT:`.
@@ -57,7 +57,7 @@ enum Command {
         /// Treat broken links and parse diagnostics as errors.
         #[arg(long)]
         strict: bool,
-        /// Config file to use, overriding `org-ssg.toml` in the source directory.
+        /// Config file to use, overriding `orgo.toml` in the source directory.
         #[arg(long, value_name = "FILE")]
         config: Option<Utf8PathBuf>,
         /// Include pages marked `#+DRAFT:`. Handy while writing one.
@@ -81,7 +81,7 @@ enum Command {
         /// Include pages marked `#+DRAFT:`.
         #[arg(long)]
         drafts: bool,
-        /// Config file to use, overriding `org-ssg.toml` in the source directory.
+        /// Config file to use, overriding `orgo.toml` in the source directory.
         #[arg(long, value_name = "FILE")]
         config: Option<Utf8PathBuf>,
     },
@@ -151,7 +151,7 @@ fn main() -> Result<()> {
             strict,
             config,
             drafts,
-        } => org_ssg::watch::run(
+        } => orgo::watch::run(
             &input,
             &output,
             &BuildOptions {
@@ -162,8 +162,8 @@ fn main() -> Result<()> {
             },
         ),
         Command::Audit { input } => {
-            let result = org_ssg::audit::audit(&input)?;
-            print!("{}", org_ssg::audit::report(&result));
+            let result = orgo::audit::audit(&input)?;
+            print!("{}", orgo::audit::report(&result));
             Ok(())
         }
         Command::Serve {
@@ -173,7 +173,7 @@ fn main() -> Result<()> {
             host,
             drafts,
             config,
-        } => org_ssg::serve::run(
+        } => orgo::serve::run(
             &input,
             &output,
             &BuildOptions {
@@ -201,8 +201,8 @@ fn main() -> Result<()> {
 /// Scaffold a working site. Writes only files that do not already exist, so running it
 /// in a directory that has content is safe and additive rather than destructive.
 fn init(dir: &Utf8Path) -> Result<()> {
-    use org_ssg::config::{CONFIG_FILE, STARTER_CONFIG};
-    use org_ssg::template::{
+    use orgo::config::{CONFIG_FILE, STARTER_CONFIG};
+    use orgo::template::{
         starter_template, STARTER_FEED_TEMPLATE, STARTER_LIST_TEMPLATE, STARTER_TAGS_TEMPLATE,
     };
 
@@ -234,7 +234,7 @@ fn init(dir: &Utf8Path) -> Result<()> {
         "#+FILETAGS: :example:\n",
         "\n",
         "Posts in this directory are collected into /blog/ by the [[collections]] block\n",
-        "in org-ssg.toml, newest first.\n",
+        "in orgo.toml, newest first.\n",
     );
 
     let files: [(Utf8PathBuf, &str); 7] = [
@@ -260,7 +260,7 @@ fn init(dir: &Utf8Path) -> Result<()> {
     for path in &created {
         println!("created {path}");
     }
-    println!("\nNext: org-ssg build {dir} -o _site");
+    println!("\nNext: orgo build {dir} -o _site");
     Ok(())
 }
 
@@ -321,7 +321,7 @@ fn build_file(input: &Utf8Path, output: &Utf8Path) -> Result<()> {
         word_count: 0,
         reading_time: 0,
         keywords: Default::default(),
-        toc: org_ssg::util::table_of_contents(&resolved.document.root),
+        toc: orgo::util::table_of_contents(&resolved.document.root),
     };
     let mut ctx = RenderContext::new(&site, &page_ctx, &[], SYNTAX_STYLESHEET, "");
     ctx.body = &fragment;

@@ -1,4 +1,4 @@
-//! User-facing build configuration (`org-ssg.toml`).
+//! User-facing build configuration (`orgo.toml`).
 //!
 //! Everything here was once a constant in the source: the page layout, the nav rule, the
 //! highlighting theme. That made the generator produce exactly one kind of site — a
@@ -7,10 +7,10 @@
 //! Two properties matter beyond the settings themselves:
 //!
 //! 1. **Absent config is a valid config.** Every field has a default, so a directory of
-//!    `.org` files with no `org-ssg.toml` still builds. Configuration is how you change
+//!    `.org` files with no `orgo.toml` still builds. Configuration is how you change
 //!    the output, never how you make it work at all.
 //! 2. **Config is a hash input** (spec §4.1). [`Config`] serializes deterministically and
-//!    its hash is folded into every page's render key, so editing `org-ssg.toml` re-renders
+//!    its hash is folded into every page's render key, so editing `orgo.toml` re-renders
 //!    exactly the pages it affects — which for most settings is all of them.
 
 use anyhow::{Context, Result};
@@ -18,7 +18,7 @@ use camino::{Utf8Path, Utf8PathBuf};
 use serde::{Deserialize, Serialize};
 
 /// The config file's name, looked for in the source directory.
-pub const CONFIG_FILE: &str = "org-ssg.toml";
+pub const CONFIG_FILE: &str = "orgo.toml";
 
 /// Resolved build configuration. Serialized into the config hash, so field order and
 /// defaults are part of the cache contract.
@@ -319,7 +319,7 @@ pub struct Site {
 impl Default for Site {
     fn default() -> Self {
         Site {
-            title: "org-ssg site".to_string(),
+            title: "orgo site".to_string(),
             base_url: String::new(),
             description: String::new(),
             language: "en".to_string(),
@@ -405,7 +405,7 @@ impl Default for Highlight {
 }
 
 impl Config {
-    /// Load `org-ssg.toml` from `dir`, or return defaults if there is none.
+    /// Load `orgo.toml` from `dir`, or return defaults if there is none.
     ///
     /// A *missing* config is normal and silent. A *malformed* one is an error: someone
     /// who wrote a config meant it, and silently building the default site would hide
@@ -533,13 +533,13 @@ impl Config {
     }
 }
 
-/// The starter config written by `org-ssg init`, and the documentation of record for
+/// The starter config written by `orgo init`, and the documentation of record for
 /// what is configurable. Every value shown is the default, so deleting any line is safe.
-pub const STARTER_CONFIG: &str = r#"# org-ssg configuration. Every setting here is optional and shown at its default,
+pub const STARTER_CONFIG: &str = r#"# orgo configuration. Every setting here is optional and shown at its default,
 # so you can delete any line you do not need — or the whole file.
 
 [site]
-title = "org-ssg site"
+title = "orgo site"
 # Absolute base URL, no trailing slash. Needed for feeds and canonical links, which
 # cannot be relative — set it and uncomment the [[collections]] feed block below.
 base_url = ""
@@ -574,7 +574,7 @@ expose_page_list = false
 # A syntect theme name: InspiredGitHub, Solarized (dark), base16-ocean.dark,
 # base16-eighties.dark, base16-mocha.dark, base16-ocean.light.
 theme = "InspiredGitHub"
-# Extra .sublime-syntax files for languages neither syntect nor org-ssg bundles.
+# Extra .sublime-syntax files for languages neither syntect nor orgo bundles.
 syntaxes_dir = "syntaxes"
 
 [build]

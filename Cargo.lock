@@ -674,7 +674,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "org-ssg"
+name = "orgo"
 version = "0.19.1"
 dependencies = [
  "anyhow",

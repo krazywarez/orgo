@@ -12,15 +12,15 @@ use std::time::{Duration, Instant};
 
 use camino::{Utf8Path, Utf8PathBuf};
 
-use org_ssg::serve::{inject_reload_script, resolve, since_parameter};
-use org_ssg::site::BuildOptions;
+use orgo::serve::{inject_reload_script, resolve, since_parameter};
+use orgo::site::BuildOptions;
 
 fn tmpdir(tag: &str) -> Utf8PathBuf {
     static N: AtomicU32 = AtomicU32::new(0);
     let n = N.fetch_add(1, Ordering::Relaxed);
     let base = Utf8PathBuf::from_path_buf(std::env::temp_dir())
         .expect("utf-8 temp dir")
-        .join(format!("org-ssg-serve-{}-{tag}-{n}", std::process::id()));
+        .join(format!("orgo-serve-{}-{tag}-{n}", std::process::id()));
     let _ = std::fs::remove_dir_all(&base);
     std::fs::create_dir_all(&base).unwrap();
     base
@@ -107,10 +107,10 @@ fn plus_is_not_decoded_as_a_space() {
 
 #[test]
 fn the_poll_parameter_is_read_from_the_query() {
-    assert_eq!(since_parameter("/__org-ssg/reload?since=7"), 7);
-    assert_eq!(since_parameter("/__org-ssg/reload?x=1&since=42"), 42);
-    assert_eq!(since_parameter("/__org-ssg/reload"), 0, "absent means start from zero");
-    assert_eq!(since_parameter("/__org-ssg/reload?since=nope"), 0, "unparseable means zero");
+    assert_eq!(since_parameter("/__orgo/reload?since=7"), 7);
+    assert_eq!(since_parameter("/__orgo/reload?x=1&since=42"), 42);
+    assert_eq!(since_parameter("/__orgo/reload"), 0, "absent means start from zero");
+    assert_eq!(since_parameter("/__orgo/reload?since=nope"), 0, "unparseable means zero");
 }
 
 // ---------------------------------------------------------------------------
@@ -167,7 +167,7 @@ fn start_server(src: &Utf8Path, out: &Utf8Path) -> u16 {
     let port = 20000 + ((std::process::id() % 10000) as u16) + NEXT.fetch_add(1, Ordering::Relaxed) as u16;
     let (s, o) = (src.to_owned(), out.to_owned());
     std::thread::spawn(move || {
-        let _ = org_ssg::serve::run(&s, &o, &BuildOptions::default(), "127.0.0.1", port);
+        let _ = orgo::serve::run(&s, &o, &BuildOptions::default(), "127.0.0.1", port);
     });
     let deadline = Instant::now() + Duration::from_secs(20);
     while Instant::now() < deadline {
@@ -194,16 +194,16 @@ fn serving_a_site_reloads_the_browser_when_a_source_changes() {
     let home = get(port, "/", Duration::from_secs(5)).expect("a response");
     assert!(home.contains("200 OK"), "{home}");
     assert!(home.contains("First version."), "the page is served: {home}");
-    assert!(home.contains("__org-ssg/reload"), "with the reload script: {home}");
+    assert!(home.contains("__orgo/reload"), "with the reload script: {home}");
     assert!(
-        !std::fs::read_to_string(out.join("index.html")).unwrap().contains("__org-ssg"),
+        !std::fs::read_to_string(out.join("index.html")).unwrap().contains("__orgo"),
         "but the file on disk stays clean"
     );
 
     // A poll for a generation we already have must block, not answer immediately.
     let poller = std::thread::spawn(move || {
         let started = Instant::now();
-        let body = get(port, "/__org-ssg/reload?since=0", Duration::from_secs(30));
+        let body = get(port, "/__orgo/reload?since=0", Duration::from_secs(30));
         (started.elapsed(), body)
     });
     std::thread::sleep(Duration::from_millis(400));

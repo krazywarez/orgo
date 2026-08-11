@@ -62,7 +62,7 @@ pub struct BuildOptions {
     pub no_cache: bool,
     /// Treat broken internal links as a build error rather than a warning (spec §4.3.4).
     pub strict: bool,
-    /// Explicit config file, overriding `org-ssg.toml` in the source directory.
+    /// Explicit config file, overriding `orgo.toml` in the source directory.
     pub config_path: Option<Utf8PathBuf>,
     /// Include pages marked `#+DRAFT:`, overriding `build.drafts` when set.
     pub drafts: bool,
@@ -1368,7 +1368,7 @@ fn collect_assets(
 /// directory (build input, not content) and the output directory when it lives inside
 /// the source.
 ///
-/// The output case is not a corner case — `org-ssg build . -o _site` is the obvious
+/// The output case is not a corner case — `orgo build . -o _site` is the obvious
 /// thing to type, and without this the build copies its own output back into itself,
 /// growing `_site/_site/_site/…` on every run.
 fn excluded_dirs(src: &Utf8Path, config: &Config, out: Option<&Utf8Path>) -> Vec<Utf8PathBuf> {

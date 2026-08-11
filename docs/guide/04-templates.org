@@ -122,7 +122,7 @@ Empty on generated pages, which build their content from =pages= or =groups= ins
 | =keywords= | *Every* =#+KEYWORD:=, by lowercased name. |
 
 =page.keywords= is the escape hatch: =#+CUSTOM_THING: x= is
-={{ page.keywords.custom_thing }}=, so your own metadata works without org-ssg knowing it
+={{ page.keywords.custom_thing }}=, so your own metadata works without orgo knowing it
 exists.
 
 ** site

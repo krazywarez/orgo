@@ -45,7 +45,7 @@ const CLASS_STYLE: ClassStyle = ClassStyle::Spaced;
 
 /// Syntax definitions syntect does not bundle, compiled into the binary.
 ///
-/// Both are gaps this project hits on its own first page: every `org-ssg.toml` example is
+/// Both are gaps this project hits on its own first page: every `orgo.toml` example is
 /// TOML, and a tool for org users is going to be written about in org. Embedding them
 /// rather than shipping files means they work with no setup, which is the same promise
 /// the rest of the zero-config path makes.
@@ -928,7 +928,7 @@ fn strip_special_column(table: &crate::model::Table) -> crate::model::Table {
 
 /// Split text into alternating prose and LaTeX spans, `(text, is_latex)`.
 ///
-/// org-ssg does not typeset LaTeX — it passes it through for MathJax or a reader's eyes —
+/// orgo does not typeset LaTeX — it passes it through for MathJax or a reader's eyes —
 /// but it must know where a fragment *is*, because the export-time text conversions would
 /// otherwise rewrite the mathematics: `x^2` inside `$…$` is not a superscript to be
 /// marked up, and `--` inside one is a minus sign twice.

@@ -1,7 +1,7 @@
 %YAML 1.2
 ---
 # TOML, for syntect. Not one of the definitions syntect bundles, and the first thing a
-# config-heavy site needs — every org-ssg.toml example in the documentation is one.
+# config-heavy site needs — every orgo.toml example in the documentation is one.
 #
 # Scope names are the standard TextMate ones, so any syntect theme colours this without
 # knowing it exists.

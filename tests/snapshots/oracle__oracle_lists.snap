@@ -5,7 +5,7 @@ expression: report
 agreement: 109/111 skeleton lines (98.2%)
 deliberate: 2 line(s) — semantic-emphasis ×2
 unexplained: 0 line(s)
-(- org-ssg, + emacs, ~ a difference we mean to have)
+(- orgo, + emacs, ~ a difference we mean to have)
 
   <h2>
   "Nesting"

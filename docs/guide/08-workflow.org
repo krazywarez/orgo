@@ -5,7 +5,7 @@
 * serve
 
 #+BEGIN_SRC sh
-org-ssg serve content -o _site
+orgo serve content -o _site
 #+END_SRC
 
 Builds, watches, serves at [[http://127.0.0.1:3000][127.0.0.1:3000]], and reloads the
@@ -43,7 +43,7 @@ the build just failed tells you nothing — the error is already on your termina
 * watch
 
 #+BEGIN_SRC sh
-org-ssg watch content -o _site
+orgo watch content -o _site
 #+END_SRC
 
 The same rebuilding without the server, for when something else already serves the output.
@@ -54,7 +54,7 @@ Rebuilds are driven by OS filesystem events, so nothing happens while nothing ha
 The rule for what triggers one is deliberately *not* the rule the build uses to find
 content — the question is "would this change the site?", not "is this a page?".
 
-*Triggers a rebuild:* any =.org= file, any asset, =org-ssg.toml=, and anything in the
+*Triggers a rebuild:* any =.org= file, any asset, =orgo.toml=, and anything in the
 templates directory. The last two are skipped by the build when looking for content, but
 both change the output.
 
@@ -86,7 +86,7 @@ blog/post.org changed: 2 rendered, 180 cached
 
 * Where native watching is unavailable
 
-Some network and container filesystems have no event API. org-ssg falls back to polling
+Some network and container filesystems have no event API. orgo falls back to polling
 every two seconds and says so, rather than failing:
 
 #+BEGIN_EXAMPLE
@@ -106,10 +106,10 @@ note: native file watching unavailable (...); polling every 2s
 
 #+BEGIN_SRC sh
 # One terminal, left running.
-org-ssg serve content -o _site --drafts
+orgo serve content -o _site --drafts
 
 # Write. The browser keeps up.
 
 # Before publishing, check what a real build says.
-org-ssg build content -o _site --strict
+orgo build content -o _site --strict
 #+END_SRC
