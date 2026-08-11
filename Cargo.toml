@@ -5,7 +5,8 @@ edition = "2021"
 description = "Org-mode static site generator that renders the org element tree straight to HTML"
 license = "0BSD"
 readme = "README.md"
-keywords = ["org-mode", "static-site-generator", "emacs", "html", "blog"]
+# crates.io caps a keyword at 20 characters, which "static-site-generator" is not.
+keywords = ["org-mode", "static-site", "ssg", "emacs", "blog"]
 categories = ["command-line-utilities", "text-processing"]
 repository = "https://github.com/krazywarez/orgo"
 homepage = "https://krazywarez.github.io/orgo/"
