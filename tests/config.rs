@@ -2210,3 +2210,82 @@ fn same_day_entries_sort_by_time_of_day() {
         "newest first, by the clock:\n{html}"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Extra asset roots
+// ---------------------------------------------------------------------------
+
+/// A site's static files do not always live where its writing does. A repository
+/// migrating from a generator that published `theme/static/` to `/` should not have to
+/// move `robots.txt` next to its blog posts to keep the URL.
+#[test]
+fn an_asset_root_publishes_to_the_site_root() {
+    let root = tmpdir("assetroot");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_site(&src);
+    std::fs::create_dir_all(root.join("theme/static/img")).unwrap();
+    std::fs::write(root.join("theme/static/robots.txt"), "User-agent: *\n").unwrap();
+    std::fs::write(root.join("theme/static/img/logo.svg"), "<svg/>").unwrap();
+    std::fs::write(
+        src.join("org-ssg.toml"),
+        "[build]\nassets = [\"../theme/static\"]\n",
+    )
+    .unwrap();
+    let out = root.join("out");
+    let report = build(&src, &out);
+
+    assert!(out.join("robots.txt").exists(), "flattened onto the root");
+    assert!(
+        out.join("img/logo.svg").exists(),
+        "and keeps its own structure below that"
+    );
+    assert!(
+        report.assets.contains(&Utf8PathBuf::from("robots.txt")),
+        "the report counts it: {:?}",
+        report.assets
+    );
+}
+
+/// Two files claiming one URL is a coin flip decided by directory order. A build that
+/// stops is better than a favicon that changes when something elsewhere is renamed.
+#[test]
+fn two_assets_claiming_one_url_is_an_error() {
+    let root = tmpdir("assetclash");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_site(&src);
+    std::fs::write(src.join("style.css"), "body{}").unwrap();
+    std::fs::create_dir_all(root.join("static")).unwrap();
+    std::fs::write(root.join("static/style.css"), "body{color:red}").unwrap();
+    std::fs::write(
+        src.join("org-ssg.toml"),
+        "[build]\nassets = [\"../static\"]\n",
+    )
+    .unwrap();
+
+    let err = build_site(&src, &root.join("out"), &BuildOptions::default())
+        .expect_err("a collision must fail the build");
+    assert!(
+        format!("{err:#}").contains("style.css"),
+        "names the path: {err:#}"
+    );
+}
+
+/// A typo in a path is a typo, not an empty directory to shrug at.
+#[test]
+fn a_missing_asset_root_is_an_error() {
+    let root = tmpdir("assetmissing");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_site(&src);
+    std::fs::write(
+        src.join("org-ssg.toml"),
+        "[build]\nassets = [\"../nope\"]\n",
+    )
+    .unwrap();
+
+    let err = build_site(&src, &root.join("out"), &BuildOptions::default())
+        .expect_err("a missing asset root must fail");
+    assert!(format!("{err:#}").contains("nope"), "names it: {err:#}");
+}

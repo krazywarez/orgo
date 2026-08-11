@@ -11,7 +11,7 @@
 //! invalidates the pages that use it, and that has to hold for user templates too, or a
 //! design change would leave a site half-updated.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use anyhow::{Context, Result};
 use camino::Utf8Path;
@@ -204,6 +204,39 @@ impl Templater {
     /// (spec §4.1), covering user templates so editing one invalidates its pages.
     pub fn sources(&self) -> &[(String, String)] {
         &self.sources
+    }
+
+    /// The sources a page rendered through `name` actually depends on: that template plus
+    /// everything it extends, includes or imports, transitively.
+    ///
+    /// This is what keeps a layout edit proportional. Hashing *all* templates into every
+    /// page means touching `feed.xml` re-renders a 200-page site, which is most of the
+    /// wait in a `serve` session spent on design.
+    ///
+    /// A template whose include is computed at render time — `{% include chooser %}` —
+    /// cannot be followed statically, so it depends on everything. Over-invalidating is
+    /// slow; under-invalidating publishes a stale page.
+    pub fn sources_for(&self, name: &str) -> Vec<(String, String)> {
+        let mut seen: BTreeSet<String> = BTreeSet::new();
+        let mut queue = vec![name.to_string()];
+        while let Some(current) = queue.pop() {
+            if !seen.insert(current.clone()) {
+                continue;
+            }
+            let Some((_, source)) = self.sources.iter().find(|(n, _)| *n == current) else {
+                continue;
+            };
+            let (deps, dynamic) = referenced_templates(source);
+            if dynamic {
+                return self.sources.clone();
+            }
+            queue.extend(deps);
+        }
+        self.sources
+            .iter()
+            .filter(|(n, _)| seen.contains(n))
+            .cloned()
+            .collect()
     }
 
     /// Is a template with this name registered?
@@ -531,6 +564,55 @@ pub const STARTER_FEED_TEMPLATE: &str = r#"<?xml version="1.0" encoding="utf-8"?
 </channel>
 </rss>
 "#;
+
+/// Template names a source refers to, and whether any reference is computed at render
+/// time rather than written as a literal.
+///
+/// A hand-rolled scan rather than a parse: minijinja does not expose the dependency
+/// graph, and the three tags that pull in another template all name it as the first
+/// string literal in the tag.
+fn referenced_templates(source: &str) -> (Vec<String>, bool) {
+    const TAGS: &[&str] = &["extends", "include", "import", "from"];
+    let mut names = Vec::new();
+    let mut dynamic = false;
+    let mut rest = source;
+    while let Some(start) = rest.find("{%") {
+        let after = &rest[start + 2..];
+        let Some(end) = after.find("%}") else { break };
+        let tag = &after[..end];
+        rest = &after[end + 2..];
+
+        let keyword = tag
+            .trim_start()
+            .trim_start_matches('-')
+            .split_whitespace()
+            .next()
+            .unwrap_or("");
+        if !TAGS.contains(&keyword) {
+            continue;
+        }
+        match string_literal(tag) {
+            Some(name) => names.push(name),
+            // `{% include some_variable %}` or `{% include ["a", "b"] %}` past the first
+            // entry: the set cannot be known here.
+            None => dynamic = true,
+        }
+    }
+    if source.contains("{% include [") || source.contains("{%- include [") {
+        dynamic = true;
+    }
+    (names, dynamic)
+}
+
+/// The first single- or double-quoted string in a tag body.
+fn string_literal(tag: &str) -> Option<String> {
+    let bytes = tag.as_bytes();
+    let quote = bytes.iter().position(|b| *b == b'"' || *b == b'\'')?;
+    let delim = bytes[quote];
+    let after = &tag[quote + 1..];
+    let end = after.find(delim as char)?;
+    Some(after[..end].to_string())
+}
 
 /// HTML-escape template output, escaping the same characters Jinja2 does.
 ///

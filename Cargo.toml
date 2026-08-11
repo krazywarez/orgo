@@ -1,6 +1,6 @@
 [package]
 name = "org-ssg"
-version = "0.16.0"
+version = "0.17.0"
 edition = "2021"
 description = "Org-mode static site generator that renders the org element tree straight to HTML"
 license = "MIT"

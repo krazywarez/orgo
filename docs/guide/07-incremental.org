@@ -36,10 +36,23 @@ Every page has a key composed from four hashes:
 | content | The source file's bytes change. |
 | resolved links | A link's target moves, is renamed, or disappears. |
 | config | =org-ssg.toml= changes, or the shared chrome does. |
-| templates | Any template's source changes. |
+| templates | *This page's* layout changes, or something that layout extends or includes. |
 
 If a page's key matches the cached one and its output file still exists, the file on disk
 is already correct and is left untouched.
+
+** Template scope
+
+The template component covers the layout a page actually renders through, plus everything
+that layout pulls in — followed through ={% extends %}=, ={% include %}=, ={% import %}=
+and ={% from %}=. Editing =feed.xml= on a 196-page site re-renders one page; editing a
+=post.html= that only blog posts use re-renders the posts. =base.html= is extended by
+almost everything, so editing it still re-renders almost everything — which is correct,
+and is why the win shows up on the *other* edits.
+
+A template whose include is computed at render time — ={% include chooser %}= — cannot be
+followed, so it is treated as depending on every template. Over-invalidating costs time;
+under-invalidating publishes a stale page.
 
 The cache lives in =<output>/.org-ssg-cache.json= and is tagged with a format version. A
 version mismatch, a missing file or a corrupt file all fall back to a full rebuild — the

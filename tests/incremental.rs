@@ -448,3 +448,68 @@ fn retitling_a_top_level_page_still_rebuilds_the_site() {
     let post = std::fs::read_to_string(out_dir.join("blog/first.html")).unwrap();
     assert!(post.contains("Colophon"), "nested pages show the updated nav title");
 }
+
+/// Editing one layout must re-render the pages that use it, and only those. Hashing every
+/// template into every page means a change to the feed template rewrites the whole site,
+/// which is most of the wait in a `serve` session spent on design.
+#[test]
+fn editing_one_template_rebuilds_only_the_pages_that_use_it() {
+    let root = tmpdir("tmplscope");
+    let src = root.join("src");
+    std::fs::create_dir_all(src.join("blog")).unwrap();
+    std::fs::create_dir_all(src.join("templates")).unwrap();
+    std::fs::write(src.join("index.org"), "#+TITLE: Home\n\nWelcome.\n").unwrap();
+    std::fs::write(src.join("about.org"), "#+TITLE: About\n\nAbout.\n").unwrap();
+    std::fs::write(
+        src.join("blog/post.org"),
+        "#+TITLE: Post\n#+DATE: 2026-01-01\n\nBody.\n",
+    )
+    .unwrap();
+    std::fs::write(
+        src.join("templates/base.html"),
+        "<html><body>{% block content %}{{ body | safe }}{% endblock %}</body></html>",
+    )
+    .unwrap();
+    std::fs::write(
+        src.join("templates/post.html"),
+        "{% extends \"base.html\" %}{% block content %}{{ body | safe }}<p>reply</p>{% endblock %}",
+    )
+    .unwrap();
+    std::fs::write(
+        src.join("org-ssg.toml"),
+        "[[pages]]\nmatch = \"blog\"\ntemplate = \"post.html\"\n",
+    )
+    .unwrap();
+    let out_dir = root.join("out");
+    build_site(&src, &out_dir, &BuildOptions::default()).unwrap();
+
+    // post.html is used by one page.
+    std::fs::write(
+        src.join("templates/post.html"),
+        "{% extends \"base.html\" %}{% block content %}{{ body | safe }}<p>reply now</p>{% endblock %}",
+    )
+    .unwrap();
+    let r = build_site(&src, &out_dir, &BuildOptions::default()).unwrap();
+    assert_eq!(
+        r.rendered,
+        vec![Utf8PathBuf::from("blog/post.html")],
+        "only the page whose layout changed"
+    );
+    assert!(std::fs::read_to_string(out_dir.join("blog/post.html"))
+        .unwrap()
+        .contains("reply now"));
+
+    // base.html is extended by post.html, so editing it reaches both.
+    std::fs::write(
+        src.join("templates/base.html"),
+        "<html><body class=\"new\">{% block content %}{{ body | safe }}{% endblock %}</body></html>",
+    )
+    .unwrap();
+    let r = build_site(&src, &out_dir, &BuildOptions::default()).unwrap();
+    assert_eq!(
+        r.rendered.len(),
+        3,
+        "a layout everything inherits still re-renders everything: {:?}",
+        r.rendered
+    );
+}

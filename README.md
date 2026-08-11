@@ -69,6 +69,10 @@ expose_page_list = false
 [highlight]
 theme = "InspiredGitHub"
 
+[build]
+drafts = false
+assets = []            # extra directories copied to the site root, e.g. ["../theme/static"]
+
 [html]
 heading_offset = 1     # a level-1 org heading becomes <h2>, beneath the layout's <h1>
 ```
@@ -382,7 +386,7 @@ all-of-org. Phase 0 checked this line against a real 179-file corpus and found i
 | **18** | **Per-page layouts: `[[pages]]` rules and `#+TEMPLATE:`** | **done** |
 | **19** | **Export parity: relative heading levels, special strings, sub/superscript, caption numbering, checkbox and counter markup, table marker columns, special blocks** | **done** |
 | **20** | **Correctness debt: org's entity table, table captions, a reported `#+INCLUDE:`, and an oracle that separates deliberate divergence from defects** | **done** |
-| 21 | Extra asset roots; per-template hashing so one layout edit does not re-render the site | next |
+| **21** | **Extra asset roots; per-template hashing so one layout edit does not re-render the site** | **done** |
 | 22 | Release engineering: CI, MSRV, published binaries, changelog, a written compatibility promise | 1.0 |
 
 ### v0.2 in / out

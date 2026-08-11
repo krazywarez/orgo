@@ -833,7 +833,8 @@ pub fn build_site(src: &Utf8Path, out: &Utf8Path, opts: &BuildOptions) -> Result
     // Create the output directory up front so it can be recognised and excluded when it
     // lives inside the source tree.
     fs::create_dir_all(out).with_context(|| format!("creating {out}"))?;
-    let (_org_rel, assets) = discover(src, &cfg, Some(out))?;
+    let (_org_rel, source_assets) = discover(src, &cfg, Some(out))?;
+    let assets = collect_assets(src, &cfg, Some(out), &source_assets)?;
     let (preps, symbols) = prepare_pages(src, &cfg, Some(out))?;
 
     let templater = Templater::load(Some(&src.join(&cfg.templates.dir)), &cfg.site.base_url)?;
@@ -876,7 +877,9 @@ pub fn build_site(src: &Utf8Path, out: &Utf8Path, opts: &BuildOptions) -> Result
         site_structure_hash_ordered(&entries)
     };
     let cfg_hash = combine(config_hash(&cfg), structure_hash);
-    let tmpl_hash = template_hash(templater.sources());
+    // Per template rather than per site: a page's render key covers the layout it uses
+    // and that layout's own includes, so editing `feed.xml` re-renders the feed.
+    let tmpl_hash_for = |name: &str| template_hash(&templater.sources_for(name));
 
     // Compose each page's render key and record its dependency edges.
     let mut new_graph = DepGraph::default();
@@ -884,7 +887,7 @@ pub fn build_site(src: &Utf8Path, out: &Utf8Path, opts: &BuildOptions) -> Result
     let listings = build_listings(&cfg, &preps)?;
     for p in &preps {
         let rlh = resolved_links_hash(&p.source, &p.used, &symbols);
-        let key = render_key(p.content_hash, rlh, cfg_hash, tmpl_hash);
+        let key = render_key(p.content_hash, rlh, cfg_hash, tmpl_hash_for(&p.template));
         new_graph.defines.insert(p.source.clone(), p.defines.clone());
         new_graph.uses.insert(p.source.clone(), p.used.clone());
         new_records.push((
@@ -911,7 +914,6 @@ pub fn build_site(src: &Utf8Path, out: &Utf8Path, opts: &BuildOptions) -> Result
         &new_records,
         &new_graph,
         cfg_hash,
-        tmpl_hash,
         out,
         prior.as_ref(),
     );
@@ -984,7 +986,10 @@ pub fn build_site(src: &Utf8Path, out: &Utf8Path, opts: &BuildOptions) -> Result
     // therefore re-renders that section's index and nothing else — the same precision the
     // rest of the build gets from content hashing.
     for listing in &listings {
-        let key = combine(listing_entries_hash(listing), combine(cfg_hash, tmpl_hash));
+        let key = combine(
+            listing_entries_hash(listing),
+            combine(cfg_hash, tmpl_hash_for(&listing.template)),
+        );
         let dest = out.join(&listing.output);
         let cached = prior
             .as_ref()
@@ -1040,21 +1045,20 @@ pub fn build_site(src: &Utf8Path, out: &Utf8Path, opts: &BuildOptions) -> Result
 
     // Assets are a dumb copy in v0.3 (spec §8 Q11): copy every run. Cheap, and keeps the
     // full-vs-incremental byte equivalence trivially true for non-`.org` files.
-    for rel in &assets {
-        let from = src.join(rel);
-        let dest = out.join(rel);
+    for asset in &assets {
+        let dest = out.join(&asset.rel);
         if let Some(parent) = dest.parent() {
             fs::create_dir_all(parent).with_context(|| format!("creating {parent}"))?;
         }
-        fs::copy(&from, &dest).with_context(|| format!("copying {from} -> {dest}"))?;
-        report.assets.push(rel.clone());
+        fs::copy(&asset.from, &dest)
+            .with_context(|| format!("copying {} -> {dest}", asset.from))?;
+        report.assets.push(asset.rel.clone());
     }
 
     // Persist the manifest for the next build.
     let manifest = Manifest {
         format_version: CACHE_FORMAT_VERSION,
         config_hash: Some(cfg_hash),
-        template_hash: Some(tmpl_hash),
         pages: new_records
             .into_iter()
             .map(|(src_path, rec, _)| (src_path, rec))
@@ -1098,7 +1102,6 @@ fn compute_rebuild_set(
     new_records: &[(Utf8PathBuf, PageRecord, Hash)],
     new_graph: &DepGraph,
     cfg_hash: Hash,
-    tmpl_hash: Hash,
     out: &Utf8Path,
     prior: Option<&Manifest>,
 ) -> HashSet<Utf8PathBuf> {
@@ -1108,8 +1111,10 @@ fn compute_rebuild_set(
         return all; // No usable cache ⇒ full rebuild.
     };
 
-    // A global config/template change invalidates every page (spec §4.1).
-    if prior.config_hash != Some(cfg_hash) || prior.template_hash != Some(tmpl_hash) {
+    // A config change invalidates every page. Template changes do not come through here:
+    // each page's render key carries the hash of the templates *it* uses, so the key
+    // comparison below invalidates exactly the pages whose layout moved.
+    if prior.config_hash != Some(cfg_hash) {
         return all;
     }
 
@@ -1194,6 +1199,89 @@ fn discover(
     org.sort();
     assets.sort();
     Ok((org, assets))
+}
+
+/// One file to copy through to the output: where it is, and where it goes.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Asset {
+    /// Path to read from.
+    pub from: Utf8PathBuf,
+    /// Path to write, relative to the output root.
+    pub rel: Utf8PathBuf,
+}
+
+/// Every file to copy: the source directory's non-`.org` files, then each extra asset
+/// root's contents, flattened onto the site root.
+///
+/// Two files claiming one output path is an error rather than a race — whichever won
+/// would depend on directory order, and a site whose favicon changes when a file is
+/// renamed elsewhere is worse than a build that stops.
+fn collect_assets(
+    src: &Utf8Path,
+    config: &Config,
+    out: Option<&Utf8Path>,
+    from_source: &[Utf8PathBuf],
+) -> Result<Vec<Asset>> {
+    let mut assets: Vec<Asset> = from_source
+        .iter()
+        .map(|rel| Asset {
+            from: src.join(rel),
+            rel: rel.clone(),
+        })
+        .collect();
+
+    for root in &config.build.assets {
+        let base = src.join(root);
+        if !base.is_dir() {
+            anyhow::bail!(
+                "build.assets lists {root}, which is not a directory (looked in {base})"
+            );
+        }
+        let base_canon = std::fs::canonicalize(&base)
+            .ok()
+            .and_then(|p| Utf8PathBuf::from_path_buf(p).ok())
+            .unwrap_or_else(|| base.clone());
+        // An asset root that contains the output directory would copy the site into
+        // itself, one build at a time.
+        let out_canon = out
+            .and_then(|out| std::fs::canonicalize(out).ok())
+            .and_then(|p| Utf8PathBuf::from_path_buf(p).ok());
+        if out_canon.is_some_and(|o| o.starts_with(&base_canon)) {
+            anyhow::bail!(
+                "build.assets lists {root}, which contains the output directory {}",
+                out.unwrap_or(Utf8Path::new("(none)"))
+            );
+        }
+        for entry in WalkDir::new(&base).sort_by_file_name() {
+            let entry = entry.with_context(|| format!("walking {base}"))?;
+            if !entry.file_type().is_file() {
+                continue;
+            }
+            let abs = Utf8PathBuf::from_path_buf(entry.into_path())
+                .map_err(|p| anyhow::anyhow!("non-UTF-8 path: {}", p.display()))?;
+            let rel = abs
+                .strip_prefix(&base)
+                .map(|p| p.to_owned())
+                .unwrap_or_else(|_| abs.clone());
+            if rel.components().any(|c| c.as_str().starts_with('.')) {
+                continue;
+            }
+            assets.push(Asset { from: abs, rel });
+        }
+    }
+
+    let mut seen: HashMap<&Utf8Path, &Utf8Path> = HashMap::new();
+    for asset in &assets {
+        if let Some(first) = seen.insert(&asset.rel, &asset.from) {
+            anyhow::bail!(
+                "two files both publish to {}: {first} and {}",
+                asset.rel,
+                asset.from
+            );
+        }
+    }
+    assets.sort_by(|a, b| a.rel.cmp(&b.rel));
+    Ok(assets)
 }
 
 /// Source-relative directories that DISCOVER must not descend into: the template

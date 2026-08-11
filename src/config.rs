@@ -201,6 +201,14 @@ pub struct Build {
     /// ready to be read. `--drafts` turns it on for a session, which is what you want
     /// under `watch` while writing one.
     pub drafts: bool,
+    /// Extra directories whose contents are copied to the *site root*, on top of the
+    /// non-`.org` files found in the source directory. Relative to the source root, and
+    /// allowed to point outside it.
+    ///
+    /// This exists because a site's static files do not always live where its writing
+    /// does: weblorg publishes `theme/static/` to `/`, and a repository migrating from it
+    /// should not have to move `robots.txt` next to its blog posts to keep the URL.
+    pub assets: Vec<Utf8PathBuf>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -565,6 +573,10 @@ syntaxes_dir = "syntaxes"
 # Include pages marked `#+DRAFT:`. Off by default — the point of marking a draft is that
 # it is not ready to be read. `--drafts` turns it on for one run, handy under `watch`.
 drafts = false
+# Extra directories copied to the site root, for static files that live outside the
+# source directory. `assets = ["../theme/static"]` publishes that directory's contents at
+# `/`, not at `/static/`.
+assets = []
 
 [html]
 # How far to push heading levels down: a level-1 org heading becomes <h(1 + offset)>.

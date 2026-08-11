@@ -33,6 +33,7 @@ syntaxes_dir = "syntaxes"
 
 [build]
 drafts = false
+assets = []
 
 [html]
 heading_offset = 1
@@ -190,9 +191,31 @@ should not stop a site from building.
 | Key | Default | Meaning |
 |-----+---------+---------|
 | =drafts= | =false= | Include pages marked =#+DRAFT:=. |
+| =assets= | =[]= | Extra directories copied to the *site root*. |
 
 =--drafts= on the command line turns this on for one run. The flag can only turn drafts
 on; it never turns off a config that asked for them.
+
+** Static files that live elsewhere
+
+A site's static files do not always sit where its writing does. weblorg publishes
+=theme/static/= at =/=, and a repository migrating from it should not have to move
+=robots.txt= next to its blog posts to keep the URL:
+
+#+BEGIN_SRC toml
+[build]
+assets = ["../theme/static"]
+#+END_SRC
+
+Paths are relative to the source root and may point outside it. Each directory's
+*contents* land at the site root — =theme/static/img/logo.svg= publishes at =/img/logo.svg=,
+not =/static/img/logo.svg=.
+
+Two files claiming one URL is a build error naming both, rather than a coin flip decided
+by directory order. A path that is not a directory is an error too, since it is a typo.
+
+Under =watch= and =serve= these directories are watched as well, so editing a stylesheet
+outside the source tree still reloads the page.
 
 * [html]
 

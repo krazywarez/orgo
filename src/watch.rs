@@ -57,6 +57,12 @@ impl ChangeFilter {
     /// Build a filter for a source and output directory. Paths are canonicalized so
     /// `.`, `./src`, an absolute path and a symlinked one all compare equal.
     pub fn new(src: &Utf8Path, out: &Utf8Path) -> Self {
+        ChangeFilter::with_asset_roots(src, out, &[])
+    }
+
+    /// As [`ChangeFilter::new`], plus extra asset roots. Their paths are recognised too,
+    /// so editing a stylesheet that lives outside the source directory still rebuilds.
+    pub fn with_asset_roots(src: &Utf8Path, out: &Utf8Path, asset_roots: &[Utf8PathBuf]) -> Self {
         let canon = |p: &Utf8Path| -> Option<Utf8PathBuf> {
             std::fs::canonicalize(p)
                 .ok()
@@ -77,6 +83,10 @@ impl ChangeFilter {
         };
 
         let mut roots: Vec<Utf8PathBuf> = src_canon.into_iter().chain([src.to_owned()]).collect();
+        for root in asset_roots {
+            roots.extend(canon(root));
+            roots.push(root.clone());
+        }
         roots.dedup();
         // Longest first, so the most specific spelling wins.
         roots.sort_by_key(|r| std::cmp::Reverse(r.as_str().len()));
@@ -148,6 +158,27 @@ fn is_editor_scratch(name: &str) -> bool {
         || (name.starts_with('#') && name.ends_with('#'))
 }
 
+/// The extra asset directories a build will read, as paths that can be watched.
+///
+/// A config that fails to load is not this function's problem — the rebuild reports it
+/// properly — so an unreadable config simply yields no extra roots.
+fn asset_roots(src: &Utf8Path, opts: &BuildOptions) -> Vec<Utf8PathBuf> {
+    let config = match &opts.config_path {
+        Some(path) => crate::config::Config::load_file(path),
+        None => crate::config::Config::load(src),
+    };
+    config
+        .map(|c| {
+            c.build
+                .assets
+                .iter()
+                .map(|root| src.join(root))
+                .filter(|root| root.is_dir())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 /// Build once, then rebuild whenever the source changes. Runs until interrupted.
 pub fn run(src: &Utf8Path, out: &Utf8Path, opts: &BuildOptions) -> Result<()> {
     run_with(src, out, opts, |_| {})
@@ -172,12 +203,17 @@ pub fn run_with(
         report.rendered.len()
     );
 
-    let filter = ChangeFilter::new(src, out);
+    // Asset roots can live outside the source directory, and a stylesheet that does not
+    // rebuild when saved is worse than no watching at all.
+    let asset_roots = asset_roots(src, opts);
+    let filter = ChangeFilter::with_asset_roots(src, out, &asset_roots);
     let (tx, rx) = mpsc::channel();
     let mut watcher = make_watcher(tx)?;
-    watcher
-        .watch(src.as_std_path(), RecursiveMode::Recursive)
-        .with_context(|| format!("watching {src}"))?;
+    for root in std::iter::once(src.to_owned()).chain(asset_roots) {
+        watcher
+            .watch(root.as_std_path(), RecursiveMode::Recursive)
+            .with_context(|| format!("watching {root}"))?;
+    }
 
     loop {
         // Block until something happens, then keep draining while events keep arriving
