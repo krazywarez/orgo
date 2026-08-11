@@ -78,6 +78,32 @@ Name that group in the template rather than with =groupby='s =default== argument
 covers an attribute that is *missing* and not one that is null — an undated page has a
 =year=, and it is =none=.
 
+** Full-content feeds
+
+A feed usually carries whole posts, and a subscriber handed excerpts instead has lost
+something. =include_content= gives the template each entry's rendered HTML as
+=entry.content=:
+
+#+BEGIN_SRC toml
+[[collections]]
+source = "blog"
+output = "feed.xml"
+template = "feed.xml"
+include_content = true
+#+END_SRC
+
+#+BEGIN_SRC html
+<description><![CDATA[{{ post.content | safe }}]]></description>
+#+END_SRC
+
+Off by default, because it costs a render of every listed page each time the listing is
+rebuilt. That cost is only paid when the listing is *not* cached, and the listing's cache
+key covers its entries' content — so a body edit reaches the feed, and an unchanged site
+pays nothing.
+
+Everywhere else =entry.content= is =none=, since carrying every page's body in every
+listing context would be most of a site's memory for nothing.
+
 ** nav = true
 
 The listing page joins the site navigation. This is how a section landing page — =/blog/=,

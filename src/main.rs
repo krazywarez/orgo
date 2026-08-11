@@ -317,6 +317,7 @@ fn build_file(input: &Utf8Path, output: &Utf8Path) -> Result<()> {
         year: None,
         tags: Vec::new(),
         excerpt: String::new(),
+        content: None,
         word_count: 0,
         reading_time: 0,
         keywords: Default::default(),

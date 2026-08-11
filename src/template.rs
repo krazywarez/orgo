@@ -66,6 +66,10 @@ pub struct PageContext {
     /// Every `#+KEYWORD:` in the file, keyed by lowercased name, so a template can use
     /// project-specific metadata this crate has never heard of.
     pub keywords: BTreeMap<String, String>,
+    /// The page's rendered HTML, when a collection asked for it with
+    /// `include_content`. `none` everywhere else, because carrying every page's body in
+    /// every listing context would be most of a site's memory for nothing.
+    pub content: Option<String>,
     /// The page's headings as a tree. Empty when the page has none, when the site turns
     /// `html.toc` off, or when the document opts out with `#+OPTIONS: toc:nil`.
     pub toc: Vec<crate::util::TocEntry>,

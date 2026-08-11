@@ -673,27 +673,48 @@ fn adding_a_post_rebuilds_only_the_listing_and_the_post() {
     );
 }
 
-/// Editing a post's body changes no listing metadata, so the index must not churn.
+/// Editing a post's body reaches its listing, because a listing shows things derived
+/// from the body: the excerpt is its first paragraph, and the reading time is its length.
+///
+/// This test used to assert the opposite, and the site was wrong for it — rewriting a
+/// post's opening paragraph left the old excerpt on the index until something unrelated
+/// invalidated it. A listing depends on everything its template can read.
 #[test]
-fn editing_a_post_body_does_not_rebuild_the_listing() {
+fn editing_a_post_body_rebuilds_the_listing_that_shows_its_excerpt() {
     let root = tmpdir("listbody");
     let src = root.join("src");
     std::fs::create_dir_all(&src).unwrap();
     write_blog(&src, "");
+    std::fs::write(
+        src.join("templates/list.html"),
+        "<html><body>{% for p in pages %}<li>{{ p.excerpt }}</li>{% endfor %}</body></html>",
+    )
+    .unwrap();
     let out = root.join("out");
     build(&src, &out);
 
     std::fs::write(
         src.join("blog/mid.org"),
-        "#+TITLE: Middle Post\n#+DATE: 2024-08-05\n\nEdited body.\n",
+        "#+TITLE: Middle Post\n#+DATE: 2024-08-05\n\nA completely different opening.\n",
     )
     .unwrap();
     let report = build(&src, &out);
 
+    assert!(
+        report.rendered.contains(&Utf8PathBuf::from("blog/index.html")),
+        "the listing rebuilt: {:?}",
+        report.rendered
+    );
+    assert!(
+        page(&out, "blog/index.html").contains("A completely different opening."),
+        "and shows the new excerpt:\n{}",
+        page(&out, "blog/index.html")
+    );
     assert_eq!(
-        report.rendered,
-        vec![Utf8PathBuf::from("blog/mid.html")],
-        "only the post itself; the listing shows unchanged metadata"
+        report.rendered.len(),
+        2,
+        "the post and its listing, and nothing else: {:?}",
+        report.rendered
     );
 }
 
@@ -2288,4 +2309,72 @@ fn a_missing_asset_root_is_an_error() {
     let err = build_site(&src, &root.join("out"), &BuildOptions::default())
         .expect_err("a missing asset root must fail");
     assert!(format!("{err:#}").contains("nope"), "names it: {err:#}");
+}
+
+/// A feed that carries excerpts where it used to carry whole posts is a downgrade its
+/// subscribers notice. `include_content` gives the template each entry's rendered HTML.
+#[test]
+fn a_collection_can_carry_its_entries_rendered_bodies() {
+    let root = tmpdir("feedcontent");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_blog(&src, "");
+    std::fs::write(
+        src.join("blog/new.org"),
+        "#+TITLE: Newer Post\n#+DATE: [2025-06-30 Mon 09:15:00]\n\nBody with *emphasis*.\n",
+    )
+    .unwrap();
+    std::fs::write(
+        src.join("templates/feed.xml"),
+        "<rss>{% for p in pages %}<item><body>{{ p.content }}</body></item>{% endfor %}</rss>",
+    )
+    .unwrap();
+    std::fs::write(
+        src.join("org-ssg.toml"),
+        "[[collections]]\nsource = \"blog\"\noutput = \"feed.xml\"\n\
+         template = \"feed.xml\"\ntitle = \"Feed\"\ninclude_content = true\n",
+    )
+    .unwrap();
+    let out = root.join("out");
+    build(&src, &out);
+
+    let feed = page(&out, "feed.xml");
+    assert!(
+        feed.contains("&lt;strong&gt;emphasis&lt;/strong&gt;"),
+        "the rendered body reaches the template, escaped as XML text:\n{feed}"
+    );
+
+    // And it stays current: a body edit must reach a feed that embeds bodies, even when
+    // no metadata moved.
+    std::fs::write(
+        src.join("blog/new.org"),
+        "#+TITLE: Newer Post\n#+DATE: [2025-06-30 Mon 09:15:00]\n\nBody with *emphasis*.\n\nA second paragraph.\n",
+    )
+    .unwrap();
+    build(&src, &out);
+    assert!(
+        page(&out, "feed.xml").contains("A second paragraph."),
+        "the feed followed the edit:\n{}",
+        page(&out, "feed.xml")
+    );
+}
+
+/// Bodies cost a render each, so a listing that does not ask for them must not pay — and
+/// must not carry them into the template either.
+#[test]
+fn entries_carry_no_content_unless_asked() {
+    let root = tmpdir("nocontent");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_blog(&src, "");
+    std::fs::write(
+        src.join("templates/list.html"),
+        "<html><body>{% for p in pages %}<li>{{ p.content is none }}</li>{% endfor %}</body></html>",
+    )
+    .unwrap();
+    let out = root.join("out");
+    build(&src, &out);
+
+    let html = page(&out, "blog/index.html");
+    assert!(!html.contains("false"), "no entry carries a body:\n{html}");
 }

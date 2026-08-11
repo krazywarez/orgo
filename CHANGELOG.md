@@ -15,6 +15,20 @@ Two conventions worth knowing before reading:
 Versions follow the compatibility promise in the README: config keys, template variables,
 CLI flags and URLs are the stable surface.
 
+## 0.19.0
+
+- **Full-content collections.** `include_content = true` gives a listing template each
+  entry's rendered HTML as `entry.content` — a feed that carries whole posts rather than
+  excerpts. Rendered only when the listing is actually rebuilt, so a cached feed costs
+  nothing.
+- **Fixed: a listing could show a stale excerpt.** Its cache key covered a hand-picked set
+  of fields, and the excerpt was not among them, so rewriting a post's first paragraph
+  left the old text on the index until something unrelated invalidated it. Entries are now
+  hashed through their serialization, which cannot drift from what a template can read.
+  Editing a post's body now rebuilds the listings that show it.
+- `page.toc` entries carry `number`, so a site with section numbering on can number its
+  contents list to match its headings.
+
 ## 0.18.0
 
 Release engineering, so that a version number is worth reading.

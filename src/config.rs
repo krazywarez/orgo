@@ -141,6 +141,13 @@ pub struct Collection {
     /// `{tag}` as well when the collection is grouped — otherwise page 2 of one group
     /// would overwrite page 2 of another.
     pub paginate_output: Utf8PathBuf,
+    /// Give the template each entry's rendered HTML as `entry.content`.
+    ///
+    /// Off by default, and only worth turning on for a feed: it renders every listed
+    /// page's body whenever the listing is rebuilt. A reader subscribed to a
+    /// full-content feed and then handed excerpts has lost something, which is the one
+    /// case where that cost is the right trade.
+    pub include_content: bool,
     /// Add this listing page to the site navigation. This is how a section landing page
     /// — `/blog/`, `/notes/` — gets into a nav built from top-level pages.
     pub nav: bool,
@@ -161,6 +168,7 @@ impl Default for Collection {
             order: SortOrder::default(),
             paginate: 0,
             paginate_output: Utf8PathBuf::new(),
+            include_content: false,
             nav: false,
         }
     }

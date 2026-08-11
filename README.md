@@ -87,7 +87,7 @@ receive:
 | Variable | What it is |
 |---|---|
 | `body` | the rendered page HTML — use `{{ body \| safe }}` |
-| `page` | `.title`, `.url`, `.source`, `.date`, `.date_iso`, `.year`, `.tags`, `.excerpt`, `.word_count`, `.reading_time`, `.toc`, `.keywords` |
+| `page` | `.title`, `.url`, `.source`, `.date`, `.date_iso`, `.year`, `.tags`, `.content`, `.excerpt`, `.word_count`, `.reading_time`, `.toc`, `.keywords` |
 | `site` | `.title`, `.base_url`, `.description`, `.language` |
 | `nav` | list of `{title, url}`, relative to this page |
 | `root` | `../`-prefix back to the site root from this page |

@@ -98,6 +98,11 @@ pub struct TocEntry {
     pub anchor: String,
     /// Org heading level, 1-based, before any `heading_offset` is applied.
     pub level: u8,
+    /// This entry's section number — `1.`, `3.1.` — always computed, printed only by a
+    /// template that wants it. A site with `section_numbers` on and an unnumbered
+    /// contents list reads as a mistake, and the numbers cannot be derived in Jinja
+    /// without rebuilding the tree walk that produced them.
+    pub number: String,
     pub children: Vec<TocEntry>,
 }
 
@@ -106,17 +111,25 @@ pub struct TocEntry {
 /// Nested rather than flat: a table of contents *is* a tree, and reconstructing one from
 /// a flat list of levels inside a template is the kind of thing Jinja is bad at.
 pub fn table_of_contents(root: &Section) -> Vec<TocEntry> {
-    root.children.iter().map(toc_entry).collect()
+    numbered_entries(&root.children, "")
 }
 
-fn toc_entry(section: &Section) -> TocEntry {
-    let heading = section.heading.as_ref();
-    TocEntry {
-        title: heading.map(|h| plain_text(&h.title)).unwrap_or_default(),
-        anchor: heading.map(heading_anchor).unwrap_or_default(),
-        level: heading.map(|h| h.level).unwrap_or(1),
-        children: section.children.iter().map(toc_entry).collect(),
-    }
+fn numbered_entries(sections: &[Section], prefix: &str) -> Vec<TocEntry> {
+    sections
+        .iter()
+        .enumerate()
+        .map(|(i, section)| {
+            let number = format!("{prefix}{}.", i + 1);
+            let heading = section.heading.as_ref();
+            TocEntry {
+                title: heading.map(|h| plain_text(&h.title)).unwrap_or_default(),
+                anchor: heading.map(heading_anchor).unwrap_or_default(),
+                level: heading.map(|h| h.level).unwrap_or(1),
+                children: numbered_entries(&section.children, &format!("{prefix}{}.", i + 1)),
+                number,
+            }
+        })
+        .collect()
 }
 
 /// Parse `#+OPTIONS:` into its `key:value` switches.

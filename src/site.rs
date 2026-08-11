@@ -135,6 +135,13 @@ struct Listing {
     groups: Vec<GroupContext>,
     /// Set when this is one page of a paginated listing.
     paginator: Option<Paginator>,
+    /// Render each entry's body into `entry.content` (see
+    /// [`Collection::include_content`](crate::config::Collection::include_content)).
+    include_content: bool,
+    /// Content hash of each entry's source, in `entries` order. Not shown to templates —
+    /// it is how a content-carrying listing notices that a body it embeds has changed,
+    /// without rendering every body to find out.
+    entry_hashes: Vec<ContentHash>,
 }
 
 /// Split one listing's entries across numbered pages, appending each as its own
@@ -144,12 +151,14 @@ struct Listing {
 /// changes — only pages 2..N are named by `paginate_output`. An empty listing still
 /// emits page 1, because a section that exists but has nothing in it should be a page
 /// saying so rather than a 404.
+#[allow(clippy::too_many_arguments)]
 fn push_paginated(
     listings: &mut Vec<Listing>,
     collection: &config::Collection,
     output: Utf8PathBuf,
     title: String,
     entries: Vec<PageContext>,
+    entry_hashes: Vec<ContentHash>,
     group: Option<GroupContext>,
     groups: Vec<GroupContext>,
 ) {
@@ -163,6 +172,8 @@ fn push_paginated(
             group,
             groups,
             paginator: None,
+            include_content: collection.include_content,
+            entry_hashes: entry_hashes.clone(),
         });
         return;
     }
@@ -195,6 +206,8 @@ fn push_paginated(
         listings.push(Listing {
             output: here.clone(),
             template: collection.template.clone(),
+            include_content: collection.include_content,
+            entry_hashes: entry_hashes.clone(),
             title: title.clone(),
             entries: chunk.to_vec(),
             group: group.clone(),
@@ -223,6 +236,16 @@ fn push_paginated(
 /// Build the listing pages a config asks for, each with its entries sorted.
 fn build_listings(config: &Config, preps: &[PagePrep]) -> Result<Vec<Listing>> {
     let mut listings = Vec::new();
+    let hashes: HashMap<&str, ContentHash> = preps
+        .iter()
+        .map(|p| (p.source.as_str(), p.content_hash))
+        .collect();
+    let hashes_of = |entries: &[PageContext]| -> Vec<ContentHash> {
+        entries
+            .iter()
+            .filter_map(|e| hashes.get(e.source.as_str()).copied())
+            .collect()
+    };
     for collection in &config.collections {
         let mut entries: Vec<PageContext> = preps
             .iter()
@@ -265,12 +288,14 @@ fn build_listings(config: &Config, preps: &[PagePrep]) -> Result<Vec<Listing>> {
         }
 
         if collection.group_by.is_empty() {
+            let entry_hashes = hashes_of(&entries);
             push_paginated(
                 &mut listings,
                 collection,
                 collection.output.clone(),
                 collection.title.clone(),
                 entries,
+                entry_hashes,
                 None,
                 Vec::new(),
             );
@@ -330,6 +355,8 @@ fn build_listings(config: &Config, preps: &[PagePrep]) -> Result<Vec<Listing>> {
 
         if !collection.output.as_str().is_empty() {
             for group in &groups {
+                let members_of = members.get(&group.name).cloned().unwrap_or_default();
+                let entry_hashes = hashes_of(&members_of);
                 push_paginated(
                     &mut listings,
                     collection,
@@ -337,7 +364,8 @@ fn build_listings(config: &Config, preps: &[PagePrep]) -> Result<Vec<Listing>> {
                     collection
                         .title
                         .replace(config::GROUP_PLACEHOLDER, &group.name),
-                    members.get(&group.name).cloned().unwrap_or_default(),
+                    members_of,
+                    entry_hashes,
                     Some(group.clone()),
                     // Deliberately not the whole group list. A page that can see every
                     // group depends on every group, so one new post would re-render every
@@ -357,6 +385,9 @@ fn build_listings(config: &Config, preps: &[PagePrep]) -> Result<Vec<Listing>> {
                 group: None,
                 groups: groups.clone(),
                 paginator: None,
+                // A group index lists groups, not pages; there are no bodies to carry.
+                include_content: false,
+                entry_hashes: Vec::new(),
             });
         }
     }
@@ -409,18 +440,20 @@ fn group_terms(page: &PageContext, group_by: &str) -> Vec<String> {
 
 /// Everything a listing template can see about its entries, hashed. This is the listing
 /// page's whole dependency: if none of these change, its output cannot have changed.
+///
+/// Entries are hashed through their *serialization* rather than a hand-picked set of
+/// fields. Picking fields means the hash drifts from what a template can read the moment
+/// one is added — which it had: the excerpt was missing, so rewriting a post's first
+/// paragraph left the old excerpt on the index until something else invalidated it.
 fn listing_entries_hash(listing: &Listing) -> Hash {
-    let fields: Vec<(String, String)> = listing
+    let mut fields: Vec<(String, String)> = listing
         .entries
         .iter()
-        .flat_map(|e| {
-            [
-                (e.url.clone(), e.title.clone()),
-                (
-                    e.date.clone().unwrap_or_default(),
-                    e.tags.join(",") + "\u{0}" + &e.keywords.len().to_string(),
-                ),
-            ]
+        .map(|e| {
+            (
+                e.url.clone(),
+                serde_json::to_string(e).unwrap_or_else(|_| e.title.clone()),
+            )
         })
         // A group index has no entries at all — its content *is* the group list, so the
         // groups have to be in the hash or a tag index would never notice a new tag.
@@ -438,9 +471,50 @@ fn listing_entries_hash(listing: &Listing) -> Hash {
         }))
         .chain([(listing.title.clone(), listing.template.clone())])
         .collect();
+
+    // A listing that embeds its entries' bodies depends on those bodies. The source hash
+    // stands in for the rendered HTML, so noticing a change does not cost a render of
+    // every page listed.
+    if listing.include_content {
+        fields.extend(
+            listing
+                .entry_hashes
+                .iter()
+                .map(|h| ("content".to_string(), format!("{h:?}"))),
+        );
+    }
+
     // Entry *order* is meaningful in a listing, so this hashes the sorted-by-us sequence
     // rather than a set: a re-ordering is a real change to the page.
     site_structure_hash_ordered(&fields)
+}
+
+/// A listing's entries with their rendered bodies attached, for a template that asked
+/// for them — a full-content feed being the case that needs it.
+///
+/// An entry whose source is not among the prepared pages keeps `content: none` rather
+/// than failing: the listing is still a valid page, and a feed item without a body is a
+/// better outcome than no feed.
+fn entries_with_content(
+    entries: &[PageContext],
+    preps: &[PagePrep],
+    highlighter: &SyntectHighlighter,
+    config: &Config,
+) -> Vec<PageContext> {
+    let by_source: HashMap<&str, &PagePrep> =
+        preps.iter().map(|p| (p.source.as_str(), p)).collect();
+    let opts = render_options(config);
+    entries
+        .par_iter()
+        .map(|entry| {
+            let mut entry = entry.clone();
+            if let Some(prep) = by_source.get(entry.source.as_str()) {
+                let Html(html) = render_with(&prep.resolved, highlighter, &opts);
+                entry.content = Some(html);
+            }
+            entry
+        })
+        .collect()
 }
 
 /// The nav a listing page shows: whatever the site's nav is, relativized to this
@@ -494,6 +568,7 @@ fn listing_context(listing: &Listing) -> PageContext {
         year: None,
         tags: Vec::new(),
         excerpt: String::new(),
+        content: None,
         word_count: 0,
         reading_time: 0,
         keywords: Default::default(),
@@ -1008,8 +1083,13 @@ pub fn build_site(src: &Utf8Path, out: &Utf8Path, opts: &BuildOptions) -> Result
             let stylesheet = format!("{root}{SYNTAX_STYLESHEET}");
             let nav = listing_nav(&preps, &listing.output);
             let page_ctx = listing_context(listing);
+            // Bodies are rendered here rather than when the listing was built, so a
+            // cached feed costs nothing. This is the only place a page is rendered twice.
+            let with_content = listing
+                .include_content
+                .then(|| entries_with_content(&listing.entries, &preps, &highlighter, &cfg));
             let mut ctx = RenderContext::new(&site, &page_ctx, &nav, &stylesheet, &root);
-            ctx.pages = Some(&listing.entries);
+            ctx.pages = Some(with_content.as_deref().unwrap_or(&listing.entries));
             ctx.group = listing.group.as_ref();
             ctx.groups = &listing.groups;
             ctx.paginator = listing.paginator.as_ref();
@@ -1377,6 +1457,7 @@ fn page_context(doc: &Document, output: &Utf8Path, config: &Config) -> PageConte
             .filter(|d| !d.trim().is_empty())
             .or_else(|| first_paragraph(&doc.root))
             .unwrap_or_default(),
+        content: None,
         word_count: words,
         reading_time: words.div_ceil(WORDS_PER_MINUTE).max(usize::from(words > 0)),
         toc: if option_enabled(&doc.keywords, "toc", config.html.toc) {

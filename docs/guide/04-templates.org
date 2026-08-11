@@ -142,18 +142,22 @@ available on every page when =[templates] expose_page_list = true=.
 The page's headings as a *tree* — a table of contents is one, and rebuilding a tree from
 a flat list of levels inside a template is what Jinja is worst at.
 
-Each entry has =title=, =anchor=, =level= and =children=:
+Each entry has =title=, =anchor=, =level=, =number= and =children=:
 
 #+BEGIN_SRC html
 {% macro toc_list(entries) %}
 <ul>{% for e in entries %}
-  <li><a href="#{{ e.anchor }}">{{ e.title }}</a>
+  <li><a href="#{{ e.anchor }}">{{ e.number }} {{ e.title }}</a>
   {%- if e.children %}{{ toc_list(e.children) }}{% endif %}</li>
 {% endfor %}</ul>
 {% endmacro %}
 
 {% if page.toc | length > 1 %}{{ toc_list(page.toc) }}{% endif %}
 #+END_SRC
+
+=number= is the section number — =1.=, =3.1.= — always computed and printed only if you
+ask for it. Print it when =[html] section_numbers= is on, or the contents will number what
+the headings do not.
 
 Anchors come from the same function that emits heading =id= attributes, so a TOC link
 cannot drift from the heading it points at. The tree is empty when the page has no
