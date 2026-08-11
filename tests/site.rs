@@ -122,3 +122,86 @@ fn table_render() {
 fn footnote_render() {
     insta::assert_snapshot!(render_fragment("footnote.org"));
 }
+
+// ---------------------------------------------------------------------------
+// `#+SLUG:` output paths (Phase 0 corpus-audit finding)
+// ---------------------------------------------------------------------------
+
+/// The audit found `#+SLUG:` in 178 of the target corpus's 179 files, and the live site
+/// derives every URL from it — `2018-11-28-aes-encryption.org` publishes as
+/// `aes-encryption.html`. Deriving output paths from source filenames would therefore
+/// have rewritten every URL on the site.
+#[test]
+fn slug_renames_the_output_page() {
+    let (pages, broken) = render_site(&fixtures().join("slugsite")).expect("build site");
+    assert!(broken.is_empty(), "fixture site has no broken links: {broken:?}");
+    let post = pages
+        .iter()
+        .find(|p| p.source == "2024-02-11-long-source-name.org")
+        .expect("post page");
+    assert_eq!(
+        post.output, "short-url.html",
+        "the slug names the output file, not the source stem"
+    );
+}
+
+/// A link's URL has to follow the target's slug. If resolution kept using source paths,
+/// every cross-page link would point at a file that was never written.
+#[test]
+fn links_resolve_through_the_slug() {
+    let (pages, _) = render_site(&fixtures().join("slugsite")).expect("build site");
+    let index = &page(&pages, "index.org").html;
+    assert!(
+        index.contains("href=\"short-url.html\""),
+        "a file: link must target the slugged page:\n{index}"
+    );
+    assert!(
+        index.contains("href=\"short-url.html#setup\""),
+        "a custom-id link must target the slugged page plus the anchor:\n{index}"
+    );
+    assert!(
+        !index.contains("long-source-name"),
+        "no URL may mention the source filename:\n{index}"
+    );
+}
+
+/// A slug is author-controlled text that becomes a path we write to, so traversal has to
+/// be impossible by construction rather than by convention.
+#[test]
+fn slugs_cannot_escape_the_output_directory() {
+    use org_ssg::model::Keywords;
+    let source = Utf8PathBuf::from("blog/post.org");
+    let slugged = |value: &str| {
+        let keywords = Keywords {
+            entries: vec![("SLUG".to_string(), value.to_string())],
+        };
+        org_ssg::util::output_path(&source, &keywords).to_string()
+    };
+    assert_eq!(slugged("../../etc/passwd"), "blog/etc-passwd.html");
+    assert_eq!(slugged("/absolute"), "blog/absolute.html");
+    assert_eq!(slugged(".hidden"), "blog/hidden.html");
+    assert_eq!(slugged("Mixed Case Slug"), "blog/mixed-case-slug.html");
+    // An empty or punctuation-only slug falls back to the source stem rather than
+    // producing `.html` with no name at all.
+    assert_eq!(slugged("///"), "blog/post.html");
+}
+
+/// Two pages claiming one URL silently drops a page. With slugs that is a typo away and
+/// invisible in the source filenames, so the build refuses rather than picking a winner.
+#[test]
+fn colliding_slugs_are_a_build_error() {
+    let dir = std::env::temp_dir().join(format!("org-ssg-slug-{}", std::process::id()));
+    let dir = Utf8PathBuf::from_path_buf(dir).expect("utf-8 temp dir");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("a.org"), "#+TITLE: A\n#+SLUG: same\n").unwrap();
+    std::fs::write(dir.join("b.org"), "#+TITLE: B\n#+SLUG: same\n").unwrap();
+
+    let err = render_site(&dir).expect_err("colliding slugs must fail the build");
+    let message = format!("{err:#}");
+    assert!(
+        message.contains("collision") && message.contains("same.html"),
+        "the error must name the collision: {message}"
+    );
+    std::fs::remove_dir_all(&dir).unwrap();
+}

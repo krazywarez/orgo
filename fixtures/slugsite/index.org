@@ -1,0 +1,3 @@
+#+TITLE: Home
+
+Read [[file:2024-02-11-long-source-name.org][the post]], or jump to its [[#setup][setup section]].

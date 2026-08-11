@@ -1,0 +1,68 @@
+---
+source: tests/oracle.rs
+expression: report
+---
+agreement: 51/59 skeleton lines (86.4%)
+(- org-ssg, + emacs)
+
+  <h1>
+  "Quote"
+  </h1>
+  <blockquote>
+  <p>
+  "A quoted paragraph with"
+- <em>
++ <i>
+  "markup"
+- </em>
++ </i>
+  "."
+  </p>
+  <p>
+  "And a second paragraph."
+  </p>
+  </blockquote>
+  <h1>
+  "Center"
+  </h1>
+  <p>
+  "Centred text."
+  </p>
+  <h1>
+  "Example"
+  </h1>
+  <pre>
+  "Verbatim *not bold* text. Indentation preserved."
+  </pre>
+  <h1>
+  "Export"
+  </h1>
+  <aside>
+  "Raw HTML passes through."
+  </aside>
+  <h1>
+  "Source"
+  </h1>
+  <pre>
+- <code>
+  "def greet(name): return f\"hello {name}\""
+- </code>
+  </pre>
+  <pre>
+- <code>
+  "plain block, no language"
+- </code>
+  </pre>
+  <h1>
+  "Nested"
+  </h1>
+  <blockquote>
+  <p>
+  "A quote containing a source block:"
+  </p>
+  <pre>
+- <code>
+  "echo hi"
+- </code>
+  </pre>
+  </blockquote>

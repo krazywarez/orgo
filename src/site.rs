@@ -26,7 +26,7 @@ use crate::parser::parse;
 use crate::render::{render, syntax_css, Html, SyntectHighlighter};
 use crate::resolve::resolve;
 use crate::template::{template_sources, NavItem, Templater};
-use crate::util::{output_url, relative_root};
+use crate::util::{output_path, output_url, relative_root};
 
 /// A fully built page: source and output paths (relative to their roots) and its
 /// final templated HTML.
@@ -100,11 +100,26 @@ fn prepare_pages(src: &Utf8Path) -> Result<(Vec<PagePrep>, SymbolTable)> {
         symbols.index_document(doc);
     }
 
-    // Nav is global; titles come from #+TITLE (falling back to the file stem).
+    // Nav is global; titles come from #+TITLE (falling back to the file stem) and URLs
+    // from each page's output path, which `#+SLUG:` can rename.
     let entries: Vec<(Utf8PathBuf, String)> = docs
         .iter()
-        .map(|d| (d.source_path.clone(), page_title(d)))
+        .map(|d| (output_path(&d.source_path, &d.keywords), page_title(d)))
         .collect();
+
+    // Two sources emitting one page would silently drop a page — and with slugs, a
+    // collision is a typo away and invisible in the source filenames.
+    let mut claimed: std::collections::HashMap<&Utf8PathBuf, &Utf8PathBuf> =
+        std::collections::HashMap::new();
+    for (doc, (out, _)) in docs.iter().zip(&entries) {
+        if let Some(other) = claimed.insert(out, &doc.source_path) {
+            anyhow::bail!(
+                "output collision: {} and {} both build to {out} (check their #+SLUG:)",
+                other,
+                doc.source_path
+            );
+        }
+    }
 
     let mut pages = Vec::new();
     for doc in &docs {
@@ -113,18 +128,20 @@ fn prepare_pages(src: &Utf8Path) -> Result<(Vec<PagePrep>, SymbolTable)> {
         let broken: Vec<TargetId> = out.broken.iter().map(|b| b.target.clone()).collect();
         let defines: HashSet<TargetId> = document_targets(doc).into_iter().collect();
 
+        let output = output_path(&doc.source_path, &doc.keywords);
+
         // Nav links are relative to *this* page (spec URL scheme, §8 Q3).
         let nav: Vec<NavItem> = entries
             .iter()
             .map(|(path, title)| NavItem {
                 title: title.clone(),
-                url: output_url(&doc.source_path, path, None),
+                url: output_url(&output, path, None),
             })
             .collect();
 
         pages.push(PagePrep {
             source: doc.source_path.clone(),
-            output: doc.source_path.with_extension("html"),
+            output,
             title: page_title(doc),
             content_hash: doc.content_hash,
             resolved: out.resolved,
@@ -190,9 +207,11 @@ pub fn build_site(src: &Utf8Path, out: &Utf8Path, opts: &BuildOptions) -> Result
     // chrome on every page — is built from every page's (path, title), so a title/path
     // change or a page add/remove must re-render every page (else stale nav on disk).
     let cfg = BuildConfig::default();
+    // Keyed on the *output* path: a `#+SLUG:` change moves a page's URL, which changes
+    // the nav on every other page even though no source filename moved.
     let nav_entries: Vec<(String, String)> = preps
         .iter()
-        .map(|p| (p.source.to_string(), p.title.clone()))
+        .map(|p| (p.output.to_string(), p.title.clone()))
         .collect();
     let cfg_hash = combine(config_hash(&cfg), site_structure_hash(&nav_entries));
     let tmpl_hash = template_hash(template_sources());

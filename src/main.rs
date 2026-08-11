@@ -49,6 +49,12 @@ enum Command {
         /// Output directory to remove.
         output: Utf8PathBuf,
     },
+    /// Audit a corpus: report which org constructs it uses and how they land against
+    /// the v1 scope line. Reports names, counts and locations — never document text.
+    Audit {
+        /// Source directory (or single `.org` file) to audit.
+        input: Utf8PathBuf,
+    },
 }
 
 fn main() -> Result<()> {
@@ -86,6 +92,11 @@ fn main() -> Result<()> {
         // 6 lists `watch`; the real fs-notify integration is deferred). It rebuilds
         // incrementally whenever any source file's mtime advances.
         Command::Watch { input, output } => watch(&input, &output),
+        Command::Audit { input } => {
+            let result = org_ssg::audit::audit(&input)?;
+            print!("{}", org_ssg::audit::report(&result));
+            Ok(())
+        }
         Command::Clean { output } => {
             if output.exists() {
                 fs::remove_dir_all(&output)

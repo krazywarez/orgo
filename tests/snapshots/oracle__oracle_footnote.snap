@@ -1,0 +1,83 @@
+---
+source: tests/oracle.rs
+expression: report
+---
+agreement: 30/53 skeleton lines (56.6%)
+(- org-ssg, + emacs)
+
+  <p>
+  "Text with a reference."
+  <sup>
+- <a href="#fn-1">
++ <a href="#fn.1">
+  "1"
+  </a>
+  </sup>
+  "And a second one."
+  <sup>
+- <a href="#fn-2">
++ <a href="#fn.2">
+  "2"
+  </a>
+  </sup>
+  </p>
+  <p>
+  "An inline footnote."
+  <sup>
+- <a href="#fn-3">
++ <a href="#fn.3">
+  "3"
+  </a>
+  </sup>
+  </p>
+- <section>
+- <hr>
+- <ol>
+- <li>
++ <h2>
++ "Footnotes:"
++ </h2>
++ <sup>
++ <a href="#fnr.1">
++ "1"
++ </a>
++ </sup>
+  <p>
+  "The first definition."
+  </p>
+- <a href="#fnr-1">
+- "↩"
++ <sup>
++ <a href="#fnr.2">
++ "2"
+  </a>
+- </li>
+- <li>
++ </sup>
+  <p>
+  "The second definition, with"
+- <em>
++ <i>
+  "emphasis"
+- </em>
++ </i>
+  "."
+  </p>
+- <a href="#fnr-2">
+- "↩"
++ <sup>
++ <a href="#fnr.3">
++ "3"
+  </a>
+- </li>
+- <li>
++ </sup>
++ <p>
+  "defined right here"
+- <a href="#fnr-3">
+- "↩"
+- </a>
+- </li>
+- </ol>
+- </section>
++ </p>

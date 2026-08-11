@@ -1,0 +1,53 @@
+---
+source: tests/oracle.rs
+expression: report
+---
+agreement: 38/42 skeleton lines (90.5%)
+(- org-ssg, + emacs)
+
+  <p>
+  "A single paragraph of preamble text before any heading."
+  </p>
+  <h1>
+  "First Heading"
+  </h1>
+  <p>
+  "Some body text with"
+- <strong>
++ <b>
+  "bold"
+- </strong>
++ </b>
+  ","
+- <em>
++ <i>
+  "italic"
+- </em>
++ </i>
+  ", and"
+  <code>
+  "verbatim"
+  </code>
+  "."
+  </p>
+  <h2>
+  "A Subheading tag1 tag2"
+  </h2>
+  <ul>
+  <li>
+  "an unordered item"
+  </li>
+  <li>
+  "another with a checkbox [ ]"
+  </li>
+  </ul>
+  <h1>
+  "Second Heading"
+  </h1>
+  <p>
+  "See"
+  <a href="#first">
+  "the first heading"
+  </a>
+  "."
+  </p>

@@ -1,0 +1,63 @@
+---
+source: tests/oracle.rs
+expression: report
+---
+agreement: 28/42 skeleton lines (66.7%)
+(- org-ssg, + emacs)
+
+  <h1>
+  "Bare image"
+  </h1>
+  <p>
+  <img src="diagram.png">
+  </p>
+  <h1>
+  "Captioned figure"
+  </h1>
+- <figure>
++ <p>
+  <img src="pipeline.svg">
+- <figcaption>
+- "The pipeline, end to end"
+- </figcaption>
+- </figure>
++ </p>
++ <p>
++ "Figure 1: The pipeline, end to end"
++ </p>
+  <h1>
+  "Caption with markup"
+  </h1>
+- <figure>
++ <p>
+  <img src="chart.png">
+- <figcaption>
+- "A"
+- <em>
++ </p>
++ <p>
++ "Figure 2: A"
++ <i>
+  "stylised"
+- </em>
++ </i>
+  "chart"
+- </figcaption>
+- </figure>
++ </p>
+  <h1>
+  "Quoted attribute values"
+  </h1>
+- <figure>
++ <p>
+  <img src="cat.jpg">
+- </figure>
++ </p>
+  <h1>
+  "Image with a description is a link"
+  </h1>
+  <p>
+  <a href="diagram.png">
+  "the diagram"
+  </a>
+  </p>

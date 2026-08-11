@@ -1,0 +1,11 @@
+#+TITLE: The Post
+#+SLUG: short-url
+
+The source filename carries a date; the published URL does not.
+
+* Setup
+:PROPERTIES:
+:CUSTOM_ID: setup
+:END:
+
+Linking into this heading must land on the slugged page, not the source name.

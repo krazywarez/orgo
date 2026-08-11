@@ -4,7 +4,50 @@
 
 use camino::{Utf8Path, Utf8PathBuf};
 
-use crate::model::Object;
+use crate::model::{Keywords, Object};
+
+/// The output path for a document, relative to the site root.
+///
+/// Normally this is the source path with `.org` swapped for `.html`, but a `#+SLUG:`
+/// keyword renames the file — which is how the target corpus works: 178 of its 179 files
+/// set one, and `2018-11-28-aes-encryption.org` publishes as `aes-encryption.html`. The
+/// slug names the *file*, never the directory, so the page stays where its source lives.
+pub fn output_path(source: &Utf8Path, keywords: &Keywords) -> Utf8PathBuf {
+    let slug = keywords
+        .entries
+        .iter()
+        .find(|(k, _)| k.eq_ignore_ascii_case("SLUG"))
+        .map(|(_, v)| sanitize_slug(v))
+        .filter(|s| !s.is_empty());
+
+    match slug {
+        Some(slug) => {
+            let dir = source.parent().unwrap_or_else(|| Utf8Path::new(""));
+            dir.join(format!("{slug}.html"))
+        }
+        None => source.with_extension("html"),
+    }
+}
+
+/// Reduce a slug to a safe single filename component.
+///
+/// A slug is author-controlled text that becomes a path we write to, so `../../etc/x`
+/// has to be impossible by construction rather than by convention: separators and dots
+/// are folded to `-`, which cannot traverse and cannot produce a hidden file.
+fn sanitize_slug(raw: &str) -> String {
+    let mut out = String::with_capacity(raw.len());
+    let mut prev_dash = false;
+    for c in raw.trim().chars() {
+        if c.is_ascii_alphanumeric() || c == '_' {
+            out.extend(c.to_lowercase());
+            prev_dash = false;
+        } else if !prev_dash {
+            out.push('-');
+            prev_dash = true;
+        }
+    }
+    out.trim_matches('-').to_string()
+}
 
 /// Flatten inline objects to their plain-text content (markup stripped). Used to
 /// derive heading anchors and `[[*Heading]]` link identities (spec §4.3).
@@ -49,16 +92,19 @@ pub fn slugify(text: &str) -> String {
     out.trim_matches('-').to_string()
 }
 
-/// The output URL to reach `to_rel` (a source `.org` path relative to the site root)
-/// from the page at `from_rel`, honoring an optional `anchor`. Same-file links reduce
-/// to a bare `#anchor` fragment; cross-file links become a relative `.html` path.
-pub fn output_url(from_rel: &Utf8Path, to_rel: &Utf8Path, anchor: Option<&str>) -> String {
-    let path = if from_rel == to_rel {
+/// The URL to reach the page output at `to_out` from the page output at `from_out`,
+/// honoring an optional `anchor`. Same-page links reduce to a bare `#anchor` fragment;
+/// cross-page links become a relative path.
+///
+/// Both arguments are *output* paths, not source paths, because `#+SLUG:` means the two
+/// no longer correspond: deriving the URL here would reintroduce the filename assumption
+/// that [`output_path`] exists to remove.
+pub fn output_url(from_out: &Utf8Path, to_out: &Utf8Path, anchor: Option<&str>) -> String {
+    let path = if from_out == to_out {
         String::new()
     } else {
-        let to_html = to_rel.with_extension("html");
-        let from_dir = from_rel.parent().unwrap_or_else(|| Utf8Path::new(""));
-        relative_path(from_dir, &to_html)
+        let from_dir = from_out.parent().unwrap_or_else(|| Utf8Path::new(""));
+        relative_path(from_dir, to_out)
     };
     match anchor {
         Some(a) if !a.is_empty() => {

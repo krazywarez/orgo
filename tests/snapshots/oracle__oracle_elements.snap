@@ -1,0 +1,103 @@
+---
+source: tests/oracle.rs
+expression: report
+---
+agreement: 64/82 skeleton lines (78.0%)
+(- org-ssg, + emacs)
+
+  <h1>
+  "Code and tables"
+  </h1>
+  <pre>
+- <code>
+  "fn main() { println!(\"hello\"); }"
+- </code>
+  </pre>
+  <table>
++ <colgroup>
++ <col>
++ <col>
++ </colgroup>
+  <thead>
+  <tr>
+  <th>
+  "Name"
+  </th>
+  <th>
+  "Score"
+  </th>
+  </tr>
+  </thead>
+  <tbody>
+  <tr>
+  <td>
+  "alpha"
+  </td>
+  <td>
+  "10"
+  </td>
+  </tr>
+  <tr>
+  <td>
+  "beta"
+  </td>
+  <td>
+  "20"
+  </td>
+  </tr>
+  </tbody>
+  </table>
+  <h1>
+  "Links and footnotes"
+  </h1>
+  <p>
+  "An external link:"
+  <a href="https://example.com">
+  "Example"
+  </a>
+- "and an id link"
+- <a href="#abc-123">
+- "abc-123"
+- </a>
+- "."
++ "and an id link ."
+  </p>
+  <p>
+  "Text with a footnote reference."
+  <sup>
+- <a href="#fn-1">
++ <a href="#fn.1">
+  "1"
+  </a>
+  </sup>
+  </p>
+  <h1>
+  "Blocks"
+  </h1>
+  <blockquote>
+  <p>
+  "A quoted paragraph."
+  </p>
+  </blockquote>
+  <hr>
+- <section>
+- <hr>
+- <ol>
+- <li>
++ <h2>
++ "Footnotes:"
++ </h2>
++ <sup>
++ <a href="#fnr.1">
++ "1"
++ </a>
++ </sup>
+  <p>
+  "The footnote definition."
+  </p>
+- <a href="#fnr-1">
+- "↩"
+- </a>
+- </li>
+- </ol>
+- </section>

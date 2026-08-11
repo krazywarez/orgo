@@ -8,6 +8,7 @@
 //! [`render`] (RENDER) → [`template`] (TEMPLATE) → EMIT, with [`incremental`]
 //! deciding which pages actually need rewriting.
 
+pub mod audit;
 pub mod incremental;
 pub mod index;
 pub mod model;

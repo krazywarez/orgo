@@ -1,0 +1,39 @@
+---
+source: tests/oracle.rs
+expression: report
+---
+agreement: 28/30 skeleton lines (93.3%)
+(- org-ssg, + emacs)
+
+  <h1>
+- "TODO [#A] Write the parser work rust"
++ "TODO Write the parser work rust"
+  </h1>
+  <p>
+  "A heading carrying a keyword, a priority, tags and a property drawer."
+  </p>
+  <h2>
+  "DONE Nested and finished"
+  </h2>
+  <p>
+  "Sub-headings nest by star count."
+  </p>
+  <h2>
+- "[#C] Priority without a keyword"
++ "Priority without a keyword"
+  </h2>
+  <p>
+  "A priority cookie can stand alone."
+  </p>
+  <h1>
+  "TODOs are not a keyword"
+  </h1>
+  <p>
+  "The word boundary matters: this heading has no TODO keyword."
+  </p>
+  <h1>
+  "DONE"
+  </h1>
+  <p>
+  "A keyword with no title at all."
+  </p>

@@ -7,7 +7,7 @@ use camino::{Utf8Path, Utf8PathBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::model::{Document, Section};
-use crate::util::{plain_text, slugify};
+use crate::util::{output_path, plain_text, slugify};
 
 /// Identity of a link target. A target is owned by exactly one file (spec §4.3).
 ///
@@ -51,6 +51,9 @@ impl TargetId {
 #[derive(Debug, Clone)]
 pub struct TargetLocation {
     pub source_path: Utf8PathBuf,
+    /// The page this target is emitted into. Recorded at INDEX time because it depends
+    /// on the defining document's `#+SLUG:`, which only that document knows.
+    pub output_path: Utf8PathBuf,
     /// Final URL fragment/anchor for the target, filled during resolution.
     pub anchor: Option<String>,
 }
@@ -71,14 +74,16 @@ impl SymbolTable {
     /// the renderer emits for that target's heading.
     pub fn index_document(&mut self, doc: &Document) {
         let path = &doc.source_path;
+        let out = output_path(path, &doc.keywords);
         self.targets.insert(
             TargetId::File(path.clone()),
             TargetLocation {
                 source_path: path.clone(),
+                output_path: out.clone(),
                 anchor: None,
             },
         );
-        index_section(&doc.root, path, &mut self.targets);
+        index_section(&doc.root, path, &out, &mut self.targets);
     }
 }
 
@@ -107,40 +112,37 @@ fn collect_targets(section: &Section, out: &mut Vec<TargetId>) {
     }
 }
 
-fn index_section(section: &Section, path: &Utf8Path, targets: &mut HashMap<TargetId, TargetLocation>) {
+fn index_section(
+    section: &Section,
+    path: &Utf8Path,
+    out: &Utf8Path,
+    targets: &mut HashMap<TargetId, TargetLocation>,
+) {
     if let Some(h) = &section.heading {
         let anchor = h
             .custom_id
             .clone()
             .or_else(|| h.id.clone())
             .unwrap_or_else(|| slugify(&plain_text(&h.title)));
-        if let Some(cid) = &h.custom_id {
+        let mut record = |id: TargetId, anchor: Option<String>| {
             targets.insert(
-                TargetId::CustomId(cid.clone()),
+                id,
                 TargetLocation {
                     source_path: path.to_owned(),
-                    anchor: Some(cid.clone()),
+                    output_path: out.to_owned(),
+                    anchor,
                 },
             );
+        };
+        if let Some(cid) = &h.custom_id {
+            record(TargetId::CustomId(cid.clone()), Some(cid.clone()));
         }
         if let Some(id) = &h.id {
-            targets.insert(
-                TargetId::Id(id.clone()),
-                TargetLocation {
-                    source_path: path.to_owned(),
-                    anchor: Some(id.clone()),
-                },
-            );
+            record(TargetId::Id(id.clone()), Some(id.clone()));
         }
-        targets.insert(
-            TargetId::Heading(plain_text(&h.title)),
-            TargetLocation {
-                source_path: path.to_owned(),
-                anchor: Some(anchor),
-            },
-        );
+        record(TargetId::Heading(plain_text(&h.title)), Some(anchor));
     }
     for child in &section.children {
-        index_section(child, path, targets);
+        index_section(child, path, out, targets);
     }
 }

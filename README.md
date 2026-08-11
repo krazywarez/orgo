@@ -25,6 +25,7 @@ is the only inherently global stage — it is where the link dependency graph is
 | Stage | Module | Notes |
 |---|---|---|
 | PARSE | `src/parser.rs` | Hand-written recursive descent: line lexer → element builder → inline tokenizer. |
+| audit | `src/audit.rs` | Phase 0 corpus audit: construct frequencies against the IN/OUT line. |
 | model | `src/model.rs` | The org element tree — Elements (block) vs Objects (inline). |
 | INDEX | `src/index.rs` | Collect link targets into a symbol table. |
 | RESOLVE | `src/resolve.rs` | Rewrite links to URLs; return the used-target list (dependency edges). |
@@ -50,8 +51,9 @@ semantics; non-HTML export blocks; the full Unicode entity set.
 **Scope guardrail:** every IN item gets a golden-file fixture; every OUT item gets a test
 asserting it degrades predictably (ignored, no crash). The IN/OUT line is enforced by
 `tests/constructs.rs`, defending against the project's #1 risk: scope creep back toward
-all-of-org. The fixtures are hand-written today; deriving them from a real corpus is
-Phase 0.
+all-of-org. Phase 0 checked this line against a real 179-file corpus and found it sound
+(99.9% of construct uses in scope) — but also found one thing missing from it entirely:
+`#+SLUG:`. See [Phase 0](#phase-0-the-corpus-audit-and-the-emacs-oracle).
 
 ## Phase plan
 
@@ -62,7 +64,7 @@ Phase 0.
 | **v0.2** | **Multi-file SITE build: INDEX + RESOLVE internal links, minijinja templates, `build <src-dir> <out-dir>`, tables + footnotes** | **done** |
 | **v0.3** | **Incremental build layer: content/config/template hashing, dependency graph, per-page render keys, persisted cache manifest, invalidation** | **done** |
 | **v0.4** | **MVP: the full v1 construct scope — heading metadata, nested/description lists, block types, timestamps, images, syntect highlighting — with the IN/OUT line under test** | **done** |
-| 0 | Corpus audit + `emacs --batch` ground-truth oracle | todo |
+| **0** | **Corpus audit + `emacs --batch` ground-truth oracle** | **done** |
 | 1 | Line lexer + heading/section skeleton | done |
 | 2 | Block elements — lists, source blocks, tables, footnote defs, blocks by type, drawers | done |
 | 3 | Inline objects — emphasis, links, bare URLs, footnote refs, timestamps | done |
@@ -162,11 +164,82 @@ excluded construct to a specific degradation: babel is never executed *and* a ch
 as literal text; drawers other than PROPERTIES are captured and dropped; unmodelled block
 types keep their content verbatim.
 
-**Still out at v0.4:** the Phase 0 corpus audit and `emacs --batch` oracle (the fixtures are
-hand-written, so "matches Emacs" is asserted by construction, not measured); rayon
-parallelism; parse errors carrying source locations; `#+TODO:` per-file keyword sequences;
-planning lines (`SCHEDULED:`/`DEADLINE:`), which render as ordinary paragraphs; fixed-width
-`: ` lines; and the `watch` fs-notify integration.
+**Still out at v0.4:** rayon parallelism; parse errors carrying source locations; `#+TODO:`
+per-file keyword sequences; planning lines (`SCHEDULED:`/`DEADLINE:`), which render as
+ordinary paragraphs; fixed-width `: ` lines; and the `watch` fs-notify integration.
+
+## Phase 0: the corpus audit and the Emacs oracle
+
+The v1 scope was, by its own admission, *recommended* — a guess about which slice of org
+matters. Phase 0 replaces both halves of that guess with a measurement: an audit that asks
+what a real corpus actually uses, and an oracle that asks whether we render it the way
+Emacs does. The corpus is the 179 files behind [cleberg.net](https://cleberg.net), which is
+published today by weblorg — a wrapper around org's own HTML exporter. That makes it both
+the workload and the incumbent.
+
+```
+cargo run -- audit <src-dir>   # what does this corpus use, and is it in scope?
+cargo test --test oracle       # how does our HTML differ from Emacs' own export?
+```
+
+### What the audit found
+
+**The scope guess was sound.** 99.9% of construct uses in the corpus are in scope. The
+whole out-of-scope tail is 8 uses: four `#+TBLFM:` in a post *about* org-mode, three
+`\name` entities, and one `#+BEGIN_NOTE`.
+
+**`#+SLUG:` was a hole big enough to sink the project.** 178 of 179 files set it, and the
+published URL comes from it, not from the filename: `2018-11-28-aes-encryption.org` is
+served at `blog/aes-encryption.html`. org-ssg derived output paths from source filenames,
+so **169 of 179 pages would have been published at the wrong URL** — every inbound link and
+every search result, broken, by a tool that reported a clean build. Output paths now come
+from `#+SLUG:` when present ([`util::output_path`](src/util.rs)); slugs are sanitized so an
+author-supplied `../../etc/x` cannot escape the output directory, and two pages claiming one
+URL is a build error rather than a silently dropped page. Building the real corpus now
+reproduces all 179 of the live site's URLs exactly.
+
+**Some machinery is speculative.** The corpus contains no `id:`, `#custom-id` or `*Heading`
+links at all — its cross-page links are hand-written relative URLs. The INDEX/RESOLVE
+symbol table that v0.2 was built around is, against this corpus, unexercised.
+
+**An audit can lie too.** The first run reported 23 uses of a custom TODO keyword sequence.
+All 23 were false: the detector read the leading word of `* CSS Variables` as the keyword
+`CSS`. The corpus defines no `#+TODO:` sequences at all, so the true count was zero. The
+detector now matches conventional keyword names only — a tool that overstates a gap argues
+for work nobody needs.
+
+### What the oracle found
+
+`tests/oracle.rs` exports each fixture with org's own exporter via `emacs --batch`, reduces
+both sides to a semantic skeleton (element opens, closes and text, with layout `div`s,
+inline `span`s and all attributes but `href`/`src` dropped), and **snapshots the
+disagreement**. Snapshotting rather than asserting is deliberate: a checked-in divergence
+report gets reviewed and shows up as a diff, where a permanently red test gets ignored.
+Three invariants are asserted outright, and all three hold — heading structure, list
+nesting, and source-block text match Emacs exactly.
+
+**No bugs in org-ssg.** Every remaining divergence is a deliberate choice to emit better
+HTML than org does:
+
+| | org-ssg | Emacs | why |
+|---|---|---|---|
+| emphasis | `<em>`/`<strong>` | `<i>`/`<b>` | semantic, not presentational |
+| captioned image | `<figure>`/`<figcaption>` | `<p>` + `"Figure 1: …"` | real figure semantics |
+| timestamp | `<time datetime="…">` | literal `<2024-01-15 Mon>` | machine-readable |
+| footnotes | `<section><ol>` | `<h2>Footnotes:</h2>` | a list of notes is a list |
+| heading anchor | slug of the text | `org1a2b3c4` | stable, and what the live site serves |
+| code | `<pre><code>` | `<pre>` | the HTML5 idiom |
+
+One genuine semantic difference: org treats a single blank line between a `1.` list and a
+`-` list as *one* list and keeps the first item's bullet type, while we start a second list.
+We keep ours, on measurement rather than taste — the pattern occurs **zero** times in the
+corpus, so matching an org quirk would buy nothing and cost the more obvious reading.
+
+**The oracle's best catch was three bugs in itself.** Naive normalization reported code as
+corrupted (it trimmed each of syntect's per-token text runs, turning `def greet` into
+`defgreet`) and reported blocks at 36% agreement (syntect's spans flooded the diff). Both
+were measurement artifacts. A differential harness is a piece of software like any other,
+and the first divergences it reports are usually its own.
 
 **From v0.1 (core subset):** headings with nesting and anchors (every heading is now
 anchored — `:CUSTOM_ID:`/`:ID:` else a slug of its text) and trailing tags; paragraphs;
@@ -188,6 +261,7 @@ cargo build
 cargo test
 cargo run -- build fixtures/minimal.org -o minimal.html   # single file
 cargo run -- build fixtures/site -o _site                 # whole site (incremental)
+cargo run -- audit fixtures/site                          # corpus audit (Phase 0)
 cargo run -- build fixtures/site -o _site --no-cache      # force a full rebuild
 cargo run -- watch fixtures/site -o _site                 # poll + rebuild on change
 cargo run -- clean _site                                  # remove output + cache

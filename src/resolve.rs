@@ -15,7 +15,7 @@ use camino::Utf8Path;
 
 use crate::index::{SymbolTable, TargetId};
 use crate::model::{Document, Element, Link, LinkTarget, Object, Section, TableRow};
-use crate::util::{normalize_link_path, output_url};
+use crate::util::{normalize_link_path, output_path, output_url};
 
 /// A document whose links have been rewritten to concrete URLs.
 #[derive(Debug, Clone)]
@@ -42,10 +42,13 @@ pub struct ResolveOutput {
 pub fn resolve(doc: &Document, symbols: &SymbolTable) -> ResolveOutput {
     let mut document = doc.clone();
     let from = doc.source_path.clone();
+    // URLs are computed between *output* paths, which `#+SLUG:` can rename.
+    let from_out = output_path(&from, &doc.keywords);
     let mut used = Vec::new();
     let mut broken = Vec::new();
     let mut cx = Cx {
         from: &from,
+        from_out: &from_out,
         symbols,
         used: &mut used,
         broken: &mut broken,
@@ -70,6 +73,7 @@ fn human_text(target: &LinkTarget) -> Option<String> {
 
 struct Cx<'a> {
     from: &'a Utf8Path,
+    from_out: &'a Utf8Path,
     symbols: &'a SymbolTable,
     used: &'a mut Vec<TargetId>,
     broken: &'a mut Vec<BrokenLink>,
@@ -167,7 +171,7 @@ impl Cx<'_> {
                         link.description = Some(vec![Object::Text(text)]);
                     }
                 }
-                let url = output_url(self.from, &loc.source_path, loc.anchor.as_deref());
+                let url = output_url(self.from_out, &loc.output_path, loc.anchor.as_deref());
                 link.target = LinkTarget::External(url);
             }
             None => {
