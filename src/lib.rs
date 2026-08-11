@@ -19,3 +19,4 @@ pub mod resolve;
 pub mod site;
 pub mod template;
 pub mod util;
+pub mod watch;

@@ -295,13 +295,14 @@ all-of-org. Phase 0 checked this line against a real 179-file corpus and found i
 | 3 | Inline objects — emphasis, links, bare URLs, footnote refs, timestamps | done |
 | 4 | Rendering to HTML — tree walk, tables, footnote two-pass, minijinja templating, syntect highlighting | done |
 | 5 | Link resolution + symbol table (INDEX + RESOLVE, used-target list, broken-link reporting) | done |
-| 6 | Incremental build layer (hashing, dep graph, invalidation) done; `watch` is a simple poll loop | done |
+| 6 | Incremental build layer (hashing, dep graph, invalidation); `watch` on OS filesystem events | done |
 | **7** | **Hardening: rayon parallelism, error locations in parse diagnostics** | **done** |
 | **8** | **General use: config file, user templates, nav modes, `init` scaffold, safe discovery** | **done** |
 | **9** | **Generated listing pages: `[[collections]]`, sorted indexes, feeds via XML templates** | **done** |
 | **10** | **Grouped collections: one page per tag plus a tag index — full parity with the incumbent** | **done** |
 | **11** | **Pagination: numbered pages with a `paginator` context, composing with grouping** | **done** |
 | **12** | **`base_url`: `absolute`/`rfc822` filters, a valid RSS feed in the scaffold, canonical links** | **done** |
+| **13** | **`watch` on OS filesystem events, debounced, with the feedback loop closed** | **done** |
 
 ### v0.2 in / out
 
@@ -395,8 +396,32 @@ as literal text; drawers other than PROPERTIES are captured and dropped; unmodel
 types keep their content verbatim.
 
 **Still out:** `#+TODO:` per-file keyword sequences; planning lines
-(`SCHEDULED:`/`DEADLINE:`), which render as ordinary paragraphs; fixed-width `: ` lines;
-and the `watch` fs-notify integration.
+(`SCHEDULED:`/`DEADLINE:`), which render as ordinary paragraphs; and fixed-width `: `
+lines.
+
+## Watching
+
+```bash
+cargo run -- watch my-site -o _site
+```
+
+Rebuilds on OS filesystem events rather than polling, so it costs nothing while nothing
+happens. Write bursts are debounced — an editor saving a file writes a temp file, renames
+it over the original and touches the directory, which is one edit and several events.
+
+Two rules decide what counts as a change, and they are not the same rules the build uses
+to find content:
+
+- **A build input is a change.** Editing `org-ssg.toml` or a template rebuilds, even
+  though discovery skips both as non-content. The question is "would this change the
+  site?", not "is this a page?".
+- **Our own output is not.** `watch . -o _site` puts the output inside the source, so a
+  rebuild's writes raise events that would trigger a rebuild, forever. Dot-directories go
+  the same way — `.git` churns on every command — as do editor scratch files, including
+  Emacs' `file.org~` backups, which do not start with a dot.
+
+Where native watching is unavailable (some network and container filesystems), it falls
+back to polling and says so, rather than failing.
 
 ## Phase 0: the corpus audit and the Emacs oracle
 
@@ -558,20 +583,20 @@ Parser is hand-written recursive descent (not `nom`/`chumsky`/`pest` — org is
 line-oriented and context-sensitive, not clean CFG). Key crates: `syntect` (syntax
 highlighting, behind a `Highlighter` trait so tree-sitter can be swapped in later),
 `minijinja` (runtime templates), `blake3` (content/cache hashing), `rayon` (parallel
-PARSE/RESOLVE/RENDER), `chrono`, `camino`, `walkdir`, `clap`, `anyhow`/`thiserror`.
+PARSE/RESOLVE/RENDER), `notify` (filesystem events for `watch`), `toml` (config), `chrono`, `camino`, `walkdir`, `clap`, `anyhow`/`thiserror`.
 `insta` for snapshot tests, and `emacs --batch` — optional, and only for the oracle.
 
 ## Build & test
 
 ```
 cargo build
-cargo test                                                # 122 tests
+cargo test                                                # 128 tests
 cargo run -- init my-site                                 # scaffold a new site
 cargo run -- build fixtures/minimal.org -o minimal.html   # single file
 cargo run -- build fixtures/site -o _site                 # whole site (incremental)
 cargo run -- audit fixtures/site                          # corpus audit (Phase 0)
 cargo run -- build fixtures/site -o _site --no-cache      # force a full rebuild
-cargo run -- watch fixtures/site -o _site                 # poll + rebuild on change
+cargo run -- watch fixtures/site -o _site                 # rebuild on filesystem events
 cargo run -- clean _site                                  # remove output + cache
 ```
 

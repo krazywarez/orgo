@@ -40,13 +40,23 @@ enum Command {
         #[arg(long, value_name = "FILE")]
         config: Option<Utf8PathBuf>,
     },
-    /// Watch a source directory and rebuild incrementally on change (simple poll loop).
+    /// Watch a source directory and rebuild incrementally on change, driven by OS
+    /// filesystem events.
     Watch {
         /// Source directory to watch.
         input: Utf8PathBuf,
         /// Output directory.
         #[arg(short, long)]
         output: Utf8PathBuf,
+        /// Bypass the incremental cache on every rebuild.
+        #[arg(long)]
+        no_cache: bool,
+        /// Treat broken links and parse diagnostics as errors.
+        #[arg(long)]
+        strict: bool,
+        /// Config file to use, overriding `org-ssg.toml` in the source directory.
+        #[arg(long, value_name = "FILE")]
+        config: Option<Utf8PathBuf>,
     },
     /// Remove the build output directory (which holds the cache manifest).
     Clean {
@@ -105,10 +115,21 @@ fn main() -> Result<()> {
             }
             Ok(())
         }
-        // Watch is intentionally a minimal poll loop, not an OS file-watch (spec §5 Phase
-        // 6 lists `watch`; the real fs-notify integration is deferred). It rebuilds
-        // incrementally whenever any source file's mtime advances.
-        Command::Watch { input, output } => watch(&input, &output),
+        Command::Watch {
+            input,
+            output,
+            no_cache,
+            strict,
+            config,
+        } => org_ssg::watch::run(
+            &input,
+            &output,
+            &BuildOptions {
+                no_cache,
+                strict,
+                config_path: config,
+            },
+        ),
         Command::Audit { input } => {
             let result = org_ssg::audit::audit(&input)?;
             print!("{}", org_ssg::audit::report(&result));
@@ -192,58 +213,6 @@ fn init(dir: &Utf8Path) -> Result<()> {
     }
     println!("\nNext: org-ssg build {dir} -o _site");
     Ok(())
-}
-
-/// Minimal poll-based watch loop: rebuild incrementally whenever a source file changes.
-/// Not an OS file-watcher (deferred); it snapshots source mtimes every 500ms.
-fn watch(input: &Utf8Path, output: &Utf8Path) -> Result<()> {
-    use std::time::{Duration, SystemTime};
-
-    if !input.is_dir() {
-        anyhow::bail!("watch requires a source directory: watch <src-dir> -o <out-dir>");
-    }
-    let opts = BuildOptions::default();
-
-    let snapshot = |root: &Utf8Path| -> Vec<(Utf8PathBuf, SystemTime)> {
-        let mut v = Vec::new();
-        for entry in walkdir::WalkDir::new(root).sort_by_file_name() {
-            let Ok(entry) = entry else { continue };
-            if !entry.file_type().is_file() {
-                continue;
-            }
-            if let (Ok(path), Ok(meta)) = (
-                Utf8PathBuf::from_path_buf(entry.path().to_owned()),
-                entry.metadata(),
-            ) {
-                let mtime = meta.modified().unwrap_or(SystemTime::UNIX_EPOCH);
-                v.push((path, mtime));
-            }
-        }
-        v
-    };
-
-    let report = build_site(input, output, &opts)?;
-    println!(
-        "watching {input} -> {output}: built {} page(s) ({} rendered). Ctrl-C to stop.",
-        report.pages.len(),
-        report.rendered.len()
-    );
-    let mut last = snapshot(input);
-    loop {
-        std::thread::sleep(Duration::from_millis(500));
-        let now = snapshot(input);
-        if now != last {
-            match build_site(input, output, &opts) {
-                Ok(report) => println!(
-                    "rebuilt: {} rendered, {} cached",
-                    report.rendered.len(),
-                    report.skipped.len()
-                ),
-                Err(e) => eprintln!("build error: {e:#}"),
-            }
-            last = now;
-        }
-    }
 }
 
 /// Single-file build: read → PARSE → RENDER → TEMPLATE → write. No cross-file link
