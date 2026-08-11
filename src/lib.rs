@@ -16,6 +16,7 @@ pub mod model;
 pub mod parser;
 pub mod render;
 pub mod resolve;
+pub mod serve;
 pub mod site;
 pub mod template;
 pub mod util;

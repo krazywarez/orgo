@@ -150,6 +150,17 @@ fn is_editor_scratch(name: &str) -> bool {
 
 /// Build once, then rebuild whenever the source changes. Runs until interrupted.
 pub fn run(src: &Utf8Path, out: &Utf8Path, opts: &BuildOptions) -> Result<()> {
+    run_with(src, out, opts, |_| {})
+}
+
+/// As [`run`], calling `on_rebuild` after each rebuild attempt — which is how `serve`
+/// learns that it has something new to tell the browser.
+pub fn run_with(
+    src: &Utf8Path,
+    out: &Utf8Path,
+    opts: &BuildOptions,
+    mut on_rebuild: impl FnMut(&Result<crate::site::SiteReport>),
+) -> Result<()> {
     if !src.is_dir() {
         anyhow::bail!("watch requires a source directory: watch <src-dir> -o <out-dir>");
     }
@@ -186,7 +197,8 @@ pub fn run(src: &Utf8Path, out: &Utf8Path, opts: &BuildOptions) -> Result<()> {
         }
 
         let summary = summarize(&changed);
-        match build_site(src, out, opts) {
+        let result = build_site(src, out, opts);
+        match &result {
             Ok(report) => println!(
                 "{summary}: {} rendered, {} cached",
                 report.rendered.len(),
@@ -196,6 +208,7 @@ pub fn run(src: &Utf8Path, out: &Utf8Path, opts: &BuildOptions) -> Result<()> {
             // half-saved file, and the next keystroke fixes it.
             Err(e) => eprintln!("{summary}: build failed: {e:#}"),
         }
+        on_rebuild(&result);
     }
 }
 

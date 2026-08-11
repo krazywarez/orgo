@@ -356,6 +356,7 @@ all-of-org. Phase 0 checked this line against a real 179-file corpus and found i
 | **13** | **`watch` on OS filesystem events, debounced, with the feedback loop closed** | **done** |
 | **14** | **Authoring: excerpts, word count, reading time, `truncate`, and draft pages** | **done** |
 | **15** | **Table of contents, section numbers, and org's `#+OPTIONS:` per-file switches** | **done** |
+| **16** | **`serve`: development server with long-poll live reload, loopback-bound** | **done** |
 
 ### v0.2 in / out
 
@@ -451,6 +452,32 @@ types keep their content verbatim.
 **Still out:** `#+TODO:` per-file keyword sequences; planning lines
 (`SCHEDULED:`/`DEADLINE:`), which render as ordinary paragraphs; and fixed-width `: `
 lines.
+
+## Serving
+
+```bash
+cargo run -- serve my-site -o _site        # http://127.0.0.1:3000
+```
+
+Builds, watches, serves, and reloads the browser when a rebuild lands — the loop `watch`
+leaves half-open.
+
+- **Loopback by default.** A dev server serves unreviewed drafts off your laptop, so
+  reaching the local network is something you ask for with `--host 0.0.0.0`, never
+  something you get.
+- **The reload script is injected on the way out**, never written to disk. What you
+  deploy is the built site, and it must not carry a dev server's JavaScript.
+- **Long-polling, not WebSockets or SSE.** The browser asks "anything since generation
+  N?" and the server holds the request until there is. Instant like a push, no protocol
+  beyond ordinary HTTP, and no dependency. A streamed response would have been more
+  elegant and does not work: tiny_http buffers a response until its body ends, so a body
+  that never ends never reaches the client.
+- A reload only follows a **successful** rebuild. Reloading onto a stale page because the
+  build just failed tells you nothing; the error is already on your terminal.
+
+URL resolution is the server's security boundary and is written as a pure function with
+its own tests: `..`, percent-encoded `..`, backslashes, absolute paths and embedded NULs
+all resolve to nothing rather than to somewhere outside the output directory.
 
 ## Watching
 
@@ -636,20 +663,22 @@ Parser is hand-written recursive descent (not `nom`/`chumsky`/`pest` — org is
 line-oriented and context-sensitive, not clean CFG). Key crates: `syntect` (syntax
 highlighting, behind a `Highlighter` trait so tree-sitter can be swapped in later),
 `minijinja` (runtime templates), `blake3` (content/cache hashing), `rayon` (parallel
-PARSE/RESOLVE/RENDER), `notify` (filesystem events for `watch`), `toml` (config), `chrono`, `camino`, `walkdir`, `clap`, `anyhow`/`thiserror`.
+PARSE/RESOLVE/RENDER), `notify` (filesystem events for `watch`), `tiny_http` (the `serve`
+development server), `toml` (config), `chrono`, `camino`, `walkdir`, `clap`, `anyhow`/`thiserror`.
 `insta` for snapshot tests, and `emacs --batch` — optional, and only for the oracle.
 
 ## Build & test
 
 ```
 cargo build
-cargo test                                                # 142 tests
+cargo test                                                # 152 tests
 cargo run -- init my-site                                 # scaffold a new site
 cargo run -- build fixtures/minimal.org -o minimal.html   # single file
 cargo run -- build fixtures/site -o _site                 # whole site (incremental)
 cargo run -- audit fixtures/site                          # corpus audit (Phase 0)
 cargo run -- build fixtures/site -o _site --no-cache      # force a full rebuild
 cargo run -- watch fixtures/site -o _site                 # rebuild on filesystem events
+cargo run -- serve fixtures/site -o _site                 # ... and serve with live reload
 cargo run -- clean _site                                  # remove output + cache
 ```
 

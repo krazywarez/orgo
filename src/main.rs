@@ -64,6 +64,27 @@ enum Command {
         #[arg(long)]
         drafts: bool,
     },
+    /// Serve the built site locally, rebuilding and reloading the browser on change.
+    Serve {
+        /// Source directory to build and watch.
+        input: Utf8PathBuf,
+        /// Output directory to serve.
+        #[arg(short, long)]
+        output: Utf8PathBuf,
+        /// Port to listen on.
+        #[arg(short, long, default_value_t = 3000)]
+        port: u16,
+        /// Address to bind. Defaults to loopback; set `0.0.0.0` to expose the server to
+        /// your network, which also exposes any drafts you are building.
+        #[arg(long, default_value = "127.0.0.1")]
+        host: String,
+        /// Include pages marked `#+DRAFT:`.
+        #[arg(long)]
+        drafts: bool,
+        /// Config file to use, overriding `org-ssg.toml` in the source directory.
+        #[arg(long, value_name = "FILE")]
+        config: Option<Utf8PathBuf>,
+    },
     /// Remove the build output directory (which holds the cache manifest).
     Clean {
         /// Output directory to remove.
@@ -145,6 +166,24 @@ fn main() -> Result<()> {
             print!("{}", org_ssg::audit::report(&result));
             Ok(())
         }
+        Command::Serve {
+            input,
+            output,
+            port,
+            host,
+            drafts,
+            config,
+        } => org_ssg::serve::run(
+            &input,
+            &output,
+            &BuildOptions {
+                drafts,
+                config_path: config,
+                ..Default::default()
+            },
+            &host,
+            port,
+        ),
         Command::Init { directory } => init(&directory),
         Command::Clean { output } => {
             if output.exists() {
