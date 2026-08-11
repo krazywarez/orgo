@@ -327,17 +327,20 @@ is the only inherently global stage — it is where the link dependency graph is
 
 ## v1 scope (delivered as of v0.4; still to be reconciled against a corpus audit)
 
-**IN — v1 must handle:** headings with nesting; TODO keywords; priorities `[#A]`; tags;
-property drawers; plain lists (unordered/ordered/description, checkboxes, nesting);
-tables (with rule rows, no `#+TBLFM:`); source blocks with syntax highlighting;
-example/quote/center blocks; links (external, internal `[[*Heading]]`/`[[#custom-id]]`,
-`id:`); footnotes (inline and referenced); `#+` keywords/directives; inline markup
-(bold/italic/underline/verbatim/code/strike); timestamps (active/inactive, ranges);
-paragraphs and horizontal rules; images with `#+CAPTION`/`#+ATTR_HTML`.
+**IN — v1 must handle:** headings with nesting, at levels relative to the document's
+shallowest; TODO keywords; priorities `[#A]`; tags; property drawers; plain lists
+(unordered/ordered/description, checkboxes, `[@N]` counters, nesting); tables (with rule
+rows and org's special marker column, no `#+TBLFM:`); source blocks with syntax
+highlighting; example/quote/center/verse blocks and named special blocks; links (external,
+internal `[[*Heading]]`/`[[#custom-id]]`, `id:`); footnotes (inline and referenced); `#+`
+keywords/directives; inline markup (bold/italic/underline/verbatim/code/strike); org's
+export-time text conversions (`--`/`---`/`...`, `x^2`, `a_{b}`); timestamps
+(active/inactive, ranges); paragraphs and horizontal rules; images with
+`#+CAPTION`/`#+ATTR_HTML`, numbered `Figure N:`.
 
 **OUT — explicitly not v1 (parse-and-ignore or reject loudly):** Babel execution /
-`:results`; `#+TBLFM:` formulas; LaTeX / MathJax; `#+INCLUDE:`; radio targets and
-macros; drawers other than PROPERTIES/LOGBOOK; column view / clocking / agenda
+`:results`; `#+TBLFM:` formulas; LaTeX / MathJax (passed through untouched, including past
+the text conversions); `#+INCLUDE:`; citations; radio targets and macros; drawers other than PROPERTIES/LOGBOOK; column view / clocking / agenda
 semantics; non-HTML export blocks; the full Unicode entity set.
 
 **Scope guardrail:** every IN item gets a golden-file fixture; every OUT item gets a test

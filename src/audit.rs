@@ -78,7 +78,12 @@ const KNOWN_KEYWORDS: &[&str] = &[
     "KEYWORDS", "CAPTION", "NAME", "ATTR_HTML", "RESULTS", "TBLFM", "INCLUDE", "TODO",
     "STARTUP", "SUBTITLE", "SETUPFILE", "MACRO", "PROPERTY", "HTML_HEAD", "EXCLUDE_TAGS",
 ];
-const KNOWN_BLOCKS: &[&str] = &["SRC", "QUOTE", "EXAMPLE", "CENTER", "EXPORT"];
+/// Blocks with dedicated handling. Any *other* name renders as a special block — a div
+/// with that name holding parsed org — so an unlisted block is a note about what a corpus
+/// contains rather than a construct that will be lost.
+const KNOWN_BLOCKS: &[&str] = &[
+    "SRC", "QUOTE", "EXAMPLE", "CENTER", "EXPORT", "VERSE", "COMMENT",
+];
 const KNOWN_DRAWERS: &[&str] = &["PROPERTIES", "LOGBOOK", "END"];
 /// Keyword names conventional enough to be worth flagging when they lead a heading.
 /// A custom sequence is only *real* if some `#+TODO:` declares it, which the census

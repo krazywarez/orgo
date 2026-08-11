@@ -2164,3 +2164,49 @@ fn a_listing_can_group_its_entries_by_year() {
     );
     assert!(html.contains("Undated"), "the undated post is still listed");
 }
+
+/// Two notes written on the same day are not written at the same moment, and org records
+/// which came first. Sorting on the date alone throws that away.
+#[test]
+fn same_day_entries_sort_by_time_of_day() {
+    let root = tmpdir("sorttime");
+    let src = root.join("src");
+    std::fs::create_dir_all(src.join("blog")).unwrap();
+    std::fs::create_dir_all(src.join("templates")).unwrap();
+    for (name, title, date) in [
+        ("morning", "Morning", "[2026-02-21 Sat 09:15:00]"),
+        ("evening", "Evening", "[2026-02-21 Sat 21:40:00]"),
+        ("noon", "Noon", "[2026-02-21 Sat 12:30]"),
+    ] {
+        std::fs::write(
+            src.join(format!("blog/{name}.org")),
+            format!("#+TITLE: {title}\n#+DATE: {date}\n\nBody.\n"),
+        )
+        .unwrap();
+    }
+    std::fs::write(
+        src.join("templates/list.html"),
+        "<html><body>{% for p in pages %}<li>{{ p.title }}</li>{% endfor %}</body></html>",
+    )
+    .unwrap();
+    std::fs::write(
+        src.join("org-ssg.toml"),
+        "[[collections]]\nsource = \"blog\"\noutput = \"blog/index.html\"\n\
+         template = \"list.html\"\ntitle = \"Blog\"\nsort = \"date\"\norder = \"desc\"\n",
+    )
+    .unwrap();
+    let out = root.join("out");
+    build(&src, &out);
+
+    let html = page(&out, "blog/index.html");
+    let order: Vec<&str> = html
+        .split("<li>")
+        .skip(1)
+        .map(|s| s.split('<').next().unwrap())
+        .collect();
+    assert_eq!(
+        order,
+        vec!["Evening", "Noon", "Morning"],
+        "newest first, by the clock:\n{html}"
+    );
+}

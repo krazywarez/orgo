@@ -33,7 +33,8 @@ use crate::template::{
     Templater,
 };
 use crate::util::{
-    document_text, first_paragraph, is_draft, iso_date, option_enabled, output_path, output_url,
+    document_text, first_paragraph, is_draft, iso_date, iso_time, option_enabled,
+    output_path, output_url,
     relative_root, slugify, table_of_contents,
 };
 
@@ -239,7 +240,18 @@ fn build_listings(config: &Config, preps: &[PagePrep]) -> Result<Vec<Listing>> {
             // Undated pages sort last in the final order regardless of direction: a
             // draft with no date should not lead an archive.
             SortKey::Date => entries.sort_by(|a, b| {
-                let key = |p: &PageContext| p.date_iso.clone();
+                // Date *and* time: org records when a note was written, and two notes
+                // from the same day have an order that the day alone cannot express.
+                let key = |p: &PageContext| {
+                    p.date_iso.as_ref().map(|d| {
+                        let time = p
+                            .date
+                            .as_deref()
+                            .and_then(iso_time)
+                            .unwrap_or_else(|| "00:00:00".to_string());
+                        format!("{d}T{time}")
+                    })
+                };
                 match (key(a), key(b)) {
                     (Some(x), Some(y)) => x.cmp(&y).then_with(|| a.url.cmp(&b.url)),
                     (Some(_), None) => std::cmp::Ordering::Greater,
@@ -750,12 +762,14 @@ pub fn render_site(src: &Utf8Path) -> Result<(Vec<BuiltPage>, BrokenLinks)> {
     Ok((pages, broken))
 }
 
-/// Render options for one page: the site's settings, with the document's own
-/// `#+OPTIONS:` switches applied on top.
-fn render_options(config: &Config, keywords: &crate::model::Keywords) -> RenderOptions {
+/// The site's render options. A document's own `#+OPTIONS:` switches are applied by the
+/// renderer, so every caller gets them.
+fn render_options(config: &Config) -> RenderOptions {
     RenderOptions {
         heading_offset: config.html.heading_offset,
-        section_numbers: option_enabled(keywords, "num", config.html.section_numbers),
+        section_numbers: config.html.section_numbers,
+        special_strings: config.html.special_strings,
+        sub_superscript: config.html.sub_superscript,
     }
 }
 
@@ -787,9 +801,7 @@ fn render_page(
     config: &Config,
     p: &PagePrep,
 ) -> Result<String> {
-    // Options are resolved per page, because `#+OPTIONS:` is a per-document override of
-    // the site setting.
-    let opts = render_options(config, &p.resolved.document.keywords);
+    let opts = render_options(config);
     let Html(fragment) = render_with(&p.resolved, highlighter, &opts);
     // Relative to the *output* path, since `#+SLUG:` can move a page between depths.
     let root = relative_root(&p.output);

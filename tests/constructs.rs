@@ -141,7 +141,7 @@ fn preamble_keywords_do_not_disturb_the_content_around_them() {
         "a keyword between two paragraphs must not merge them:\n{html}"
     );
     assert!(
-        html.contains("<figcaption>shot</figcaption>"),
+        html.contains("<figcaption><span class=\"figure-number\">Figure 1: </span>shot</figcaption>"),
         "a preamble `#+CAPTION:` must still attach to the image below it:\n{html}"
     );
 }
@@ -265,13 +265,19 @@ fn non_html_export_blocks_are_dropped() {
     );
 }
 
-/// An unmodelled block type keeps its content rather than vanishing.
+/// A verse block keeps its line breaks, and a block with an unrecognised name becomes a
+/// div holding parsed org — the two ways a `#+BEGIN_` other than SRC/EXAMPLE/QUOTE/CENTER
+/// can carry content.
 #[test]
-fn unknown_block_types_keep_their_content() {
-    let html = render_fixture("outofscope.org");
+fn verse_and_special_blocks_keep_their_content() {
+    let html = render_fixture("blocks.org");
     assert!(
-        html.contains("An unmodelled block type"),
-        "a verse block degrades to a verbatim example block:\n{html}"
+        html.contains("<p class=\"verse\">") && html.contains("Line breaks are the point<br>"),
+        "verse keeps its breaks:\n{html}"
+    );
+    assert!(
+        html.contains("<div class=\"note\">") && html.contains("<strong>org</strong>"),
+        "a special block holds parsed org:\n{html}"
     );
 }
 
@@ -501,4 +507,177 @@ fn an_ordinary_leading_comma_is_not_stripped() {
     let text = strip_tags(&html);
     assert!(text.contains(", a list continuation"), "{html}");
     assert!(text.contains(",not an escape"), "{html}");
+}
+
+// ---------------------------------------------------------------------------
+// Export-time text conversions
+// ---------------------------------------------------------------------------
+
+fn html_of(source: &str) -> String {
+    let document = parse(Utf8PathBuf::from("t.org").as_path(), source).expect("parse");
+    let Html(html) = render(&ResolvedDoc { document }, &SyntectHighlighter::new());
+    html
+}
+
+/// Org converts dash runs and ellipses in prose. A reader of the published page should
+/// see the typography the author meant, not the ASCII they had to type.
+#[test]
+fn special_strings_become_real_punctuation() {
+    let html = html_of("An em---dash, an en--dash, and an ellipsis...\n");
+    assert!(html.contains("em\u{2014}dash"), "em dash:\n{html}");
+    assert!(html.contains("en\u{2013}dash"), "en dash:\n{html}");
+    assert!(html.contains("ellipsis\u{2026}"), "ellipsis:\n{html}");
+}
+
+/// A shell transcript is not prose. `--verbose` inside code has to survive intact, or
+/// copying a command off the page produces one that does not run.
+#[test]
+fn special_strings_leave_code_alone() {
+    let html = html_of(
+        "Prose --dash and ~ls --all~ and =grep --color=.\n\n\
+         #+BEGIN_SRC sh\nls --all\n#+END_SRC\n",
+    );
+    assert!(html.contains("Prose \u{2013}dash"), "prose converts:\n{html}");
+    assert!(html.contains("<code>ls --all</code>"), "inline code:\n{html}");
+    assert!(html.contains("--color"), "verbatim:\n{html}");
+    // The source block's `--all` is split across highlighting spans, so count the
+    // conversion itself: exactly one en dash on the page, the one in the prose.
+    assert_eq!(
+        html.matches('\u{2013}').count(),
+        1,
+        "nothing inside code converted:\n{html}"
+    );
+}
+
+/// `#+OPTIONS: -:nil` is how a document opts out, and org-ssg honours org's own switch
+/// rather than inventing one.
+#[test]
+fn a_document_can_turn_special_strings_off() {
+    let html = html_of("#+OPTIONS: -:nil\n\nAn em---dash and an ellipsis...\n");
+    assert!(html.contains("em---dash"), "left alone:\n{html}");
+    assert!(html.contains("ellipsis..."), "left alone:\n{html}");
+}
+
+/// Sub- and superscripts, including the braceless form — which is what makes
+/// `snake_case` in prose render as a subscript, exactly as Emacs does with the same file.
+#[test]
+fn sub_and_superscripts_convert() {
+    let html = html_of("Water is H_2O, x^2 is a square, and sshd_{config}.d is a path.\n");
+    assert!(html.contains("H<sub>2O</sub>"), "braceless subscript:\n{html}");
+    assert!(html.contains("x<sup>2</sup>"), "superscript:\n{html}");
+    assert!(html.contains("sshd<sub>config</sub>.d"), "braced:\n{html}");
+}
+
+/// `_underlined_` is emphasis, not a subscript. The two are told apart by what comes
+/// *before* the marker: emphasis follows whitespace, a script follows a word.
+#[test]
+fn underline_still_wins_where_org_says_it_does() {
+    let html = html_of("Some _underlined_ text.\n");
+    assert!(html.contains("<u>underlined</u>"), "underline:\n{html}");
+    assert!(!html.contains("<sub>"), "not a subscript:\n{html}");
+}
+
+/// `#+OPTIONS: ^:nil` turns them off, `^:{}` limits them to the braced form.
+#[test]
+fn a_document_can_restrict_sub_and_superscripts() {
+    let off = html_of("#+OPTIONS: ^:nil\n\nH_2O and x^2.\n");
+    assert!(off.contains("H_2O") && off.contains("x^2"), "off:\n{off}");
+
+    let braces = html_of("#+OPTIONS: ^:{}\n\nH_2O and a_{b}.\n");
+    assert!(braces.contains("H_2O"), "braceless left alone:\n{braces}");
+    assert!(braces.contains("a<sub>b</sub>"), "braced converts:\n{braces}");
+}
+
+/// LaTeX is passed through for a typesetter, so the text conversions must not reach
+/// inside it: `x^2` in `$…$` is mathematics, not markup.
+#[test]
+fn latex_fragments_are_left_intact() {
+    let html = html_of("Inline $x^2 + y^2$ and \\(a_1\\) and \\[E = mc^2\\] stay put.\n");
+    for literal in ["$x^2 + y^2$", "\\(a_1\\)", "\\[E = mc^2\\]"] {
+        assert!(html.contains(literal), "`{literal}` survives:\n{html}");
+    }
+}
+
+/// A dollar amount is not a formula. The body of a `$…$` fragment may not begin or end
+/// with a space, which is what keeps prices out of the math.
+#[test]
+fn dollar_amounts_are_not_latex() {
+    let html = html_of("It cost $5 or $6 --- a bargain.\n");
+    assert!(html.contains("\u{2014}"), "the em dash still converts:\n{html}");
+}
+
+/// Org exports outline levels relative to the file's own shallowest heading, so a
+/// document written entirely under `**` is a document of top-level sections.
+#[test]
+fn heading_levels_are_relative_to_the_shallowest_heading() {
+    let html = html_of("#+TITLE: T\n\n** First\n\nBody.\n\n*** Nested\n\nMore.\n");
+    assert!(html.contains("<h2 id=\"first\">"), "** becomes h2:\n{html}");
+    assert!(html.contains("<h3 id=\"nested\">"), "*** becomes h3:\n{html}");
+}
+
+/// An unknown `#+BEGIN_` block is a special block: a div with that name, holding org.
+/// Rendering its contents as literal text loses the markup the author wrote.
+#[test]
+fn a_special_block_holds_org_not_text() {
+    let html = html_of("#+BEGIN_NOTE\n*Note:* read this.\n#+END_NOTE\n");
+    assert!(html.contains("<div class=\"note\">"), "named div:\n{html}");
+    assert!(html.contains("<strong>Note:</strong>"), "markup parsed:\n{html}");
+}
+
+/// A path that starts with `~` inside `~…~` verbatim: the body may open with the same
+/// character as the marker, and org says so.
+#[test]
+fn verbatim_can_start_with_its_own_marker() {
+    let html = html_of("Edit ~~/.config/doom/config.el~ now.\n");
+    assert!(
+        html.contains("<code>~/.config/doom/config.el</code>"),
+        "the leading ~ belongs to the path:\n{html}"
+    );
+}
+
+/// Org's special first column holds export markers, not data: `/` marks a column group,
+/// `#` a row to recalculate. Publishing them puts a column of punctuation on the page.
+#[test]
+fn a_tables_special_column_and_marker_rows_are_dropped() {
+    let html = html_of(
+        "| N | N^2 |\n\
+         | / |   < |\n\
+         | 1 |   1 |\n",
+    );
+    assert!(!html.contains("<td>/</td>"), "the marker row is gone:\n{html}");
+    assert!(html.contains("<td>1</td>"), "the data row stays:\n{html}");
+
+    // Every row marked, so the column itself goes too.
+    let all_marked = html_of(
+        "| # | exp(x) | 1 |\n\
+         | # | exp(x) | 2 |\n",
+    );
+    assert!(
+        !all_marked.contains(">#<"),
+        "a wholly-special column is dropped:\n{all_marked}"
+    );
+    assert!(all_marked.contains("exp(x)"), "data survives:\n{all_marked}");
+}
+
+/// An affiliated keyword belongs to the element *immediately* below it. Someone who
+/// writes `#+CAPTION:` under their image has captioned nothing — and captioning the next
+/// image instead would put the wrong words under the wrong picture.
+#[test]
+fn a_blank_line_ends_a_captions_association() {
+    let html = html_of(
+        "[[file:one.png]]\n\
+         #+CAPTION: stranded\n\
+         \n\
+         [[file:two.png]]\n",
+    );
+    assert!(
+        !html.contains("stranded"),
+        "an orphaned caption attaches to nothing:\n{html}"
+    );
+
+    let attached = html_of("#+CAPTION: attached\n[[file:one.png]]\n");
+    assert!(
+        attached.contains("<figcaption>"),
+        "a caption directly above its image still works:\n{attached}"
+    );
 }

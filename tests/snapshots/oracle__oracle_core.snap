@@ -2,7 +2,7 @@
 source: tests/oracle.rs
 expression: report
 ---
-agreement: 45/54 skeleton lines (83.3%)
+agreement: 51/58 skeleton lines (87.9%)
 (- org-ssg, + emacs)
 
   <p>
@@ -34,17 +34,15 @@ agreement: 45/54 skeleton lines (83.3%)
 - </ol>
 - <ul>
   <li>
-- <input>
-+ <code>
-+ "[ ]"
-+ </code>
+  <code>
+  "[ ]"
+  </code>
   "todo item"
   </li>
   <li>
-- <input>
-+ <code>
-+ "[X]"
-+ </code>
+  <code>
+  "[X]"
+  </code>
   "done item"
   </li>
 - </ul>

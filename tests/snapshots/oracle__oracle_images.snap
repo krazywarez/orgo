@@ -2,7 +2,7 @@
 source: tests/oracle.rs
 expression: report
 ---
-agreement: 28/42 skeleton lines (66.7%)
+agreement: 30/42 skeleton lines (71.4%)
 (- org-ssg, + emacs)
 
   <h2>
@@ -18,12 +18,11 @@ agreement: 28/42 skeleton lines (66.7%)
 + <p>
   <img src="pipeline.svg">
 - <figcaption>
-- "The pipeline, end to end"
-- </figcaption>
-- </figure>
 + </p>
 + <p>
-+ "Figure 1: The pipeline, end to end"
+  "Figure 1: The pipeline, end to end"
+- </figcaption>
+- </figure>
 + </p>
   <h2>
   "Caption with markup"
@@ -32,11 +31,10 @@ agreement: 28/42 skeleton lines (66.7%)
 + <p>
   <img src="chart.png">
 - <figcaption>
-- "A"
-- <em>
 + </p>
 + <p>
-+ "Figure 2: A"
+  "Figure 2: A"
+- <em>
 + <i>
   "stylised"
 - </em>

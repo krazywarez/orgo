@@ -37,6 +37,7 @@ expression: "parse_fixture(\"lists.org\").root"
             "items": [
               {
                 "bullet": "Dash",
+                "counter": null,
                 "checkbox": null,
                 "term": null,
                 "content": [
@@ -53,6 +54,7 @@ expression: "parse_fixture(\"lists.org\").root"
                       "items": [
                         {
                           "bullet": "Dash",
+                          "counter": null,
                           "checkbox": null,
                           "term": null,
                           "content": [
@@ -69,6 +71,7 @@ expression: "parse_fixture(\"lists.org\").root"
                                 "items": [
                                   {
                                     "bullet": "Dash",
+                                    "counter": null,
                                     "checkbox": null,
                                     "term": null,
                                     "content": [
@@ -88,6 +91,7 @@ expression: "parse_fixture(\"lists.org\").root"
                         },
                         {
                           "bullet": "Dash",
+                          "counter": null,
                           "checkbox": null,
                           "term": null,
                           "content": [
@@ -107,6 +111,7 @@ expression: "parse_fixture(\"lists.org\").root"
               },
               {
                 "bullet": "Dash",
+                "counter": null,
                 "checkbox": null,
                 "term": null,
                 "content": [
@@ -151,6 +156,7 @@ expression: "parse_fixture(\"lists.org\").root"
                 "bullet": {
                   "Ordered": 1
                 },
+                "counter": null,
                 "checkbox": null,
                 "term": null,
                 "content": [
@@ -167,6 +173,7 @@ expression: "parse_fixture(\"lists.org\").root"
                 "bullet": {
                   "Ordered": 2
                 },
+                "counter": null,
                 "checkbox": null,
                 "term": null,
                 "content": [
@@ -185,6 +192,7 @@ expression: "parse_fixture(\"lists.org\").root"
                           "bullet": {
                             "Ordered": 1
                           },
+                          "counter": null,
                           "checkbox": null,
                           "term": null,
                           "content": [
@@ -201,6 +209,7 @@ expression: "parse_fixture(\"lists.org\").root"
                           "bullet": {
                             "Ordered": 2
                           },
+                          "counter": null,
                           "checkbox": null,
                           "term": null,
                           "content": [
@@ -222,6 +231,7 @@ expression: "parse_fixture(\"lists.org\").root"
                 "bullet": {
                   "Ordered": 3
                 },
+                "counter": null,
                 "checkbox": null,
                 "term": null,
                 "content": [
@@ -264,6 +274,7 @@ expression: "parse_fixture(\"lists.org\").root"
             "items": [
               {
                 "bullet": "Dash",
+                "counter": null,
                 "checkbox": "Off",
                 "term": null,
                 "content": [
@@ -278,6 +289,7 @@ expression: "parse_fixture(\"lists.org\").root"
               },
               {
                 "bullet": "Dash",
+                "counter": null,
                 "checkbox": "On",
                 "term": null,
                 "content": [
@@ -292,6 +304,7 @@ expression: "parse_fixture(\"lists.org\").root"
               },
               {
                 "bullet": "Dash",
+                "counter": null,
                 "checkbox": "Trans",
                 "term": null,
                 "content": [
@@ -334,6 +347,7 @@ expression: "parse_fixture(\"lists.org\").root"
             "items": [
               {
                 "bullet": "Dash",
+                "counter": null,
                 "checkbox": null,
                 "term": [
                   {
@@ -352,6 +366,7 @@ expression: "parse_fixture(\"lists.org\").root"
               },
               {
                 "bullet": "Dash",
+                "counter": null,
                 "checkbox": null,
                 "term": [
                   {
@@ -370,6 +385,7 @@ expression: "parse_fixture(\"lists.org\").root"
               },
               {
                 "bullet": "Dash",
+                "counter": null,
                 "checkbox": null,
                 "term": [
                   {
@@ -423,6 +439,7 @@ expression: "parse_fixture(\"lists.org\").root"
             "items": [
               {
                 "bullet": "Dash",
+                "counter": null,
                 "checkbox": null,
                 "term": null,
                 "content": [
@@ -444,6 +461,7 @@ expression: "parse_fixture(\"lists.org\").root"
               },
               {
                 "bullet": "Dash",
+                "counter": null,
                 "checkbox": null,
                 "term": null,
                 "content": [

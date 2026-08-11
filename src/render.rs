@@ -23,10 +23,11 @@ use syntect::html::{css_for_theme_with_class_style, ClassStyle, ClassedHTMLGener
 use syntect::parsing::SyntaxSet;
 use syntect::util::LinesWithEndings;
 
+use crate::config::SubSuperscript;
 use crate::model::{Checkbox, Element, Link, LinkTarget, ListKind, Object, Section, TableRow};
 use crate::parser::is_image_target;
 use crate::resolve::ResolvedDoc;
-use crate::util::{heading_anchor, plain_text, slugify};
+use crate::util::{export_options, heading_anchor, option_enabled, plain_text, slugify};
 
 /// A rendered HTML fragment (content only — no page chrome; spec §2.4).
 #[derive(Debug, Clone)]
@@ -211,6 +212,12 @@ struct Renderer<'a> {
     order: Vec<String>,
     /// Counter per heading depth, for section numbers.
     counters: Vec<usize>,
+    /// Subtracted from every heading level so the document's shallowest heading renders
+    /// as level 1. Org exports levels *relative* to a file's own outline, so a file
+    /// written entirely under `**` is not a file of subsections.
+    headline_offset: u8,
+    /// Captioned figures seen so far, for `Figure N:`.
+    figures: usize,
 }
 
 /// Options affecting how the tree becomes HTML. Presentation choices that belong to the
@@ -224,6 +231,12 @@ pub struct RenderOptions {
     /// Prefix headings with `1.`, `1.1.`, … See
     /// [`HtmlOutput::section_numbers`](crate::config::HtmlOutput::section_numbers).
     pub section_numbers: bool,
+    /// Convert `--`, `---` and `...` in prose. See
+    /// [`HtmlOutput::special_strings`](crate::config::HtmlOutput::special_strings).
+    pub special_strings: bool,
+    /// Whether `x^2` and `a_{b}` become `<sup>`/`<sub>`. See
+    /// [`HtmlOutput::sub_superscript`](crate::config::HtmlOutput::sub_superscript).
+    pub sub_superscript: SubSuperscript,
 }
 
 impl Default for RenderOptions {
@@ -232,8 +245,47 @@ impl Default for RenderOptions {
         RenderOptions {
             heading_offset: html.heading_offset,
             section_numbers: html.section_numbers,
+            special_strings: html.special_strings,
+            sub_superscript: html.sub_superscript,
         }
     }
+}
+
+/// The site's render options with the document's own `#+OPTIONS:` applied on top.
+///
+/// Org's per-file switches are the author's override of a site-wide setting, and they
+/// belong here rather than at each call site — otherwise rendering one document two ways
+/// depends on which caller remembered to read its keywords.
+fn document_options(keywords: &crate::model::Keywords, opts: &RenderOptions) -> RenderOptions {
+    RenderOptions {
+        heading_offset: opts.heading_offset,
+        section_numbers: option_enabled(keywords, "num", opts.section_numbers),
+        special_strings: option_enabled(keywords, "-", opts.special_strings),
+        // `^:` has three values rather than two — `nil`, `{}` or on — so it is read
+        // directly instead of through the boolean helper.
+        sub_superscript: match export_options(keywords).get("^") {
+            Some(value) => SubSuperscript::from_option(value),
+            None => opts.sub_superscript,
+        },
+    }
+}
+
+/// How much to subtract from every heading level, so a document's shallowest heading
+/// renders as level 1.
+///
+/// Org exports outline levels *relative to the file*: a document written entirely under
+/// `**` is a document of top-level sections that happen to be indented, not a document of
+/// subsections. Emacs computes this from the shallowest top-level headline, which is what
+/// makes the same subtree export identically whether it was cut from a larger file or
+/// written on its own.
+fn headline_offset(root: &Section) -> u8 {
+    root.children
+        .iter()
+        .filter_map(|s| s.heading.as_ref())
+        .map(|h| h.level)
+        .min()
+        .map(|min| min.saturating_sub(1))
+        .unwrap_or(0)
 }
 
 /// Render a resolved document to an HTML fragment, with default options.
@@ -245,11 +297,13 @@ pub fn render(doc: &ResolvedDoc, highlighter: &dyn Highlighter) -> Html {
 pub fn render_with(doc: &ResolvedDoc, highlighter: &dyn Highlighter, opts: &RenderOptions) -> Html {
     let mut r = Renderer {
         hl: highlighter,
-        opts: *opts,
+        opts: document_options(&doc.document.keywords, opts),
         block_defs: HashMap::new(),
         inline_defs: HashMap::new(),
         order: Vec::new(),
         counters: Vec::new(),
+        headline_offset: headline_offset(&doc.document.root),
+        figures: 0,
     };
     r.collect_defs(&doc.document.root);
     let mut out = String::new();
@@ -269,7 +323,8 @@ impl Renderer<'_> {
 
     fn render_section(&mut self, section: &Section, out: &mut String) {
         if let Some(h) = &section.heading {
-            let level = h.level.saturating_add(self.opts.heading_offset).clamp(1, 6);
+            let relative = h.level.saturating_sub(self.headline_offset).max(1);
+            let level = relative.saturating_add(self.opts.heading_offset).clamp(1, 6);
             let anchor = heading_anchor(h);
             // A heading with no title text has no meaningful slug; emit no `id` at all
             // rather than a run of duplicate empty ones.
@@ -279,7 +334,7 @@ impl Renderer<'_> {
                 out.push_str(&format!("<h{} id=\"{}\">", level, escape_attr(&anchor)));
             }
             if self.opts.section_numbers {
-                let number = self.next_section_number(h.level);
+                let number = self.next_section_number(relative);
                 out.push_str(&format!(
                     "<span class=\"section-number-{}\">{number}</span> ",
                     level
@@ -377,11 +432,32 @@ impl Renderer<'_> {
                 out.push_str("<figure>");
                 out.push_str(&image_tag(link, attrs, &plain_text(caption)));
                 if !caption.is_empty() {
-                    out.push_str("<figcaption>");
+                    self.figures += 1;
+                    out.push_str(&format!(
+                        "<figcaption><span class=\"figure-number\">Figure {}: </span>",
+                        self.figures
+                    ));
                     self.render_objects(caption, out);
                     out.push_str("</figcaption>");
                 }
                 out.push_str("</figure>\n");
+            }
+            Element::SpecialBlock { name, content } => {
+                out.push_str(&format!("<div class=\"{}\">\n", escape_attr(name)));
+                for child in content {
+                    self.render_element(child, out);
+                }
+                out.push_str("</div>\n");
+            }
+            Element::VerseBlock(lines) => {
+                out.push_str("<p class=\"verse\">\n");
+                for (i, line) in lines.iter().enumerate() {
+                    if i > 0 {
+                        out.push_str("<br>\n");
+                    }
+                    self.render_objects(&crate::parser::inline(line), out);
+                }
+                out.push_str("\n</p>\n");
             }
             Element::HorizontalRule => out.push_str("<hr>\n"),
             // Definitions are emitted in the footnotes section, not inline.
@@ -414,16 +490,29 @@ impl Renderer<'_> {
         };
         out.push_str(&format!("<{}>\n", tag));
         for item in &list.items {
-            out.push_str("<li>");
+            // Org writes a checkbox as literal text, which keeps the third state — `[-]`,
+            // partially done — that a disabled <input> cannot express. The state goes on
+            // the item, where it can style the whole line.
+            let class = item.checkbox.as_ref().map(|cb| match cb {
+                Checkbox::On => "on",
+                Checkbox::Off => "off",
+                Checkbox::Trans => "trans",
+            });
+            out.push_str("<li");
+            if let Some(class) = class {
+                out.push_str(&format!(" class=\"{class}\""));
+            }
+            // `[@4]` restarts the numbering, and HTML says so with `value`.
+            if let Some(n) = item.counter {
+                out.push_str(&format!(" value=\"{n}\""));
+            }
+            out.push('>');
             if let Some(cb) = &item.checkbox {
-                out.push_str(&format!(
-                    "<input type=\"checkbox\" disabled{}> ",
-                    if matches!(cb, Checkbox::On) {
-                        " checked"
-                    } else {
-                        ""
-                    }
-                ));
+                out.push_str(match cb {
+                    Checkbox::On => "<code>[X]</code> ",
+                    Checkbox::Off => "<code>[&nbsp;]</code> ",
+                    Checkbox::Trans => "<code>[-]</code> ",
+                });
             }
             self.render_item_content(&item.content, out);
             out.push_str("</li>\n");
@@ -454,6 +543,8 @@ impl Renderer<'_> {
 
     /// Rows before the first rule row become the `<thead>`; the rest are the `<tbody>`.
     fn render_table(&mut self, table: &crate::model::Table, out: &mut String) {
+        let table = strip_special_column(table);
+        let table = &table;
         let rule_at = table
             .rows
             .iter()
@@ -502,6 +593,31 @@ impl Renderer<'_> {
         out.push_str("</table>\n");
     }
 
+    /// Plain text as HTML: escaped, then org's export-time text conversions.
+    ///
+    /// Both run on the *escaped* string so their output tags survive, and both are
+    /// reachable only from [`Object::Text`] — verbatim, code and source blocks are
+    /// different objects, which is what keeps `--verbose` in a shell transcript intact.
+    fn text_html(&self, t: &str) -> String {
+        let escaped = escape_html(t);
+        let mut out = String::with_capacity(escaped.len());
+        // LaTeX is passed through untouched — `$x^2$` is math for a typesetter, not a
+        // superscript for us, and an em dash inside a formula is not what was meant.
+        for (span, is_latex) in latex_split(&escaped) {
+            if is_latex {
+                out.push_str(span);
+                continue;
+            }
+            let with_strings = if self.opts.special_strings {
+                special_strings(span)
+            } else {
+                span.to_string()
+            };
+            out.push_str(&sub_superscript(&with_strings, self.opts.sub_superscript));
+        }
+        out
+    }
+
     fn render_objects(&mut self, objs: &[Object], out: &mut String) {
         for obj in objs {
             self.render_object(obj, out);
@@ -510,7 +626,7 @@ impl Renderer<'_> {
 
     fn render_object(&mut self, obj: &Object, out: &mut String) {
         match obj {
-            Object::Text(t) => out.push_str(&escape_html(t)),
+            Object::Text(t) => out.push_str(&self.text_html(t)),
             Object::Bold(inner) => self.wrap(out, "strong", inner),
             Object::Italic(inner) => self.wrap(out, "em", inner),
             Object::Underline(inner) => self.wrap(out, "u", inner),
@@ -733,6 +849,223 @@ fn link_text(target: &LinkTarget) -> String {
         LinkTarget::Heading(text) => text.clone(),
         LinkTarget::File { path, .. } => path.to_string(),
     }
+}
+
+/// Drop org's special column and its marker rows.
+///
+/// A table's first column may hold export markers rather than data — `/` marks a column
+/// group, `#` a row to recalculate, `!` a row of names. Rows marked `/ ! ^ _ $` are
+/// instructions to org and never appear in the output; the column itself disappears when
+/// *every* row uses it that way, which is what stops a table of formulas from publishing
+/// with a stray column of hashes.
+fn strip_special_column(table: &crate::model::Table) -> crate::model::Table {
+    let first_cell = |row: &TableRow| -> Option<String> {
+        match row {
+            TableRow::Cells(cells) => Some(plain_text(cells.first()?).trim().to_string()),
+            TableRow::Rule => None,
+        }
+    };
+    let data_rows = || table.rows.iter().filter(|r| matches!(r, TableRow::Cells(_)));
+    let column_is_special = data_rows().count() > 0
+        && data_rows().all(|row| {
+            matches!(
+                first_cell(row).as_deref(),
+                Some("" | "/" | "#" | "!" | "^" | "_" | "$" | "*")
+            )
+        });
+
+    let rows = table
+        .rows
+        .iter()
+        .filter(|row| {
+            // A marker row is an instruction, not content.
+            !matches!(
+                first_cell(row).as_deref(),
+                Some("/" | "!" | "^" | "_" | "$")
+            )
+        })
+        .map(|row| match (row, column_is_special) {
+            (TableRow::Cells(cells), true) => TableRow::Cells(cells[1.min(cells.len())..].to_vec()),
+            _ => row.clone(),
+        })
+        .collect();
+    crate::model::Table { rows }
+}
+
+/// Split text into alternating prose and LaTeX spans, `(text, is_latex)`.
+///
+/// org-ssg does not typeset LaTeX — it passes it through for MathJax or a reader's eyes —
+/// but it must know where a fragment *is*, because the export-time text conversions would
+/// otherwise rewrite the mathematics: `x^2` inside `$…$` is not a superscript to be
+/// marked up, and `--` inside one is a minus sign twice.
+fn latex_split(s: &str) -> Vec<(&str, bool)> {
+    let bytes = s.as_bytes();
+    let mut spans = Vec::new();
+    let mut plain_from = 0;
+    let mut i = 0;
+    while i < s.len() {
+        if !s.is_char_boundary(i) {
+            i += 1;
+            continue;
+        }
+        let end = match bytes[i] {
+            b'\\' => latex_backslash_end(s, i),
+            b'$' => latex_dollar_end(s, i),
+            _ => None,
+        };
+        if let Some(end) = end {
+            if plain_from < i {
+                spans.push((&s[plain_from..i], false));
+            }
+            spans.push((&s[i..end], true));
+            plain_from = end;
+            i = end;
+            continue;
+        }
+        i += 1;
+    }
+    if plain_from < s.len() {
+        spans.push((&s[plain_from..], false));
+    }
+    spans
+}
+
+/// End of a `\(…\)`, `\[…\]` or `\begin{env}…\end{env}` fragment starting at `i`.
+fn latex_backslash_end(s: &str, i: usize) -> Option<usize> {
+    let rest = &s[i..];
+    for (open, close) in [("\\(", "\\)"), ("\\[", "\\]")] {
+        if let Some(body) = rest.strip_prefix(open) {
+            return body.find(close).map(|k| i + open.len() + k + close.len());
+        }
+    }
+    let after = rest.strip_prefix("\\begin{")?;
+    let name_end = after.find('}')?;
+    let end_tag = format!("\\end{{{}}}", &after[..name_end]);
+    let k = rest.find(&end_tag)?;
+    Some(i + k + end_tag.len())
+}
+
+/// End of a `$…$` fragment starting at `i`, or `None` when this `$` is just a dollar sign.
+///
+/// The body may not begin or end with whitespace, which is what keeps "it cost $5 or $6"
+/// out — the same heuristic org uses, and the same one that means a sentence with two
+/// unrelated dollar amounts and no space between them will be read as math.
+fn latex_dollar_end(s: &str, i: usize) -> Option<usize> {
+    let body = &s[i + 1..];
+    let close = body.find('$')?;
+    if close == 0 {
+        return None;
+    }
+    let inner = &body[..close];
+    if inner.starts_with(char::is_whitespace) || inner.ends_with(char::is_whitespace) {
+        return None;
+    }
+    if inner.contains('\n') {
+        return None;
+    }
+    Some(i + 1 + close + 1)
+}
+
+/// Org's special strings: `--` becomes an en dash, `---` an em dash, `...` an ellipsis,
+/// and `\-` a soft hyphen.
+///
+/// A dash run only converts when a non-dash follows it, matching Emacs — so a `---` at the
+/// very end of a line, or the `-----` someone drew as a rule, is left alone.
+fn special_strings(s: &str) -> String {
+    let chars: Vec<char> = s.chars().collect();
+    let mut out = String::with_capacity(s.len());
+    let mut i = 0;
+    while i < chars.len() {
+        let rest = &chars[i..];
+        let followed_by_dash = |n: usize| matches!(rest.get(n), Some('-') | None);
+        if rest.starts_with(&['\\', '-']) {
+            out.push('\u{00ad}');
+            i += 2;
+        } else if rest.starts_with(&['-', '-', '-']) && !followed_by_dash(3) {
+            out.push('\u{2014}');
+            i += 3;
+        } else if rest.starts_with(&['-', '-']) && !followed_by_dash(2) {
+            out.push('\u{2013}');
+            i += 2;
+        } else if rest.starts_with(&['.', '.', '.']) {
+            out.push('\u{2026}');
+            i += 3;
+        } else {
+            out.push(chars[i]);
+            i += 1;
+        }
+    }
+    out
+}
+
+/// Org's `_` and `^` conversions: `H_{2}O`, `x^2`.
+///
+/// Both require a non-whitespace character before the marker, which is what separates a
+/// subscript from `_underlined text_` — the parser has already taken the emphasis, since
+/// that form requires whitespace *before* the marker.
+fn sub_superscript(s: &str, mode: SubSuperscript) -> String {
+    if mode == SubSuperscript::No || !s.contains(['_', '^']) {
+        return s.to_string();
+    }
+    let chars: Vec<char> = s.chars().collect();
+    let mut out = String::with_capacity(s.len());
+    let mut i = 0;
+    while i < chars.len() {
+        let c = chars[i];
+        let prev_ok = i > 0 && !chars[i - 1].is_whitespace();
+        if (c == '_' || c == '^') && prev_ok {
+            if let Some((body, next)) = script_body(&chars, i + 1, mode) {
+                let tag = if c == '_' { "sub" } else { "sup" };
+                out.push_str(&format!("<{tag}>{body}</{tag}>"));
+                i = next;
+                continue;
+            }
+        }
+        out.push(c);
+        i += 1;
+    }
+    out
+}
+
+/// The scripted text after a `_`/`^`: either `{...}`, or — unless braces are required —
+/// a run of alphanumerics ending in one, so `x^2` and `a_b1` convert but `a_ ` does not.
+fn script_body(chars: &[char], start: usize, mode: SubSuperscript) -> Option<(String, usize)> {
+    if chars.get(start) == Some(&'{') {
+        let mut depth = 1;
+        let mut j = start + 1;
+        while j < chars.len() {
+            match chars[j] {
+                '{' => depth += 1,
+                '}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return Some((chars[start + 1..j].iter().collect(), j + 1));
+                    }
+                }
+                _ => {}
+            }
+            j += 1;
+        }
+        return None;
+    }
+    if mode == SubSuperscript::Braces {
+        return None;
+    }
+    let mut j = start;
+    if matches!(chars.get(j), Some('+') | Some('-')) {
+        j += 1;
+    }
+    let mut last_alnum = None;
+    while let Some(&c) = chars.get(j) {
+        if c.is_alphanumeric() {
+            last_alnum = Some(j);
+        } else if !matches!(c, '.' | ',' | '\\') {
+            break;
+        }
+        j += 1;
+    }
+    let end = last_alnum? + 1;
+    Some((chars[start..end].iter().collect(), end))
 }
 
 fn escape_html(s: &str) -> String {

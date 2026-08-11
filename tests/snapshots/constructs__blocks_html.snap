@@ -25,3 +25,12 @@ expression: "render_fixture(\"blocks.org\")"
 <p>A quote containing a source block:</p>
 <pre><code class="language-sh highlight"><span class="source shell bash"><span class="meta function-call shell"><span class="support function echo shell">echo</span></span><span class="meta function-call arguments shell"> hi</span></span></code></pre>
 </blockquote>
+<h2 id="verse">Verse</h2>
+<p class="verse">
+Line breaks are the point<br>
+  and indentation survives.
+</p>
+<h2 id="a-named-special-block">A named special block</h2>
+<div class="note">
+<p>Contents are <strong>org</strong>, not literal text.</p>
+</div>

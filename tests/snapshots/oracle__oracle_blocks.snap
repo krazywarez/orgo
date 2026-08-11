@@ -2,7 +2,7 @@
 source: tests/oracle.rs
 expression: report
 ---
-agreement: 51/59 skeleton lines (86.4%)
+agreement: 67/77 skeleton lines (87.0%)
 (- org-ssg, + emacs)
 
   <h2>
@@ -66,3 +66,24 @@ agreement: 51/59 skeleton lines (86.4%)
 - </code>
   </pre>
   </blockquote>
+  <h2>
+  "Verse"
+  </h2>
+  <p>
+  "Line breaks are the point"
+  <br>
+  "and indentation survives."
++ <br>
+  </p>
+  <h2>
+  "A named special block"
+  </h2>
+  <p>
+  "Contents are"
+- <strong>
++ <b>
+  "org"
+- </strong>
++ </b>
+  ", not literal text."
+  </p>

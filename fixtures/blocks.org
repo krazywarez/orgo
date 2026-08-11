@@ -51,3 +51,16 @@ A quote containing a source block:
 echo hi
 #+END_SRC
 #+END_QUOTE
+
+* Verse
+
+#+BEGIN_VERSE
+Line breaks are the point
+  and indentation survives.
+#+END_VERSE
+
+* A named special block
+
+#+BEGIN_NOTE
+Contents are *org*, not literal text.
+#+END_NOTE

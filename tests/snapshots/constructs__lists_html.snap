@@ -26,9 +26,9 @@ expression: "render_fixture(\"lists.org\")"
 </ol>
 <h2 id="checkboxes">Checkboxes</h2>
 <ul>
-<li><input type="checkbox" disabled> not done</li>
-<li><input type="checkbox" disabled checked> done</li>
-<li><input type="checkbox" disabled> partially done</li>
+<li class="off"><code>[&nbsp;]</code> not done</li>
+<li class="on"><code>[X]</code> done</li>
+<li class="trans"><code>[-]</code> partially done</li>
 </ul>
 <h2 id="description">Description</h2>
 <dl>

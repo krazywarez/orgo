@@ -35,6 +35,33 @@ every org form — external, =[[*Heading]]=, =[[#custom-id]]=, =[[id:...]]=,
 Timestamps, active and inactive, with times and ranges, render as =<time>= with a
 machine-readable =datetime=.
 
+*** Text conversions
+
+Org rewrites some prose on export, and so does org-ssg:
+
+| Written | Published |
+|---------+-----------|
+| =--= | – |
+| =---= | — |
+| =...= | … |
+| =x^2= | x superscript 2 |
+| =H_{2}O= | H subscript 2 O |
+
+Neither reaches inside verbatim, code, a source block or a LaTeX fragment — =--verbose= in
+a shell transcript stays a flag, and =$x^2$= stays mathematics.
+
+*Braceless subscripts catch people out.* Org's default converts =a_b=, so =snake_case= in
+prose publishes as snake with a subscript. That is what Emacs does with the same file. Turn
+it off per document with =#+OPTIONS: ^:nil=, restrict it to the braced form with =^:{}=, or
+set =[html] sub_superscript= for the site. =#+OPTIONS: -:nil= turns off the dashes and
+ellipsis.
+
+*** Heading levels are relative
+
+A file whose shallowest heading is =**= is a file of top-level sections that happen to be
+indented, not a file of subsections — org exports levels relative to the document, so that
+subtree exports the same whether it was cut from a larger file or written on its own.
+
 ** Lists
 
 Unordered, ordered and description lists, nested by indentation, with checkboxes and
@@ -44,18 +71,25 @@ multi-paragraph items:
 - outer item
   - inner item
 - [X] a checked item
+- [-] a partly-done item
 - term :: definition
+1. [@4] an item numbered from 4
 #+END_SRC
+
+Checkboxes render as org writes them — =<code>[X]</code>= with the state as a class on the
+item — rather than as a disabled =<input>=, which has no way to say "partly done".
 
 ** Blocks
 
-=SRC= (syntax highlighted), =EXAMPLE=, =QUOTE=, =CENTER= and =EXPORT=. A source block
-inside a quote block works, because block ends match their own kind.
+=SRC= (syntax highlighted), =EXAMPLE=, =QUOTE=, =CENTER=, =VERSE= and =EXPORT=. A source
+block inside a quote block works, because block ends match their own kind.
 
 An =html= export block passes through verbatim; every other backend is dropped, because
 emitting LaTeX into an HTML page is worse than emitting nothing.
 
-An unknown block type keeps its content as an example block rather than vanishing.
+*Any other name is a special block*: =#+BEGIN_NOTE= becomes =<div class="note">= holding
+*parsed org*, which is what makes the convention usable without org-ssg knowing the word
+"note". A =COMMENT= block is not published.
 
 *** Which languages highlight
 
@@ -89,7 +123,12 @@ in Emacs as much as here. If a code block seems to stop early, that is why.
 
 ** Tables and footnotes
 
-Pipe tables, with the rule row establishing a header band. Footnotes in all three forms —
+Pipe tables, with the rule row establishing a header band. Org's *special column* is
+honoured: a first column holding only export markers (=/=, =#=, =!=, =^=, =_=, =$=) is
+dropped, and rows marked =/=, =!=, =^=, =_= or =$= are instructions to org rather than
+content, so they never reach the page.
+
+Footnotes in all three forms —
 =[fn:1]= references, =[fn:1]= definitions and =[fn:1:inline text]= — rendered as a
 numbered, back-linked notes section.
 
@@ -120,7 +159,7 @@ broken.
 | =#+DRAFT:= | Keeps the page out of the build. |
 | =#+TEMPLATE:= | The layout this page renders through. |
 | =#+OPTIONS:= | Per-file export switches. |
-| =#+CAPTION:=, =#+ATTR_HTML:= | Attach to the image below them. |
+| =#+CAPTION:=, =#+ATTR_HTML:= | Attach to the image *directly* below them — a blank line in between attaches to nothing, as in org. A captioned image is numbered =Figure N:=. |
 
 Every other =#+KEYWORD:= is available to templates as
 ={{ page.keywords.that_keyword }}=, so metadata org-ssg has never heard of still reaches

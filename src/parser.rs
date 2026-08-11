@@ -398,6 +398,11 @@ fn parse_elements(lines: &[&str], base: usize, diags: &mut Vec<Diagnostic>) -> V
     while i < lines.len() {
         let line = lines[i];
         if line.trim().is_empty() {
+            // A blank line ends the association: an affiliated keyword belongs to the
+            // element *immediately* below it. Someone who writes `#+CAPTION:` under their
+            // image and then leaves a blank line has captioned nothing, and org agrees —
+            // silently attaching it to whatever comes next would caption the wrong thing.
+            affiliated.clear();
             i += 1;
             continue;
         }
@@ -563,9 +568,17 @@ fn parse_block(
             backend: after.split_whitespace().next().unwrap_or("").to_string(),
             raw: inner.join("\n"),
         },
-        // Out-of-scope block types (verse, comment, ascii, custom) degrade to a verbatim
-        // example block: content preserved, no crash.
-        _ => Element::ExampleBlock(inner.join("\n")),
+        // Verse keeps its line breaks; that is the whole point of it.
+        "VERSE" => Element::VerseBlock(inner.iter().map(|l| l.to_string()).collect()),
+        // A comment block is not published, in org or here.
+        "COMMENT" => Element::Comment(inner.join("\n")),
+        // Any other name is a special block: a div with that class, holding org. Emacs
+        // exports unknown block types this way, which is what makes `#+BEGIN_NOTE` a
+        // usable convention without the exporter knowing the word "note".
+        other => Element::SpecialBlock {
+            name: other.to_ascii_lowercase(),
+            content: parse_elements(&inner, base + start + 1, diags),
+        },
     };
     (element, next)
 }
@@ -830,6 +843,8 @@ fn parse_list(
         // Body = the text after the bullet, plus every following line indented past the
         // bullet column (blank lines included, so an item can hold several paragraphs).
         let rest = item_body(lines[j].trim_start(), &bullet);
+        // `[@4]` comes before the checkbox: `1. [@4] [X] done`.
+        let (counter, rest) = split_counter(rest);
         let (checkbox, rest) = split_checkbox(rest);
         let (term, rest) = match kind {
             ListKind::Description => match split_term(rest) {
@@ -864,6 +879,7 @@ fn parse_list(
 
         items.push(ListItem {
             bullet,
+            counter,
             checkbox,
             term,
             // The item body starts at the bullet line, so `base + j` is exact even after
@@ -946,6 +962,20 @@ fn item_body<'a>(item: &'a str, bullet: &Bullet) -> &'a str {
                 .unwrap_or(after_digits)
                 .trim_start()
         }
+    }
+}
+
+/// Detect a leading `[@N]` counter on a list item, which sets its number explicitly.
+fn split_counter(text: &str) -> (Option<u32>, &str) {
+    let Some(rest) = text.strip_prefix("[@") else {
+        return (None, text);
+    };
+    let Some(end) = rest.find(']') else {
+        return (None, text);
+    };
+    match rest[..end].parse::<u32>() {
+        Ok(n) => (Some(n), rest[end + 1..].trim_start()),
+        Err(_) => (None, text),
     }
 }
 
@@ -1368,8 +1398,10 @@ fn try_emphasis(chars: &[char], i: usize) -> Option<(Object, usize)> {
     if i + 1 >= n {
         return None;
     }
-    let after = chars[i + 1];
-    if after.is_whitespace() || after == m {
+    // Org's body-character rule: the character after the opening marker may not be
+    // whitespace, a comma or a quote. It *may* be another marker, which is what makes
+    // `~~/.config/emacs~` verbatim for a path that starts with `~`.
+    if !body_char_ok(chars[i + 1]) {
         return None;
     }
     let mut j = i + 1;
@@ -1377,7 +1409,7 @@ fn try_emphasis(chars: &[char], i: usize) -> Option<(Object, usize)> {
         if chars[j] == m && j > i + 1 {
             let before = chars[j - 1];
             let next = chars.get(j + 1).copied();
-            if !before.is_whitespace() && post_ok(next) {
+            if body_char_ok(before) && post_ok(next) {
                 let inner = &chars[i + 1..j];
                 let obj = match m {
                     '=' => Object::Verbatim(inner.iter().collect()),
@@ -1394,6 +1426,16 @@ fn try_emphasis(chars: &[char], i: usize) -> Option<(Object, usize)> {
         j += 1;
     }
     None
+}
+
+/// May this character sit directly inside an emphasis marker?
+///
+/// Only whitespace is forbidden — org's border class is `[:space:]`. A quote may open a
+/// body, which is what makes `="proxied":false=` verbatim, and `=SPC m '=` may close on
+/// an apostrophe. The marker character itself is allowed too, so `~~/.config/emacs~` is a
+/// path that starts with a tilde.
+fn body_char_ok(c: char) -> bool {
+    !c.is_whitespace()
 }
 
 fn boundary_before(chars: &[char], i: usize) -> bool {

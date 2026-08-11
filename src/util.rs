@@ -342,6 +342,28 @@ pub fn normalize_link_path(from_rel: &Utf8Path, path: &Utf8Path) -> Utf8PathBuf 
 /// The `YYYY-MM-DD` inside an org date, if there is one. Org dates arrive as
 /// `[2025-09-05 Fri 10:21:00]`, `<2024-05-01 Wed>` or bare `2024-05-01`, and a listing
 /// needs one key it can sort on.
+/// The `HH:MM` or `HH:MM:SS` in an org timestamp, if it carries one.
+///
+/// Two notes written on the same day are not written at the same moment, and org records
+/// that — `[2026-02-21 Sat 14:01:32]`. A listing that sorts on the date alone puts them
+/// in whatever order the filesystem happened to yield.
+pub fn iso_time(raw: &str) -> Option<String> {
+    let bytes = raw.as_bytes();
+    for i in 0..bytes.len().saturating_sub(4) {
+        let digits = |r: std::ops::Range<usize>| bytes[r].iter().all(u8::is_ascii_digit);
+        if !(digits(i..i + 2) && bytes[i + 2] == b':' && digits(i + 3..i + 5)) {
+            continue;
+        }
+        if i > 0 && (bytes[i - 1].is_ascii_digit() || bytes[i - 1] == b':') {
+            continue;
+        }
+        let with_seconds = i + 8 <= bytes.len() && bytes[i + 5] == b':' && digits(i + 6..i + 8);
+        let end = if with_seconds { i + 8 } else { i + 5 };
+        return Some(raw[i..end].to_string());
+    }
+    None
+}
+
 pub fn iso_date(raw: &str) -> Option<String> {
     let bytes = raw.as_bytes();
     for i in 0..bytes.len().saturating_sub(9) {

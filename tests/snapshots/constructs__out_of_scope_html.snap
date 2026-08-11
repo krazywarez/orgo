@@ -21,8 +21,5 @@ expression: "render_fixture(\"outofscope.org\")"
 <h2 id="macros-and-radio-targets">Macros and radio targets</h2>
 <p>A macro call {{{author}}} and a &lt;&lt;&lt;radio target&gt;&gt;&gt; stay literal.</p>
 <h2 id="drawers">Drawers</h2>
-<h2 id="verse">Verse</h2>
-<pre>An unmodelled block type
-keeps its content verbatim.</pre>
 <h2 id="entities">Entities</h2>
 <p>The full entity set is out of scope, so \alpha stays literal.</p>

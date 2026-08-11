@@ -227,6 +227,44 @@ pub struct HtmlOutput {
     /// do not want them, so the default is the taste rather than the inheritance;
     /// `#+OPTIONS: num:t` or `section_numbers = true` gets Emacs' behaviour back.
     pub section_numbers: bool,
+    /// Convert org's special strings in prose: `--` to an en dash, `---` to an em dash,
+    /// `...` to an ellipsis.
+    ///
+    /// On, as in Emacs. A document turns it off for itself with `#+OPTIONS: -:nil`.
+    /// Never applied inside verbatim, code, or a source block.
+    pub special_strings: bool,
+    /// Whether `x^2` and `H_{2}O` become `<sup>`/`<sub>`.
+    ///
+    /// `"yes"` (the default, and Emacs') also treats the braceless `a_b` as a subscript,
+    /// which is what makes `snake_case` in prose render as `snake<sub>case</sub>` —
+    /// surprising, but what Emacs does with the same file. `"braces"` limits it to the
+    /// explicit `a_{b}` form, and `"no"` leaves both alone. A document chooses for itself
+    /// with `#+OPTIONS: ^:nil` or `^:{}`.
+    pub sub_superscript: SubSuperscript,
+}
+
+/// How `_` and `^` are treated in prose. Mirrors org's `^:` export option.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum SubSuperscript {
+    /// `a_b` and `a_{b}` both convert.
+    #[default]
+    Yes,
+    /// Only the braced `a_{b}` converts.
+    Braces,
+    /// Neither converts.
+    No,
+}
+
+impl SubSuperscript {
+    /// Read org's `^:` option value: `nil` is off, `{}` is braces-only, anything else on.
+    pub fn from_option(value: &str) -> SubSuperscript {
+        match value.trim() {
+            "nil" | "false" | "no" | "off" => SubSuperscript::No,
+            "{}" => SubSuperscript::Braces,
+            _ => SubSuperscript::Yes,
+        }
+    }
 }
 
 impl Default for HtmlOutput {
@@ -235,6 +273,8 @@ impl Default for HtmlOutput {
             heading_offset: 1,
             toc: true,
             section_numbers: false,
+            special_strings: true,
+            sub_superscript: SubSuperscript::Yes,
         }
     }
 }
@@ -530,6 +570,13 @@ toc = true
 # Number headings (1., 1.1., …). Emacs defaults this on; most sites do not.
 # A document overrides with `#+OPTIONS: num:t`.
 section_numbers = false
+# Convert `--` to an en dash, `---` to an em dash and `...` to an ellipsis in prose, as
+# Emacs does. Never inside code. A document overrides with `#+OPTIONS: -:nil`.
+special_strings = true
+# Whether `x^2` and `H_{2}O` become <sup>/<sub>: "yes" (as Emacs, and so `snake_case`
+# becomes snake<sub>case</sub>), "braces" for the `a_{b}` form only, or "no".
+# A document overrides with `#+OPTIONS: ^:nil` or `^:{}`.
+sub_superscript = "yes"
 
 # Generated listing pages: output files with no source .org behind them. Repeat the
 # [[collections]] block for each one. A feed is the same thing with an XML template.

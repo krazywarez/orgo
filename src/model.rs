@@ -112,6 +112,14 @@ pub enum Element {
     },
     QuoteBlock(Vec<Element>),
     CenterBlock(Vec<Element>),
+    /// `#+BEGIN_<name>` for any other name — `note`, `warning`, `aside`. Its contents are
+    /// org, not literal text, and the name becomes a class so a stylesheet can reach it.
+    SpecialBlock {
+        name: String,
+        content: Vec<Element>,
+    },
+    /// `#+BEGIN_VERSE`: line breaks are significant.
+    VerseBlock(Vec<String>),
     /// html passes through; others dropped at render (spec §1 OUT).
     ExportBlock {
         backend: String,
@@ -157,6 +165,8 @@ pub enum ListKind {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ListItem {
     pub bullet: Bullet,
+    /// `[@4]` — an explicit number for this item, restarting the list's counting.
+    pub counter: Option<u32>,
     pub checkbox: Option<Checkbox>,
     /// Description-list term before `::`.
     pub term: Option<Vec<Object>>,

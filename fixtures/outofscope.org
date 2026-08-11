@@ -43,13 +43,6 @@ CLOCK: [2024-01-15 Mon 09:00]--[2024-01-15 Mon 10:00] =>  1:00
 Drawer contents are captured and dropped.
 :END:
 
-* Verse
-
-#+BEGIN_VERSE
-An unmodelled block type
-keeps its content verbatim.
-#+END_VERSE
-
 * Entities
 
 The full entity set is out of scope, so \alpha stays literal.

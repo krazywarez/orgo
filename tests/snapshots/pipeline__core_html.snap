@@ -9,8 +9,8 @@ expression: "render_fixture(\"core.org\")"
 <li>second item with <em>emphasis</em></li>
 </ol>
 <ul>
-<li><input type="checkbox" disabled> todo item</li>
-<li><input type="checkbox" disabled checked> done item</li>
+<li class="off"><code>[&nbsp;]</code> todo item</li>
+<li class="on"><code>[X]</code> done item</li>
 </ul>
 <h2 id="links-and-code">Links and code</h2>
 <p>An external <a href="https://example.org">site</a> and a bare <a href="https://bare.example">https://bare.example</a>.</p>
