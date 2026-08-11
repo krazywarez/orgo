@@ -152,13 +152,21 @@ fn watching_rebuilds_the_site_when_a_source_file_changes() {
         let _ = orgo::watch::run(&src_t, &out_t, &BuildOptions::default());
     });
 
-    // Give the watcher a moment to register before making the change it should see.
-    std::thread::sleep(Duration::from_millis(300));
-    std::fs::write(src.join("index.org"), "#+TITLE: Home\n\nSecond version.\n").unwrap();
-
-    let deadline = Instant::now() + Duration::from_secs(20);
+    // The edit is repeated rather than made once after a fixed head start. The watcher
+    // registers its OS watches *after* an initial build, and that build loads syntect's
+    // syntax set — on a cold CI runner, comfortably longer than any head start worth
+    // hard-coding. An edit made before anything is listening produces no event at all,
+    // which looks exactly like a watcher that does not work, and only one of those is a
+    // defect worth failing a build over. (Found by the first CI run on Linux, where a
+    // 300ms head start was not enough and macOS had never noticed.)
+    let deadline = Instant::now() + Duration::from_secs(30);
     let mut rebuilt = false;
+    let mut wrote_at: Option<Instant> = None;
     while Instant::now() < deadline {
+        if wrote_at.is_none_or(|t| t.elapsed() >= Duration::from_millis(400)) {
+            std::fs::write(src.join("index.org"), "#+TITLE: Home\n\nSecond version.\n").unwrap();
+            wrote_at = Some(Instant::now());
+        }
         if std::fs::read_to_string(out.join("index.html"))
             .map(|h| h.contains("Second version."))
             .unwrap_or(false)
@@ -168,7 +176,7 @@ fn watching_rebuilds_the_site_when_a_source_file_changes() {
         }
         std::thread::sleep(Duration::from_millis(50));
     }
-    assert!(rebuilt, "an edit should trigger a rebuild within 20s");
+    assert!(rebuilt, "an edit should trigger a rebuild within 30s");
 
     // The output lives inside the source, so the rebuild's own writes raised events. If
     // those are not filtered out, watch spins forever.
@@ -178,8 +186,10 @@ fn watching_rebuilds_the_site_when_a_source_file_changes() {
     // runaway loop — an assertion on it passes whether or not the filter works, which is
     // exactly what it did before this comment existed. `syntax.css` is rewritten on
     // every build, so its mtime is a direct record of how many builds have run.
+    // Long enough for the rebuild from the last repeated write to have landed before the
+    // first reading, or this measures that instead of a feedback loop.
     let stylesheet = out.join("syntax.css");
-    std::thread::sleep(Duration::from_millis(700));
+    std::thread::sleep(Duration::from_millis(1500));
     let first = std::fs::metadata(&stylesheet).unwrap().modified().unwrap();
     std::thread::sleep(Duration::from_millis(1200));
     let second = std::fs::metadata(&stylesheet).unwrap().modified().unwrap();
