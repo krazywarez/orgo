@@ -752,3 +752,20 @@ fn an_unexpanded_include_reports_itself() {
         doc.diagnostics[0]
     );
 }
+
+/// A back-link whose whole visible content is `↩` has that glyph as its whole accessible
+/// name, so a screen reader announces "left arrow with hook" once per note and the reader
+/// cannot tell which reference each one returns to.
+#[test]
+fn footnote_links_and_section_are_labelled() {
+    let html = html_of("Text[fn:1] and more[fn:2].\n\n[fn:1] First.\n\n[fn:2] Second.\n");
+    assert!(
+        html.contains("<section class=\"footnotes\" aria-label=\"Footnotes\">"),
+        "the landmark is named:\n{html}"
+    );
+    assert!(
+        html.contains("aria-label=\"Back to reference 1\"")
+            && html.contains("aria-label=\"Back to reference 2\""),
+        "each back-link says where it goes:\n{html}"
+    );
+}

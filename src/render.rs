@@ -708,7 +708,12 @@ impl Renderer<'_> {
         let order = self.order.clone();
         let inline_defs = self.inline_defs.clone();
         let block_defs = self.block_defs.clone();
-        out.push_str("<section class=\"footnotes\">\n<hr>\n<ol>\n");
+        // Named, because a `<hr>` is a picture of a section break rather than a section:
+        // without the label this landmark is announced as "section" and the reader has to
+        // guess what they have reached.
+        out.push_str(
+            "<section class=\"footnotes\" aria-label=\"Footnotes\">\n<hr>\n<ol>\n",
+        );
         for (idx, label) in order.iter().enumerate() {
             let n = idx + 1;
             out.push_str(&format!("<li id=\"fn-{n}\">"));
@@ -719,8 +724,12 @@ impl Renderer<'_> {
                     self.render_element(el, out);
                 }
             }
+            // The glyph is the whole visible link, so it is also the whole accessible
+            // name: a screen reader would otherwise announce "left arrow with hook",
+            // identically, once per note.
             out.push_str(&format!(
-                " <a class=\"footnote-back\" href=\"#fnr-{n}\">&#8617;</a></li>\n"
+                " <a class=\"footnote-back\" href=\"#fnr-{n}\" \
+                 aria-label=\"Back to reference {n}\">&#8617;</a></li>\n"
             ));
         }
         out.push_str("</ol>\n</section>\n");

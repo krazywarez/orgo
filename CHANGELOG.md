@@ -15,6 +15,13 @@ Two conventions worth knowing before reading:
 Versions follow the compatibility promise in the README: config keys, template variables,
 CLI flags and URLs are the stable surface.
 
+## 0.19.1
+
+- Footnote back-links carry `aria-label="Back to reference N"`, and the notes section is
+  labelled. A link whose only visible content is `↩` has that glyph as its whole
+  accessible name, so a screen reader announced "left arrow with hook" once per note with
+  no way to tell them apart.
+
 ## 0.19.0
 
 - **Full-content collections.** `include_content = true` gives a listing template each

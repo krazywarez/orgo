@@ -77,6 +77,24 @@ page.
 
 Subdirectories work, so ={% include "partials/header.html" %}= does what you expect.
 
+** Partials keep a snippet out of a layout
+
+A block of content that is not really layout — an invitation to reply, a licence line, a
+donation ask — is better as its own file than as a line inside =base.html=:
+
+#+BEGIN_SRC html
+{% extends "base.html" %}
+{% block content %}
+{{ body | safe }}
+{% include "reply.html" %}
+{% endblock %}
+#+END_SRC
+
+Emptying =reply.html= removes it everywhere; editing it re-renders exactly the pages that
+include it, because the render key follows includes. And because the *page* chooses its
+layout, an individual page opts in with =#+TEMPLATE: post.html= or out with
+=#+TEMPLATE: base.html=, without a rule deciding for a whole directory.
+
 * Variables
 
 ** body

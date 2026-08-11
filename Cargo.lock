@@ -675,7 +675,7 @@ dependencies = [
 
 [[package]]
 name = "org-ssg"
-version = "0.19.0"
+version = "0.19.1"
 dependencies = [
  "anyhow",
  "blake3",

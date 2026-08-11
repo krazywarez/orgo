@@ -40,11 +40,11 @@ expression: "page(&pages, \"guide.org\").html"
 <tr><td>beta</td><td>20</td></tr>
 </tbody>
 </table>
-<section class="footnotes">
+<section class="footnotes" aria-label="Footnotes">
 <hr>
 <ol>
 <li id="fn-1"><p>Read the manual before you begin.</p>
- <a class="footnote-back" href="#fnr-1">&#8617;</a></li>
+ <a class="footnote-back" href="#fnr-1" aria-label="Back to reference 1">&#8617;</a></li>
 </ol>
 </section>
 </main>
