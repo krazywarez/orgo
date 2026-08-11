@@ -72,14 +72,15 @@ fn main() -> Result<()> {
                 let opts = BuildOptions { no_cache, strict };
                 let report = build_site(&input, &out, &opts)?;
                 println!(
-                    "built {} page(s) ({} rendered, {} cached), copied {} asset(s) from {} -> {} ({} unresolved link(s))",
+                    "built {} page(s) ({} rendered, {} cached), copied {} asset(s) from {} -> {} ({} unresolved link(s), {} diagnostic(s))",
                     report.pages.len(),
                     report.rendered.len(),
                     report.skipped.len(),
                     report.assets.len(),
                     input,
                     out,
-                    report.broken.len()
+                    report.broken.len(),
+                    report.diagnostics.len()
                 );
             } else {
                 let output = output.unwrap_or_else(|| input.with_extension("html"));
@@ -170,6 +171,9 @@ fn build_file(input: &Utf8Path, output: &Utf8Path) -> Result<()> {
     let source = fs::read_to_string(input)
         .with_context(|| format!("reading source file {input}"))?;
     let document = parse(input, &source).with_context(|| format!("parsing {input}"))?;
+    for d in &document.diagnostics {
+        eprintln!("warning: {input}:{}: {}", d.line, d.message);
+    }
 
     let title = document
         .keywords

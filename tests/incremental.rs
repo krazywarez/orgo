@@ -294,3 +294,70 @@ fn corrupt_cache_falls_back_without_crashing() {
     let r = build_site(&src, &out_dir, &BuildOptions::default()).unwrap();
     assert_eq!(r.rendered.len(), 2, "a corrupt cache is never a correctness dependency");
 }
+
+/// PARSE, RESOLVE and RENDER/EMIT all run in parallel (rayon). Parallelism must not be
+/// observable in the result: the emitted bytes and the *ordering* of the build report
+/// have to be identical run to run, or a build stops being reproducible.
+///
+/// The report ordering is the fragile half. Pushing to `rendered`/`skipped` from inside
+/// the parallel pass would order them by thread scheduling, giving a non-deterministic
+/// report over a deterministic site — so the report is assembled sequentially afterwards,
+/// and this test is what holds that line. Enough pages to make a race likely if one exists.
+#[test]
+fn parallel_builds_are_deterministic_in_output_and_report_order() {
+    let root = tmpdir("parallel");
+    let src = root.join("src");
+    std::fs::create_dir_all(src.join("deep")).unwrap();
+
+    for i in 0..40 {
+        // Cross-link every page to its neighbour so RESOLVE has real work, and give each
+        // a source block so RENDER does too.
+        let body = format!(
+            "#+TITLE: Page {i}\n#+SLUG: page-{i}\n\n\
+             See [[#anchor-{next}][the next page]].\n\n\
+             * Heading {i}\n:PROPERTIES:\n:CUSTOM_ID: anchor-{i}\n:END:\n\n\
+             #+BEGIN_SRC rust\nfn page_{i}() -> u32 {{ {i} }}\n#+END_SRC\n",
+            next = (i + 1) % 40
+        );
+        let dir = if i % 3 == 0 { src.join("deep") } else { src.clone() };
+        std::fs::write(dir.join(format!("p{i}.org")), body).unwrap();
+    }
+
+    let build = |out: &Utf8PathBuf| {
+        build_site(
+            &src,
+            out,
+            &BuildOptions {
+                no_cache: true,
+                strict: false,
+            },
+        )
+        .unwrap()
+    };
+
+    let first_out = root.join("first");
+    let first = build(&first_out);
+    assert_eq!(first.rendered.len(), 40, "every page renders");
+
+    for _ in 0..3 {
+        let out = tmpdir("parallel-again").join("out");
+        let again = build(&out);
+        assert_eq!(
+            first.pages, again.pages,
+            "page ordering in the report must be deterministic"
+        );
+        assert_eq!(
+            first.rendered, again.rendered,
+            "rendered ordering in the report must be deterministic"
+        );
+        assert_eq!(
+            first.skipped, again.skipped,
+            "skipped ordering in the report must be deterministic"
+        );
+        assert_eq!(
+            output_files(&first_out),
+            output_files(&out),
+            "emitted bytes must be identical across runs"
+        );
+    }
+}

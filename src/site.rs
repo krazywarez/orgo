@@ -14,6 +14,7 @@ use std::fs;
 
 use anyhow::{Context, Result};
 use camino::{Utf8Path, Utf8PathBuf};
+use rayon::prelude::*;
 use walkdir::WalkDir;
 
 use crate::incremental::{
@@ -21,7 +22,7 @@ use crate::incremental::{
     template_hash, BuildConfig, DepGraph, Hash, Manifest, PageRecord, CACHE_FORMAT_VERSION,
 };
 use crate::index::{document_targets, SymbolTable, TargetId};
-use crate::model::{ContentHash, Document};
+use crate::model::{ContentHash, Diagnostic, Document};
 use crate::parser::parse;
 use crate::render::{render, syntax_css, Html, SyntectHighlighter};
 use crate::resolve::resolve;
@@ -62,6 +63,26 @@ pub struct SiteReport {
     pub assets: Vec<Utf8PathBuf>,
     /// Unresolved internal links: `(page, target)`. Warnings, not failures (spec §4.3.4).
     pub broken: Vec<(Utf8PathBuf, TargetId)>,
+    /// Parse diagnostics: `(source file, diagnostic)`, in file then line order.
+    pub diagnostics: Vec<(Utf8PathBuf, Diagnostic)>,
+}
+
+impl SiteReport {
+    /// Every diagnostic and broken link, formatted one per line as
+    /// `file:line: message` — the form an editor can jump to.
+    pub fn warnings(&self) -> Vec<String> {
+        let mut out: Vec<String> = self
+            .diagnostics
+            .iter()
+            .map(|(path, d)| format!("{path}:{}: {}", d.line, d.message))
+            .collect();
+        out.extend(
+            self.broken
+                .iter()
+                .map(|(page, target)| format!("{page}: unresolved link {target}")),
+        );
+        out
+    }
 }
 
 /// Everything a build needs about one page *before* the decision to render it: its
@@ -75,6 +96,7 @@ struct PagePrep {
     used: HashSet<TargetId>,
     defines: HashSet<TargetId>,
     broken: Vec<TargetId>,
+    diagnostics: Vec<Diagnostic>,
     nav: Vec<NavItem>,
 }
 
@@ -86,13 +108,18 @@ fn prepare_pages(src: &Utf8Path) -> Result<(Vec<PagePrep>, SymbolTable)> {
     let (org_rel, _assets) = discover(src)?;
 
     // PARSE every file (relative paths keep snapshots and links machine-independent).
-    let mut docs: Vec<Document> = Vec::new();
-    for rel in &org_rel {
-        let abs = src.join(rel);
-        let source = fs::read_to_string(&abs).with_context(|| format!("reading {abs}"))?;
-        let doc = parse(rel.as_path(), &source).with_context(|| format!("parsing {rel}"))?;
-        docs.push(doc);
-    }
+    // PARSE is a pure function of one file's bytes (spec §2.1), which is exactly the
+    // property that makes it safe to run in parallel. `par_iter().collect()` preserves
+    // input order, so the document list — and everything downstream of it — is identical
+    // to the sequential build regardless of how the work was scheduled.
+    let docs: Vec<Document> = org_rel
+        .par_iter()
+        .map(|rel| {
+            let abs = src.join(rel);
+            let source = fs::read_to_string(&abs).with_context(|| format!("reading {abs}"))?;
+            parse(rel.as_path(), &source).with_context(|| format!("parsing {rel}"))
+        })
+        .collect::<Result<Vec<_>>>()?;
 
     // INDEX: collect every link target across the corpus.
     let mut symbols = SymbolTable::new();
@@ -121,8 +148,11 @@ fn prepare_pages(src: &Utf8Path) -> Result<(Vec<PagePrep>, SymbolTable)> {
         }
     }
 
-    let mut pages = Vec::new();
-    for doc in &docs {
+    // RESOLVE reads the shared symbol table and writes only into its own page's output,
+    // so it parallelizes for free once INDEX has finished building the table.
+    let pages: Vec<PagePrep> = docs
+        .par_iter()
+        .map(|doc| {
         let out = resolve(doc, &symbols);
         let used: HashSet<TargetId> = out.used_targets.iter().cloned().collect();
         let broken: Vec<TargetId> = out.broken.iter().map(|b| b.target.clone()).collect();
@@ -139,18 +169,20 @@ fn prepare_pages(src: &Utf8Path) -> Result<(Vec<PagePrep>, SymbolTable)> {
             })
             .collect();
 
-        pages.push(PagePrep {
-            source: doc.source_path.clone(),
-            output,
-            title: page_title(doc),
-            content_hash: doc.content_hash,
-            resolved: out.resolved,
-            used,
-            defines,
-            broken,
-            nav,
-        });
-    }
+            PagePrep {
+                source: doc.source_path.clone(),
+                output,
+                title: page_title(doc),
+                content_hash: doc.content_hash,
+                resolved: out.resolved,
+                used,
+                defines,
+                broken,
+                diagnostics: doc.diagnostics.clone(),
+                nav,
+            }
+        })
+        .collect();
 
     Ok((pages, symbols))
 }
@@ -270,22 +302,42 @@ pub fn build_site(src: &Utf8Path, out: &Utf8Path, opts: &BuildOptions) -> Result
     let templater = Templater::new();
     let mut report = SiteReport::default();
 
-    for p in &preps {
-        for t in &p.broken {
-            report.broken.push((p.source.clone(), t.clone()));
-        }
-        report.pages.push(p.output.clone());
-
-        let dest = out.join(&p.output);
-        if rebuild.contains(&p.source) {
+    // RENDER + TEMPLATE + EMIT, in parallel. This is where a build's time actually goes
+    // (syntect highlighting and templating dominate), and each page writes only its own
+    // file, so the pages are independent.
+    //
+    // The parallel pass returns whether each page was written; the report is assembled
+    // sequentially afterwards from `preps` order. Pushing to the report from inside the
+    // parallel pass would make `rendered`/`skipped` ordering depend on thread scheduling,
+    // which would be a non-deterministic build report over a deterministic build.
+    let written: Vec<bool> = preps
+        .par_iter()
+        .map(|p| {
+            if !rebuild.contains(&p.source) {
+                // Skip: the on-disk output is already correct (spec §4.1). Leave it alone.
+                return Ok(false);
+            }
+            let dest = out.join(&p.output);
             if let Some(parent) = dest.parent() {
                 fs::create_dir_all(parent).with_context(|| format!("creating {parent}"))?;
             }
             let html = render_page(&templater, &highlighter, p)?;
             fs::write(&dest, &html).with_context(|| format!("writing {dest}"))?;
+            Ok(true)
+        })
+        .collect::<Result<Vec<_>>>()?;
+
+    for (p, was_written) in preps.iter().zip(&written) {
+        for t in &p.broken {
+            report.broken.push((p.source.clone(), t.clone()));
+        }
+        for d in &p.diagnostics {
+            report.diagnostics.push((p.source.clone(), d.clone()));
+        }
+        report.pages.push(p.output.clone());
+        if *was_written {
             report.rendered.push(p.output.clone());
         } else {
-            // Skip: the on-disk output is already correct (spec §4.1). Leave it untouched.
             report.skipped.push(p.output.clone());
         }
     }
@@ -322,17 +374,20 @@ pub fn build_site(src: &Utf8Path, out: &Utf8Path, opts: &BuildOptions) -> Result
     incremental::save_manifest(out, &manifest)
         .with_context(|| format!("writing cache manifest under {out}"))?;
 
-    if opts.strict && !report.broken.is_empty() {
-        for (page, target) in &report.broken {
-            eprintln!("error: {page}: unresolved link {target}");
+    let warnings = report.warnings();
+    if opts.strict && !warnings.is_empty() {
+        for w in &warnings {
+            eprintln!("error: {w}");
         }
         anyhow::bail!(
-            "{} unresolved internal link(s) under --strict",
+            "{} problem(s) under --strict ({} parse diagnostic(s), {} unresolved link(s))",
+            warnings.len(),
+            report.diagnostics.len(),
             report.broken.len()
         );
     }
-    for (page, target) in &report.broken {
-        eprintln!("warning: {page}: unresolved link {target}");
+    for w in &warnings {
+        eprintln!("warning: {w}");
     }
 
     Ok(report)

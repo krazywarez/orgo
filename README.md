@@ -71,7 +71,7 @@ all-of-org. Phase 0 checked this line against a real 179-file corpus and found i
 | 4 | Rendering to HTML — tree walk, tables, footnote two-pass, minijinja templating, syntect highlighting | done |
 | 5 | Link resolution + symbol table (INDEX + RESOLVE, used-target list, broken-link reporting) | done |
 | 6 | Incremental build layer (hashing, dep graph, invalidation) done; `watch` is a simple poll loop | done |
-| 7 | Hardening: rayon parallelism, error locations in parse diagnostics | todo |
+| **7** | **Hardening: rayon parallelism, error locations in parse diagnostics** | **done** |
 
 ### v0.2 in / out
 
@@ -164,9 +164,9 @@ excluded construct to a specific degradation: babel is never executed *and* a ch
 as literal text; drawers other than PROPERTIES are captured and dropped; unmodelled block
 types keep their content verbatim.
 
-**Still out at v0.4:** rayon parallelism; parse errors carrying source locations; `#+TODO:`
-per-file keyword sequences; planning lines (`SCHEDULED:`/`DEADLINE:`), which render as
-ordinary paragraphs; fixed-width `: ` lines; and the `watch` fs-notify integration.
+**Still out:** `#+TODO:` per-file keyword sequences; planning lines
+(`SCHEDULED:`/`DEADLINE:`), which render as ordinary paragraphs; fixed-width `: ` lines;
+and the `watch` fs-notify integration.
 
 ## Phase 0: the corpus audit and the Emacs oracle
 
@@ -241,6 +241,59 @@ corrupted (it trimmed each of syntect's per-token text runs, turning `def greet`
 were measurement artifacts. A differential harness is a piece of software like any other,
 and the first divergences it reports are usually its own.
 
+## Phase 7: hardening
+
+### Parse diagnostics (`file:line: message`)
+
+The parser's contract is that it always returns a document — out-of-scope and malformed
+constructs degrade rather than crash. The gap was that they degraded *silently*, and in the
+worst cases the degradation is severe: an unterminated `#+BEGIN_SRC` reads the rest of the
+file as block content, and an unterminated drawer does the same but renders to nothing, so
+one missing line deletes most of a page from a build that reports success.
+
+`parse` now returns `Document::diagnostics`, each carrying a 1-based source line, and the
+build prints them as `file:line: message`. `--strict` turns them (and unresolved links) into
+a non-zero exit. Line numbers are threaded as an absolute offset through every nested parse,
+so a block inside a list item inside a section still reports its real file line — there is a
+test for exactly that, because reconstructed and re-indented nested slices are precisely
+where an off-by-N hides. The 179-file corpus produces zero diagnostics.
+
+### Parallelism
+
+PARSE, RESOLVE and RENDER/EMIT run under rayon. PARSE is a pure function of one file's bytes
+and RESOLVE only reads the shared symbol table, which is what makes both safe to parallelize
+at all; INDEX stays sequential.
+
+| corpus | before | after | speedup |
+|---|---|---|---|
+| 179 files (real) | 0.23s | 0.07s | 3.3× |
+| 1,790 files (10× copy) | 3.98s | 0.82s | 4.9× |
+
+Measured on 12 cores. `RAYON_NUM_THREADS=1` reproduces the old 3.98s exactly, so the gain is
+parallelism rather than incidental change, and the output is byte-identical to the sequential
+build across the whole corpus.
+
+**Parallelism must not be observable in the result.** `par_iter().collect()` preserves input
+order, so the emitted bytes are unaffected — but the build *report* is the fragile half:
+pushing to `rendered`/`skipped` from inside the parallel pass would order them by thread
+scheduling, producing a non-deterministic report over a deterministic site. The parallel pass
+therefore returns only what was written, and the report is assembled sequentially afterwards.
+`parallel_builds_are_deterministic_in_output_and_report_order` holds that line, and it was
+verified by reintroducing the bug and watching it fail.
+
+### The real scaling limit is not the CPU
+
+Going 10× on corpus size cost 17× in time before parallelism, which is superlinear — and
+parallelism moves that constant without fixing it. The cause is the nav bar: it lists **every**
+page, so an *n*-page site emits *n*² nav links. At 1,790 pages each page carries 1,799 links
+and the output is 284 MB, against 5.5 MB for the 179-page corpus — 52× the bytes for 10× the
+input. Even at the real corpus size this is already visible: 18 KB pages whose nav dwarfs the
+prose, where the live site's nav has about six links.
+
+This is a template and configuration question rather than a bug — *which* pages belong in a
+nav is a decision this project has not made yet — so it is recorded here rather than guessed
+at. Until it is made, a build's cost is dominated by chrome nobody asked for.
+
 **From v0.1 (core subset):** headings with nesting and anchors (every heading is now
 anchored — `:CUSTOM_ID:`/`:ID:` else a slug of its text) and trailing tags; paragraphs;
 plain lists (unordered + ordered) with checkboxes; source blocks; inline markup (`*bold*`,
@@ -251,8 +304,9 @@ plain lists (unordered + ordered) with checkboxes; source blocks; inline markup 
 Parser is hand-written recursive descent (not `nom`/`chumsky`/`pest` — org is
 line-oriented and context-sensitive, not clean CFG). Key crates: `syntect` (syntax
 highlighting, behind a `Highlighter` trait so tree-sitter can be swapped in later),
-`minijinja` (runtime templates), `blake3` (content/cache hashing), `chrono`,
-`camino`, `walkdir`, `clap`, `anyhow`/`thiserror`. `insta` for snapshot tests.
+`minijinja` (runtime templates), `blake3` (content/cache hashing), `rayon` (parallel
+PARSE/RESOLVE/RENDER), `chrono`, `camino`, `walkdir`, `clap`, `anyhow`/`thiserror`.
+`insta` for snapshot tests, and `emacs --batch` — optional, and only for the oracle.
 
 ## Build & test
 

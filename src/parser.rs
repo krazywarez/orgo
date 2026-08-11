@@ -25,8 +25,8 @@ use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 
 use crate::model::{
     BlockParams, Bullet, Checkbox, ContentHash, Document, Element, Heading, Keywords, Link,
-    LinkTarget, List, ListItem, ListKind, Object, Properties, Section, Table, TableRow, Timestamp,
-    TodoKeyword,
+    Diagnostic, LinkTarget, List, ListItem, ListKind, Object, Properties, Section, Table, TableRow,
+    Timestamp, TodoKeyword,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -104,6 +104,7 @@ pub fn parse(path: &Utf8Path, source: &str) -> Result<Document, ParseError> {
     let lines: Vec<&str> = source.lines().collect();
     let classes = line_lexer(source);
 
+    let mut diagnostics: Vec<Diagnostic> = Vec::new();
     let mut keywords = Keywords::default();
     let mut root = Section {
         heading: None,
@@ -135,7 +136,7 @@ pub fn parse(path: &Utf8Path, source: &str) -> Result<Document, ParseError> {
                 }
             }
         }
-        root.content = parse_elements(&lines[..first]);
+        root.content = parse_elements(&lines[..first], 0, &mut diagnostics);
     }
 
     // Each heading segment runs from its own line up to (but excluding) the next heading.
@@ -144,7 +145,8 @@ pub fn parse(path: &Utf8Path, source: &str) -> Result<Document, ParseError> {
         let end = heading_idxs.get(k + 1).copied().unwrap_or(lines.len());
         let heading = parse_heading(lines[h_idx]);
         let level = heading.level;
-        let (heading, content) = parse_section_body(heading, &lines[h_idx + 1..end]);
+        let (heading, content) =
+            parse_section_body(heading, &lines[h_idx + 1..end], h_idx + 1, &mut diagnostics);
         flat.push((
             level,
             Section {
@@ -158,11 +160,13 @@ pub fn parse(path: &Utf8Path, source: &str) -> Result<Document, ParseError> {
     let mut pos = 0;
     root.children = build_children(&mut flat, &mut pos, 0);
 
+    diagnostics.sort_by_key(|d| d.line);
     Ok(Document {
         source_path: path.to_owned(),
         content_hash,
         keywords,
         root,
+        diagnostics,
     })
 }
 
@@ -320,17 +324,25 @@ fn is_tag_cluster(s: &str) -> bool {
 // Section body: property drawer + block content
 // ---------------------------------------------------------------------------
 
-fn parse_section_body(mut heading: Heading, body: &[&str]) -> (Heading, Vec<Element>) {
+fn parse_section_body(
+    mut heading: Heading,
+    body: &[&str],
+    base: usize,
+    diags: &mut Vec<Diagnostic>,
+) -> (Heading, Vec<Element>) {
     let mut idx = 0;
     while idx < body.len() && body[idx].trim().is_empty() {
         idx += 1;
     }
     if idx < body.len() && body[idx].trim().eq_ignore_ascii_case(":PROPERTIES:") {
+        let opened_at = base + idx;
+        let mut terminated = false;
         idx += 1;
         while idx < body.len() {
             let t = body[idx].trim();
             if t.eq_ignore_ascii_case(":END:") {
                 idx += 1;
+                terminated = true;
                 break;
             }
             if let Some((k, v)) = parse_property(t) {
@@ -343,8 +355,16 @@ fn parse_section_body(mut heading: Heading, body: &[&str]) -> (Heading, Vec<Elem
             }
             idx += 1;
         }
+        if !terminated {
+            diags.push(Diagnostic {
+                line: opened_at + 1,
+                message: "unterminated :PROPERTIES: drawer (no :END:); the rest of the \
+                          section was read as properties"
+                    .to_string(),
+            });
+        }
     }
-    let content = parse_elements(&body[idx..]);
+    let content = parse_elements(&body[idx..], base + idx, diags);
     (heading, content)
 }
 
@@ -365,7 +385,10 @@ fn parse_property(line: &str) -> Option<(String, String)> {
 // Block-level element builder
 // ---------------------------------------------------------------------------
 
-fn parse_elements(lines: &[&str]) -> Vec<Element> {
+/// Build the block elements of `lines`. `base` is the absolute 0-based index of
+/// `lines[0]` in the source file, so diagnostics can name a real line number however
+/// deeply nested the construct is.
+fn parse_elements(lines: &[&str], base: usize, diags: &mut Vec<Diagnostic>) -> Vec<Element> {
     let mut out = Vec::new();
     // Affiliated keywords (`#+CAPTION:` and friends) belong to the element that follows
     // them, so they are held aside until that element is built.
@@ -393,7 +416,7 @@ fn parse_elements(lines: &[&str]) -> Vec<Element> {
             i += 1;
             continue;
         }
-        let (element, next) = parse_one_element(lines, i);
+        let (element, next) = parse_one_element(lines, i, base, diags);
         i = next;
         if std::mem::take(&mut drop_next) {
             affiliated.clear();
@@ -409,17 +432,22 @@ fn parse_elements(lines: &[&str]) -> Vec<Element> {
 /// Build the single element starting at `lines[start]`, returning it with the index of
 /// the first line past it. `None` means the lines were consumed without producing an
 /// element. `start` is guaranteed non-blank and not an affiliated keyword.
-fn parse_one_element(lines: &[&str], start: usize) -> (Option<Element>, usize) {
+fn parse_one_element(
+    lines: &[&str],
+    start: usize,
+    base: usize,
+    diags: &mut Vec<Diagnostic>,
+) -> (Option<Element>, usize) {
     let line = lines[start];
     if let Some(text) = comment_text(line) {
         return (Some(Element::Comment(text)), start + 1);
     }
     if let Some((kind, after)) = block_begin(line) {
-        let (el, next) = parse_block(lines, start, &kind, &after);
+        let (el, next) = parse_block(lines, start, &kind, &after, base, diags);
         return (Some(el), next);
     }
     if let Some(name) = drawer_begin_name(line) {
-        let (el, next) = parse_drawer(lines, start, name);
+        let (el, next) = parse_drawer(lines, start, name, base, diags);
         return (Some(el), next);
     }
     if is_rule(line) {
@@ -434,7 +462,7 @@ fn parse_one_element(lines: &[&str], start: usize) -> (Option<Element>, usize) {
         return (Some(def), next);
     }
     if is_list_item(line.trim_start()).is_some() {
-        let (list, next) = parse_list(lines, start);
+        let (list, next) = parse_list(lines, start, base, diags);
         return (Some(Element::List(list)), next);
     }
     // Paragraph: gather consecutive soft-wrapped text lines.
@@ -449,8 +477,19 @@ fn parse_one_element(lines: &[&str], start: usize) -> (Option<Element>, usize) {
         i += 1;
     }
     if para.is_empty() {
-        // `is_structural` said this line begins a construct that no branch above claimed
-        // (a stray `#+END_`); skip it rather than looping forever.
+        // `is_structural` said this line begins a construct that no branch above claimed.
+        // In practice that is a stray `#+END_`: a block terminator with nothing open.
+        // Skip it rather than looping forever, but say so — it usually means a `#+BEGIN_`
+        // above it is misspelled, and silence would leave the author hunting.
+        if is_block_end(line) {
+            diags.push(Diagnostic {
+                line: base + start + 1,
+                message: format!(
+                    "stray `{}` with no matching `#+BEGIN_`",
+                    line.split_whitespace().next().unwrap_or("#+END_")
+                ),
+            });
+        }
         return (None, start + 1);
     }
     (Some(Element::Paragraph(inline(&para.join(" ")))), i)
@@ -478,12 +517,33 @@ fn is_structural(line: &str) -> bool {
 /// Consume `#+BEGIN_<KIND> … #+END_<KIND>`. Matching is on the *specific* kind so a
 /// source block can sit inside a quote block; an unterminated block runs to end of
 /// input rather than failing.
-fn parse_block(lines: &[&str], start: usize, kind: &str, after: &str) -> (Element, usize) {
+fn parse_block(
+    lines: &[&str],
+    start: usize,
+    kind: &str,
+    after: &str,
+    base: usize,
+    diags: &mut Vec<Diagnostic>,
+) -> (Element, usize) {
     let mut inner: Vec<&str> = Vec::new();
     let mut j = start + 1;
     while j < lines.len() && !is_block_end_of(lines[j], kind) {
         inner.push(lines[j]);
         j += 1;
+    }
+    if j >= lines.len() {
+        // Everything to the end of input was swallowed by the block. This is the single
+        // most destructive malformation in org: one missing line silently deletes the
+        // rest of the document from the output.
+        diags.push(Diagnostic {
+            line: base + start + 1,
+            message: format!(
+                "unterminated `#+BEGIN_{}` block (no `#+END_{}`); \
+                 everything to the end of the file was read as block content",
+                kind.to_ascii_uppercase(),
+                kind.to_ascii_uppercase()
+            ),
+        });
     }
     let next = if j < lines.len() { j + 1 } else { j };
     let element = match kind.to_ascii_uppercase().as_str() {
@@ -496,8 +556,8 @@ fn parse_block(lines: &[&str], start: usize, kind: &str, after: &str) -> (Elemen
             }
         }
         "EXAMPLE" => Element::ExampleBlock(inner.join("\n")),
-        "QUOTE" => Element::QuoteBlock(parse_elements(&inner)),
-        "CENTER" => Element::CenterBlock(parse_elements(&inner)),
+        "QUOTE" => Element::QuoteBlock(parse_elements(&inner, base + start + 1, diags)),
+        "CENTER" => Element::CenterBlock(parse_elements(&inner, base + start + 1, diags)),
         "EXPORT" => Element::ExportBlock {
             backend: after.split_whitespace().next().unwrap_or("").to_string(),
             raw: inner.join("\n"),
@@ -512,18 +572,35 @@ fn parse_block(lines: &[&str], start: usize, kind: &str, after: &str) -> (Elemen
 /// `:NAME:` … `:END:` at block level. A PROPERTIES drawer directly under a heading is
 /// consumed by [`parse_section_body`]; anything reaching here is a generic drawer,
 /// which the renderer drops (README §OUT).
-fn parse_drawer(lines: &[&str], start: usize, name: String) -> (Element, usize) {
+fn parse_drawer(
+    lines: &[&str],
+    start: usize,
+    name: String,
+    base: usize,
+    diags: &mut Vec<Diagnostic>,
+) -> (Element, usize) {
     let mut inner: Vec<&str> = Vec::new();
     let mut j = start + 1;
     while j < lines.len() && !lines[j].trim().eq_ignore_ascii_case(":END:") {
         inner.push(lines[j]);
         j += 1;
     }
+    if j >= lines.len() {
+        // Drawers render to nothing, so an unterminated one deletes the rest of the file
+        // from the output just as thoroughly as an unterminated block — and more quietly.
+        diags.push(Diagnostic {
+            line: base + start + 1,
+            message: format!(
+                "unterminated `:{name}:` drawer (no `:END:`); everything to the end of \
+                 the file was read as drawer content and will not be rendered"
+            ),
+        });
+    }
     let next = if j < lines.len() { j + 1 } else { j };
     (
         Element::Drawer {
             name,
-            content: parse_elements(&inner),
+            content: parse_elements(&inner, base + start + 1, diags),
         },
         next,
     )
@@ -698,8 +775,13 @@ fn parse_footnote_def(
 /// column; everything indented further is that item's body, re-parsed as block content —
 /// which is what makes lists nest. A single blank line does not end a list, but a blank
 /// line followed by anything that is not a sibling bullet does.
-fn parse_list(lines: &[&str], start: usize) -> (List, usize) {
-    let base = indent_of(lines[start]);
+fn parse_list(
+    lines: &[&str],
+    start: usize,
+    base: usize,
+    diags: &mut Vec<Diagnostic>,
+) -> (List, usize) {
+    let base_indent = indent_of(lines[start]);
     let family = bullet_family(&is_list_item(lines[start].trim_start()).expect("list item"));
     // A list is a description list when its FIRST item carries a `::` term separator.
     let kind = match (&family, split_term(item_text(lines[start].trim_start()))) {
@@ -716,7 +798,7 @@ fn parse_list(lines: &[&str], start: usize) -> (List, usize) {
         while j < lines.len() && lines[j].trim().is_empty() {
             j += 1;
         }
-        if j >= lines.len() || indent_of(lines[j]) != base {
+        if j >= lines.len() || indent_of(lines[j]) != base_indent {
             break;
         }
         let Some(bullet) = is_list_item(lines[j].trim_start()) else {
@@ -747,14 +829,14 @@ fn parse_list(lines: &[&str], start: usize) -> (List, usize) {
                 while k < lines.len() && lines[k].trim().is_empty() {
                     k += 1;
                 }
-                if k < lines.len() && indent_of(lines[k]) > base {
+                if k < lines.len() && indent_of(lines[k]) > base_indent {
                     body.resize(body.len() + (k - i), String::new());
                     i = k;
                     continue;
                 }
                 break;
             }
-            if indent_of(lines[i]) <= base {
+            if indent_of(lines[i]) <= base_indent {
                 break;
             }
             body.push(lines[i].to_string());
@@ -765,7 +847,9 @@ fn parse_list(lines: &[&str], start: usize) -> (List, usize) {
             bullet,
             checkbox,
             term,
-            content: parse_elements(&dedent(&body)),
+            // The item body starts at the bullet line, so `base + j` is exact even after
+            // the body has been dedented into fresh strings.
+            content: parse_elements(&dedent(&body), base + j, diags),
         });
     }
     (List { kind, items }, i)

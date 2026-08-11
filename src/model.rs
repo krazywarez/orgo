@@ -36,6 +36,19 @@ pub struct TodoKeyword {
     pub done: bool,
 }
 
+/// A problem found while parsing, carrying the 1-based source line it was found on.
+///
+/// Diagnostics are warnings, not errors: the parser's contract is that it always returns
+/// a document (spec §1 — out-of-scope constructs degrade, never crash). What a warning
+/// buys is that degrading stops being *silent*, which matters most exactly where the
+/// damage is largest — an unterminated `#+BEGIN_SRC` swallows the rest of the file.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Diagnostic {
+    /// 1-based line number in the source file.
+    pub line: usize,
+    pub message: String,
+}
+
 /// One source file → one Document. This is the unit of parsing and caching (spec §2.3).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Document {
@@ -44,6 +57,9 @@ pub struct Document {
     pub keywords: Keywords,
     /// Pre-first-heading content plus child headings.
     pub root: Section,
+    /// Non-fatal problems found while parsing this file.
+    #[serde(default)]
+    pub diagnostics: Vec<Diagnostic>,
 }
 
 /// A section = content directly under a heading (or the file preamble), followed by

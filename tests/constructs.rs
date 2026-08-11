@@ -290,3 +290,102 @@ fn include_is_not_expanded() {
         "`#+INCLUDE:` must not be expanded or echoed:\n{html}"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Parse diagnostics: degrading is fine, degrading *silently* is not
+// ---------------------------------------------------------------------------
+
+fn diagnostics(source: &str) -> Vec<String> {
+    let document = parse(Utf8PathBuf::from("t.org").as_path(), source).expect("parse");
+    document
+        .diagnostics
+        .iter()
+        .map(|d| format!("{}: {}", d.line, d.message))
+        .collect()
+}
+
+/// An unterminated block swallows the rest of the file. The parser's contract is to
+/// degrade rather than crash, so it still returns a document — but a silent one would
+/// mean a build that reports success while deleting most of a page.
+#[test]
+fn unterminated_block_is_reported_with_its_line() {
+    let source = "#+TITLE: T\n\nIntro.\n\n* Section\n\n#+BEGIN_SRC rust\nfn main() {}\n\n* Vanishes\n";
+    let found = diagnostics(source);
+    assert_eq!(found.len(), 1, "exactly one diagnostic: {found:?}");
+    assert!(
+        found[0].starts_with("7: unterminated `#+BEGIN_SRC` block"),
+        "must name the line the block opened on: {found:?}"
+    );
+}
+
+/// The same failure mode, and quieter: drawers render to nothing, so an unterminated one
+/// deletes the rest of the file without even leaving a code block behind.
+#[test]
+fn unterminated_drawer_is_reported_with_its_line() {
+    let found = diagnostics("#+TITLE: T\n\n* Head\n:LOGBOOK:\nCLOCK: x\n\n* Lost\n");
+    assert_eq!(found.len(), 1, "exactly one diagnostic: {found:?}");
+    assert!(
+        found[0].starts_with("4: unterminated `:LOGBOOK:` drawer"),
+        "must name the drawer and its line: {found:?}"
+    );
+}
+
+/// A stray terminator usually means the matching `#+BEGIN_` above it is misspelled.
+#[test]
+fn stray_block_end_is_reported_with_its_line() {
+    let found = diagnostics("#+TITLE: T\n\nText.\n\n#+END_SRC\n\nMore.\n");
+    assert_eq!(found.len(), 1, "exactly one diagnostic: {found:?}");
+    assert!(
+        found[0].starts_with("5: stray `#+END_SRC`"),
+        "must name the stray terminator and its line: {found:?}"
+    );
+}
+
+/// Line numbers must survive nesting. A block inside a list item inside a section is
+/// several levels of re-parsed, re-indented, reconstructed lines away from the file, and
+/// a diagnostic that points at the wrong line is worse than none.
+#[test]
+fn diagnostic_lines_survive_nesting() {
+    let source = concat!(
+        "#+TITLE: T\n",   // 1
+        "\n",             // 2
+        "* Section\n",    // 3
+        "\n",             // 4
+        "- an item\n",    // 5
+        "\n",             // 6
+        "  #+BEGIN_SRC sh\n", // 7
+        "  echo hi\n",    // 8
+    );
+    let found = diagnostics(source);
+    assert_eq!(found.len(), 1, "exactly one diagnostic: {found:?}");
+    assert!(
+        found[0].starts_with("7: unterminated"),
+        "the line must be the real file line, not an offset into a nested slice: {found:?}"
+    );
+}
+
+/// Every fixture that is meant to be well-formed must parse without complaint —
+/// otherwise the diagnostics are crying wolf on ordinary documents.
+#[test]
+fn well_formed_fixtures_produce_no_diagnostics() {
+    for name in [
+        "minimal.org",
+        "core.org",
+        "elements.org",
+        "table.org",
+        "footnote.org",
+        "headings.org",
+        "lists.org",
+        "blocks.org",
+        "timestamps.org",
+        "images.org",
+        "outofscope.org",
+    ] {
+        let document = parse_fixture(name);
+        assert!(
+            document.diagnostics.is_empty(),
+            "{name} should parse cleanly, got {:?}",
+            document.diagnostics
+        );
+    }
+}
