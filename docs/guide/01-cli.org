@@ -2,6 +2,23 @@
 #+DESCRIPTION: Every command and flag, and what each is actually for.
 #+LEDE: Six commands: build, serve, watch, audit, init, clean.
 
+* The two paths
+
+=build=, =serve= and =watch= all take the same pair:
+
+#+BEGIN_SRC sh
+org-ssg <command> <SOURCE> -o <OUTPUT>
+#+END_SRC
+
+*SOURCE is the URL root*, not "the project". =SOURCE/blog/post.org= is published at
+=/blog/post.html=, so if your writing lives in a =content/= subdirectory you point at
+=content/= and not at the repository around it. Choosing the directory above the one you
+meant still builds — it just prefixes every URL with that directory's name and copies
+your build scripts in as assets. [[file:../quickstart.org][Quick start]] works through it.
+
+*OUTPUT* may live inside the source; it is recognised and skipped, so a build never
+consumes its own output.
+
 * build
 
 #+BEGIN_SRC sh

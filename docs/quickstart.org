@@ -29,26 +29,87 @@ my-site/
     feed.xml              an RSS feed
 #+END_EXAMPLE
 
-* Or skip all of that
+* Adapting it to org files you already have
 
-You do not need =init=, a config file, or templates. Point the builder at org files you
-already have:
-
-#+BEGIN_SRC sh
-org-ssg build ~/notes -o _site
-#+END_SRC
-
-You get a complete site with a built-in layout, navigation across your top-level pages,
-and syntax highlighting. Nothing in your files has to change.
-
-Before trusting it with a large collection, ask what it makes of your writing:
+You do not need =init=, a config file, or templates. Every command takes the same two
+paths:
 
 #+BEGIN_SRC sh
-org-ssg audit ~/notes
+org-ssg serve <SOURCE> -o <OUTPUT>
 #+END_SRC
 
-That reports which org constructs appear, how often, and whether each is supported. See
+** SOURCE is the URL root
+
+This is the one thing worth getting right, and it is not "the project directory" — it is
+*the directory whose contents should sit at the top of your site*. A file at
+=SOURCE/blog/post.org= is published at =/blog/post.html=.
+
+So if your writing lives in a =content/= subdirectory, point at =content/=, not at the
+repository around it:
+
+#+BEGIN_SRC sh
+cd ~/my-site
+org-ssg serve content -o _site        # → /blog/post.html
+#+END_SRC
+
+Pointing one level too high still builds, which is what makes it worth saying out loud.
+It just builds the wrong site:
+
+#+BEGIN_SRC sh
+org-ssg serve . -o _site              # → /content/blog/post.html
+#+END_SRC
+
+Every URL gains a =/content/= prefix, and every non-org file in the repository —
+=README.md=, build scripts, licence files — is copied into the output as a site asset.
+If you see either symptom, you picked the directory above the one you meant.
+
+** Common layouts
+
+| Your files | Command |
+|------------+---------|
+| =~/notes/*.org= | =org-ssg serve ~/notes -o /tmp/notes-site= |
+| =my-site/content/**/*.org= | =cd my-site && org-ssg serve content -o _site= |
+| =my-site/*.org= at the top level | =cd my-site && org-ssg serve . -o _site= |
+| Org files scattered in a code repo | Do not. Copy or symlink the ones you publish into one directory. |
+
+** OUTPUT can live inside the source
+
+=org-ssg serve . -o _site= is fine: the output directory is recognised and skipped, so
+the build never copies its own output back into itself. Nothing dot-prefixed is published
+either, so =.git= stays out of a site built from a repository root.
+
+** Where config and templates go
+
+Both live in the *source* directory — =SOURCE/org-ssg.toml= and =SOURCE/templates/= — and
+neither is published. If you would rather keep the config elsewhere, name it:
+
+#+BEGIN_SRC sh
+org-ssg serve content -o _site --config config/org-ssg.toml
+#+END_SRC
+
+** A worked example
+
+A repository laid out as =content/= (org files), =theme/= (unrelated), =build.py=:
+
+#+BEGIN_SRC sh
+cd ~/my-site
+
+# What is actually in there, before trusting anything with it.
+org-ssg audit content
+
+# Build it somewhere disposable and look.
+org-ssg serve content -o /tmp/preview
+
+# Happy with it? Build for real, failing on broken links.
+org-ssg build content -o _site --strict
+#+END_SRC
+
+The audit reports which org constructs appear, how often, and whether each is supported —
+names, counts and line numbers only, never your text. See
 [[file:guide/09-auditing.org][Auditing a corpus]].
+
+Nothing in your files has to change. With no config you get a complete site: a built-in
+layout, navigation across your top-level pages, and syntax highlighting.
 
 * Write a page
 
