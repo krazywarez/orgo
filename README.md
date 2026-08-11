@@ -82,20 +82,30 @@ hundreds of them stays instant.
 
 ## Speed
 
-Publishing one real site — 178 org files, ~180 pages — with the generator it uses today
-and with orgo. Median of three runs each, same machine, same moment:
+Publishing one real site — 178 org files, ~180 pages — three ways. Median of three runs
+each, measured back to back on one machine:
 
 | | Time | |
 |---|---|---|
-| weblorg (`emacs --script publish.el`) | 50.1s | |
-| orgo, cold build | **0.21s** | 239× faster |
-| orgo, nothing changed since last build | **0.13s** | 385× faster |
+| weblorg (`emacs --script publish.el`) | 49.0s | |
+| the same, plus the build script wrapped around it | 50.3s | |
+| orgo, cold build | **0.22s** | 223× faster |
+| orgo, nothing changed since last build | **0.13s** | 377× faster |
 
-Read that with three things in mind. The weblorg figure includes Emacs starting up and
+That middle row is the interesting one. weblorg alone does not group a blog index by year,
+write a tags page, rewrite image URLs, minify CSS or emit a sitemap — so the site's owner
+wrote ~600 lines of Python to do those on top of it, and pays for the whole publish again
+every time. orgo does the first three natively, minification is a build step either way,
+and *it has no sitemap yet* — that one is a real gap, not a win.
+
+Read the numbers with three things in mind. The weblorg figures include Emacs starting and
 loading its packages, which you pay on every publish and cannot avoid. orgo emits 13 pages
-weblorg does not (one per tag), so it is doing slightly more work. And the two do not
+weblorg does not, one per tag, so it is doing slightly more work. And the two do not
 produce byte-identical output — the differences are deliberate and listed under
 [Org support](https://krazywarez.github.io/orgo/guide/05-org-support.html).
+
+Deployment is excluded from every row: it is an rsync over someone's network, which
+measures the network.
 
 Apple M2 Pro, 12 cores, macOS 26.6, Emacs 30.2, orgo built with `--release`.
 
