@@ -127,18 +127,23 @@ fn prepare_pages(src: &Utf8Path) -> Result<(Vec<PagePrep>, SymbolTable)> {
         symbols.index_document(doc);
     }
 
-    // Nav is global; titles come from #+TITLE (falling back to the file stem) and URLs
-    // from each page's output path, which `#+SLUG:` can rename.
-    let entries: Vec<(Utf8PathBuf, String)> = docs
+    // Nav is global chrome; titles come from #+TITLE (falling back to the file stem) and
+    // URLs from each page's output path, which `#+SLUG:` can rename.
+    let all_pages: Vec<(Utf8PathBuf, String)> = docs
         .iter()
         .map(|d| (output_path(&d.source_path, &d.keywords), page_title(d)))
+        .collect();
+    let entries: Vec<(Utf8PathBuf, String)> = all_pages
+        .iter()
+        .filter(|(out, _)| is_top_level(out))
+        .cloned()
         .collect();
 
     // Two sources emitting one page would silently drop a page — and with slugs, a
     // collision is a typo away and invisible in the source filenames.
     let mut claimed: std::collections::HashMap<&Utf8PathBuf, &Utf8PathBuf> =
         std::collections::HashMap::new();
-    for (doc, (out, _)) in docs.iter().zip(&entries) {
+    for (doc, (out, _)) in docs.iter().zip(&all_pages) {
         if let Some(other) = claimed.insert(out, &doc.source_path) {
             anyhow::bail!(
                 "output collision: {} and {} both build to {out} (check their #+SLUG:)",
@@ -239,10 +244,16 @@ pub fn build_site(src: &Utf8Path, out: &Utf8Path, opts: &BuildOptions) -> Result
     // chrome on every page — is built from every page's (path, title), so a title/path
     // change or a page add/remove must re-render every page (else stale nav on disk).
     let cfg = BuildConfig::default();
-    // Keyed on the *output* path: a `#+SLUG:` change moves a page's URL, which changes
-    // the nav on every other page even though no source filename moved.
+    // Only the pages that actually appear in the nav belong in the site-structure hash,
+    // because the nav is the only global chrome a page carries. Hashing *every* page
+    // here would mean adding one blog post re-rendered the entire site — correct, but
+    // needlessly: a nested page cannot change any other page's nav.
+    //
+    // Keyed on the *output* path, since a `#+SLUG:` change moves a page's URL — and so
+    // its nav link — even though no source filename moved.
     let nav_entries: Vec<(String, String)> = preps
         .iter()
+        .filter(|p| is_top_level(&p.output))
         .map(|p| (p.output.to_string(), p.title.clone()))
         .collect();
     let cfg_hash = combine(config_hash(&cfg), site_structure_hash(&nav_entries));
@@ -487,6 +498,17 @@ fn discover(src: &Utf8Path) -> Result<(Vec<Utf8PathBuf>, Vec<Utf8PathBuf>)> {
     org.sort();
     assets.sort();
     Ok((org, assets))
+}
+
+/// Does this output path sit at the site root?
+///
+/// The nav is the site's global chrome, and listing *every* page in it makes an `n`-page
+/// site emit `n²` nav links — 1,790 pages produced 284 MB of output, most of it nav. A
+/// nav is a map of the site's top level, not an index of its contents, so it is built
+/// from root-level pages only. Section pages reach their siblings through that section's
+/// own landing page.
+fn is_top_level(output: &Utf8Path) -> bool {
+    output.parent().is_none_or(|p| p.as_str().is_empty())
 }
 
 fn page_title(doc: &Document) -> String {

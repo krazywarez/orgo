@@ -281,18 +281,38 @@ therefore returns only what was written, and the report is assembled sequentiall
 `parallel_builds_are_deterministic_in_output_and_report_order` holds that line, and it was
 verified by reintroducing the bug and watching it fail.
 
-### The real scaling limit is not the CPU
+### The real scaling limit was not the CPU
 
-Going 10× on corpus size cost 17× in time before parallelism, which is superlinear — and
-parallelism moves that constant without fixing it. The cause is the nav bar: it lists **every**
-page, so an *n*-page site emits *n*² nav links. At 1,790 pages each page carries 1,799 links
-and the output is 284 MB, against 5.5 MB for the 179-page corpus — 52× the bytes for 10× the
-input. Even at the real corpus size this is already visible: 18 KB pages whose nav dwarfs the
-prose, where the live site's nav has about six links.
+Going 10× on corpus size cost 17× in time, which parallelism improves without fixing: the
+cause was the nav bar listing **every** page, so an *n*-page site emitted *n*² nav links. At
+1,790 pages each page carried 1,799 links and the output was 284 MB, against 5.5 MB for the
+179-page corpus — 52× the bytes for 10× the input.
 
-This is a template and configuration question rather than a bug — *which* pages belong in a
-nav is a decision this project has not made yet — so it is recorded here rather than guessed
-at. Until it is made, a build's cost is dominated by chrome nobody asked for.
+The nav is now built from **top-level pages only** ([`is_top_level`](src/site.rs)): a nav is a
+map of the site's top level, not an index of its contents, and section pages reach their
+siblings through that section's landing page. Nav size becomes a function of the top level
+rather than of the corpus, and the quadratic disappears.
+
+| 1,790-page corpus (6 top-level pages) | before | after |
+|---|---|---|
+| full build | 0.82s | 0.39s |
+| total output | 284 MB | 34 MB |
+| nav links per page | 1,799 | 6 |
+
+Scaling is now linear: 179 pages in 0.07s and 1,796 in 0.39s, where the small case is mostly
+the fixed cost of loading syntect's syntax definitions.
+
+The same rule sharpened the incremental build, which is the larger win. The site-structure
+hash — the thing that forces a global re-render — now covers only the pages that appear in
+the nav, because those are the only ones whose title or URL affects another page. **Adding a
+blog post used to re-render the entire site; now it renders one page.** A top-level page's
+title still invalidates everything, correctly, since every page displays it.
+
+**Trade-off worth knowing:** on a site whose sections live in subdirectories, only genuinely
+root-level pages appear. cleberg.net keeps its landing pages at `content/salary/index.org`
+and friends, so its nav comes out as a single `index.org` entry where the live site shows
+four. Treating a directory's `index.org` as top-level too is a one-line change to
+`is_top_level` if that is the behaviour you want.
 
 **From v0.1 (core subset):** headings with nesting and anchors (every heading is now
 anchored — `:CUSTOM_ID:`/`:ID:` else a slug of its text) and trailing tags; paragraphs;

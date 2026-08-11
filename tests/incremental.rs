@@ -361,3 +361,90 @@ fn parallel_builds_are_deterministic_in_output_and_report_order() {
         );
     }
 }
+
+/// A site with pages in subdirectories.
+fn write_nested_site(src: &Utf8PathBuf) {
+    std::fs::create_dir_all(src.join("blog")).unwrap();
+    write(src, "index.org", "#+TITLE: Home\n\nWelcome.\n");
+    write(src, "about.org", "#+TITLE: About\n\nAbout me.\n");
+    write(&src.join("blog"), "first.org", "#+TITLE: First Post\n\nPost body.\n");
+    write(&src.join("blog"), "second.org", "#+TITLE: Second Post\n\nPost body.\n");
+}
+
+/// The nav is a map of the site's top level, not an index of its contents. Listing every
+/// page made an n-page site emit n² nav links: 1,790 pages produced 284 MB of output,
+/// nearly all of it nav.
+#[test]
+fn nav_lists_only_top_level_pages() {
+    let root = tmpdir("navtop");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_nested_site(&src);
+    let out_dir = root.join("out");
+
+    build_site(&src, &out_dir, &BuildOptions::default()).unwrap();
+    let home = std::fs::read_to_string(out_dir.join("index.html")).unwrap();
+    let nav = home
+        .split("<nav>")
+        .nth(1)
+        .and_then(|s| s.split("</nav>").next())
+        .expect("a nav element");
+
+    assert!(nav.contains("About"), "a root-level page belongs in the nav:\n{nav}");
+    assert!(nav.contains("Home"), "the index page belongs in the nav:\n{nav}");
+    assert!(
+        !nav.contains("First Post") && !nav.contains("Second Post"),
+        "pages in subdirectories must not appear in the nav:\n{nav}"
+    );
+
+    // Nested pages still get the nav — they just are not *in* it.
+    let post = std::fs::read_to_string(out_dir.join("blog/first.html")).unwrap();
+    assert!(
+        post.contains("href=\"../about.html\"") && post.contains("href=\"../index.html\""),
+        "a nested page links up to the top-level nav:\n{post}"
+    );
+}
+
+/// The payoff for narrowing the site-structure hash to nav entries. Adding a blog post
+/// cannot change any other page's nav, so it must not re-render the site — which is what
+/// hashing *every* page's (path, title) used to force.
+#[test]
+fn adding_a_nested_page_does_not_rebuild_the_site() {
+    let root = tmpdir("navadd");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_nested_site(&src);
+    let out_dir = root.join("out");
+
+    build_site(&src, &out_dir, &BuildOptions::default()).unwrap();
+
+    write(&src.join("blog"), "third.org", "#+TITLE: Third Post\n\nBody.\n");
+    let r = build_site(&src, &out_dir, &BuildOptions::default()).unwrap();
+
+    assert_eq!(
+        r.rendered,
+        vec![out("blog/third.html")],
+        "only the new nested page renders, got: {:?}",
+        r.rendered
+    );
+    assert_eq!(r.skipped.len(), 4, "every pre-existing page is reused");
+}
+
+/// The other half of the same rule: a page that IS in the nav still invalidates
+/// everything when its title changes, because every page renders that title.
+#[test]
+fn retitling_a_top_level_page_still_rebuilds_the_site() {
+    let root = tmpdir("navretitle");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_nested_site(&src);
+    let out_dir = root.join("out");
+
+    build_site(&src, &out_dir, &BuildOptions::default()).unwrap();
+    write(&src, "about.org", "#+TITLE: Colophon\n\nAbout me.\n");
+    let r = build_site(&src, &out_dir, &BuildOptions::default()).unwrap();
+
+    assert_eq!(r.rendered.len(), 4, "a nav title change re-renders every page");
+    let post = std::fs::read_to_string(out_dir.join("blog/first.html")).unwrap();
+    assert!(post.contains("Colophon"), "nested pages show the updated nav title");
+}
