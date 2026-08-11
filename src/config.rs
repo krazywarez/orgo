@@ -30,6 +30,69 @@ pub struct Config {
     pub templates: Templates,
     pub highlight: Highlight,
     pub html: HtmlOutput,
+    /// Generated listing pages. Each produces one output file that has no source `.org`
+    /// file behind it — a blog index, an archive, a feed.
+    pub collections: Vec<Collection>,
+}
+
+/// A generated page that lists other pages.
+///
+/// This is the one output that is not a translation of some input: a blog index exists
+/// because a set of posts exists, not because someone wrote `index.org`. Keeping it
+/// declarative — a directory in, a file out, through a template — means a feed is the
+/// same mechanism with an XML template rather than a second feature.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Collection {
+    /// Directory of source pages to list, relative to the source root. Empty means every
+    /// page in the site.
+    pub source: Utf8PathBuf,
+    /// Where to write the generated page, relative to the output root.
+    pub output: Utf8PathBuf,
+    /// Template file name, as it appears in the templates directory.
+    pub template: String,
+    /// Title for the generated page, available to the template as `page.title`.
+    pub title: String,
+    pub sort: SortKey,
+    pub order: SortOrder,
+    /// Add this listing page to the site navigation. This is how a section landing page
+    /// — `/blog/`, `/notes/` — gets into a nav built from top-level pages.
+    pub nav: bool,
+}
+
+impl Default for Collection {
+    fn default() -> Self {
+        Collection {
+            source: Utf8PathBuf::new(),
+            output: Utf8PathBuf::from("index.html"),
+            template: "list.html".to_string(),
+            title: "Index".to_string(),
+            sort: SortKey::default(),
+            order: SortOrder::default(),
+            nav: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum SortKey {
+    /// By `#+DATE:`, newest first by default. Pages with no parseable date sort last,
+    /// keeping undated drafts out of the way of a dated archive.
+    #[default]
+    Date,
+    Title,
+    /// Output path — stable and predictable when dates are absent or unreliable.
+    Path,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum SortOrder {
+    /// Newest or last first — the useful default for a blog.
+    #[default]
+    Desc,
+    Asc,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -186,6 +249,19 @@ impl Config {
                     .trim_matches('"')
             );
         }
+        let mut seen: Vec<&Utf8PathBuf> = Vec::new();
+        for collection in &self.collections {
+            if collection.output.as_str().is_empty() {
+                anyhow::bail!("a collection has an empty `output`; it needs a file to write");
+            }
+            if seen.contains(&&collection.output) {
+                anyhow::bail!(
+                    "two collections both write to {}; give them different `output` paths",
+                    collection.output
+                );
+            }
+            seen.push(&collection.output);
+        }
         if !self.site.base_url.is_empty() && self.site.base_url.ends_with('/') {
             anyhow::bail!(
                 "site.base_url must not end with a slash (got {:?}) — URLs are joined \
@@ -236,4 +312,15 @@ theme = "InspiredGitHub"
 # The default of 1 matches Emacs, and assumes your layout renders the page title as the
 # <h1>. Set to 0 if your template renders no title of its own.
 heading_offset = 1
+
+# Generated listing pages: output files with no source .org behind them. Repeat the
+# [[collections]] block for each one. A feed is the same thing with an XML template.
+[[collections]]
+source = "blog"            # directory to list; empty means every page
+output = "blog/index.html" # where to write it
+template = "list.html"     # template file name
+title = "Blog"
+sort = "date"              # date | title | path
+order = "desc"             # desc | asc
+nav = true                 # put this listing page in the site nav
 "#;

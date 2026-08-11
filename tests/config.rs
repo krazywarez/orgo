@@ -443,3 +443,372 @@ fn dot_directories_and_build_inputs_are_never_published() {
         "genuine assets still copy through"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Generated listing pages
+// ---------------------------------------------------------------------------
+
+/// A site with dated posts, a listing template, and a collection configured over them.
+fn write_blog(src: &Utf8PathBuf, extra_config: &str) {
+    std::fs::create_dir_all(src.join("blog")).unwrap();
+    std::fs::create_dir_all(src.join("templates")).unwrap();
+    std::fs::write(src.join("index.org"), "#+TITLE: Home\n\nWelcome.\n").unwrap();
+    for (name, title, date) in [
+        ("old", "Older Post", "<2024-01-02 Tue>"),
+        ("new", "Newer Post", "[2025-06-30 Mon 09:15:00]"),
+        ("mid", "Middle Post", "2024-08-05"),
+    ] {
+        std::fs::write(
+            src.join(format!("blog/{name}.org")),
+            format!("#+TITLE: {title}\n#+DATE: {date}\n\nBody.\n"),
+        )
+        .unwrap();
+    }
+    std::fs::write(
+        src.join("templates/list.html"),
+        "<html><body><h1>{{ page.title }}</h1><ul>\
+         {% for p in pages %}<li>{{ p.date_iso }}|{{ p.title }}|{{ root }}{{ p.url }}</li>\
+         {% endfor %}</ul></body></html>",
+    )
+    .unwrap();
+    std::fs::write(
+        src.join("org-ssg.toml"),
+        format!(
+            "[[collections]]\nsource = \"blog\"\noutput = \"blog/index.html\"\n\
+             template = \"list.html\"\ntitle = \"Blog\"\n{extra_config}"
+        ),
+    )
+    .unwrap();
+}
+
+/// The whole point: an output file with no source `.org` behind it.
+#[test]
+fn a_collection_generates_a_listing_page_sorted_newest_first() {
+    let root = tmpdir("listing");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_blog(&src, "");
+    let out = root.join("out");
+    let report = build(&src, &out);
+
+    assert!(
+        report.pages.contains(&Utf8PathBuf::from("blog/index.html")),
+        "the listing page is part of the build: {:?}",
+        report.pages
+    );
+
+    let listing = page(&out, "blog/index.html");
+    let order: Vec<&str> = ["Newer Post", "Middle Post", "Older Post"]
+        .into_iter()
+        .filter(|t| listing.contains(t))
+        .collect();
+    assert_eq!(
+        order,
+        vec!["Newer Post", "Middle Post", "Older Post"],
+        "all three posts appear:\n{listing}"
+    );
+    let pos = |t: &str| listing.find(t).unwrap();
+    assert!(
+        pos("Newer Post") < pos("Middle Post") && pos("Middle Post") < pos("Older Post"),
+        "newest first by default:\n{listing}"
+    );
+    assert!(!listing.contains("Home"), "only the collection's pages are listed");
+}
+
+/// Org dates arrive as `[2025-06-30 Mon 09:15:00]`, `<2024-01-02 Tue>` or bare
+/// `2024-08-05`. A listing needs one key it can sort and print.
+#[test]
+fn dates_are_normalized_from_every_org_shape() {
+    let root = tmpdir("dates");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_blog(&src, "");
+    let out = root.join("out");
+    build(&src, &out);
+
+    let listing = page(&out, "blog/index.html");
+    for iso in ["2025-06-30", "2024-08-05", "2024-01-02"] {
+        assert!(listing.contains(iso), "{iso} normalized out of its org syntax:\n{listing}");
+    }
+}
+
+#[test]
+fn sort_and_order_are_configurable() {
+    let root = tmpdir("sortorder");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_blog(&src, "sort = \"title\"\norder = \"asc\"\n");
+    let out = root.join("out");
+    build(&src, &out);
+
+    let listing = page(&out, "blog/index.html");
+    let pos = |t: &str| listing.find(t).unwrap();
+    assert!(
+        pos("Middle Post") < pos("Newer Post") && pos("Newer Post") < pos("Older Post"),
+        "ascending by title:\n{listing}"
+    );
+}
+
+/// A dateless draft leading a dated archive is almost never what anyone wants.
+#[test]
+fn undated_pages_sort_last_whichever_direction() {
+    let root = tmpdir("undated");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_blog(&src, "");
+    std::fs::write(src.join("blog/draft.org"), "#+TITLE: No Date Here\n\nBody.\n").unwrap();
+    let out = root.join("out");
+    build(&src, &out);
+
+    let listing = page(&out, "blog/index.html");
+    let undated = listing.find("No Date Here").unwrap();
+    for dated in ["Newer Post", "Middle Post", "Older Post"] {
+        assert!(
+            listing.find(dated).unwrap() < undated,
+            "{dated} must precede the undated draft:\n{listing}"
+        );
+    }
+}
+
+/// A listing page is exactly what a section's nav entry should point at — `/blog/`
+/// rather than any one post.
+#[test]
+fn a_collection_can_join_the_nav() {
+    let root = tmpdir("listnav");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_blog(&src, "nav = true\n");
+    let out = root.join("out");
+    build(&src, &out);
+
+    let home_nav = nav_of(&page(&out, "index.html"));
+    assert!(
+        home_nav.contains("blog/index.html"),
+        "the listing page is in the nav:\n{home_nav}"
+    );
+    // And the URL has to be right from a nested page too.
+    let post = page(&out, "blog/new.html");
+    assert!(
+        nav_of(&post).contains("href=\"index.html\"") || nav_of(&post).contains("blog/index.html"),
+        "the nav link resolves from a nested page:\n{}",
+        nav_of(&post)
+    );
+}
+
+/// A listing page depends on every page it lists — and on nothing else. Adding a post
+/// must re-render the index without re-rendering the rest of the site.
+#[test]
+fn adding_a_post_rebuilds_only_the_listing_and_the_post() {
+    let root = tmpdir("listinc");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_blog(&src, "");
+    let out = root.join("out");
+
+    build(&src, &out);
+    let second = build(&src, &out);
+    assert!(
+        second.rendered.is_empty(),
+        "an unchanged rebuild renders nothing, including the listing: {:?}",
+        second.rendered
+    );
+
+    std::fs::write(
+        src.join("blog/fresh.org"),
+        "#+TITLE: Fresh Post\n#+DATE: 2026-01-01\n\nBody.\n",
+    )
+    .unwrap();
+    let report = build(&src, &out);
+
+    let mut rendered = report.rendered.clone();
+    rendered.sort();
+    assert_eq!(
+        rendered,
+        vec![
+            Utf8PathBuf::from("blog/fresh.html"),
+            Utf8PathBuf::from("blog/index.html")
+        ],
+        "exactly the new post and the listing it belongs to"
+    );
+    assert!(
+        page(&out, "blog/index.html").contains("Fresh Post"),
+        "and the listing actually picked it up"
+    );
+}
+
+/// Editing a post's body changes no listing metadata, so the index must not churn.
+#[test]
+fn editing_a_post_body_does_not_rebuild_the_listing() {
+    let root = tmpdir("listbody");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_blog(&src, "");
+    let out = root.join("out");
+    build(&src, &out);
+
+    std::fs::write(
+        src.join("blog/mid.org"),
+        "#+TITLE: Middle Post\n#+DATE: 2024-08-05\n\nEdited body.\n",
+    )
+    .unwrap();
+    let report = build(&src, &out);
+
+    assert_eq!(
+        report.rendered,
+        vec![Utf8PathBuf::from("blog/mid.html")],
+        "only the post itself; the listing shows unchanged metadata"
+    );
+}
+
+/// Retitling a post *does* change the listing, since the title is what it displays.
+#[test]
+fn retitling_a_post_rebuilds_the_listing() {
+    let root = tmpdir("listtitle");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_blog(&src, "");
+    let out = root.join("out");
+    build(&src, &out);
+
+    std::fs::write(
+        src.join("blog/mid.org"),
+        "#+TITLE: Renamed Post\n#+DATE: 2024-08-05\n\nBody.\n",
+    )
+    .unwrap();
+    let report = build(&src, &out);
+
+    assert!(
+        report.rendered.contains(&Utf8PathBuf::from("blog/index.html")),
+        "the listing must follow a title change: {:?}",
+        report.rendered
+    );
+    assert!(page(&out, "blog/index.html").contains("Renamed Post"));
+}
+
+/// A feed is a listing page with an XML template, not a separate feature — which is why
+/// templates are loaded by full filename and any extension.
+#[test]
+fn a_feed_is_just_a_listing_page_with_an_xml_template() {
+    let root = tmpdir("feed");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_blog(&src, "");
+    std::fs::write(
+        src.join("templates/feed.xml"),
+        "<?xml version=\"1.0\"?><rss version=\"2.0\"><channel><title>{{ site.title }}</title>\
+         {% for p in pages %}<item><title>{{ p.title }}</title>\
+         <pubDate>{{ p.date_iso }}</pubDate></item>{% endfor %}</channel></rss>",
+    )
+    .unwrap();
+    let mut config = std::fs::read_to_string(src.join("org-ssg.toml")).unwrap();
+    config.push_str(
+        "\n[[collections]]\nsource = \"blog\"\noutput = \"feed.xml\"\n\
+         template = \"feed.xml\"\ntitle = \"Feed\"\n",
+    );
+    std::fs::write(src.join("org-ssg.toml"), config).unwrap();
+    let out = root.join("out");
+    build(&src, &out);
+
+    let feed = page(&out, "feed.xml");
+    assert!(feed.starts_with("<?xml"), "an XML document, not HTML:\n{feed}");
+    assert!(feed.contains("<pubDate>2025-06-30</pubDate>"), "entries carry dates:\n{feed}");
+}
+
+/// A listing template can inherit the site layout instead of duplicating it.
+#[test]
+fn a_listing_template_can_extend_the_base_layout() {
+    let root = tmpdir("listextends");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_blog(&src, "");
+    std::fs::write(
+        src.join("templates/base.html"),
+        "<html><body class=\"shared\">{% block main %}{{ body | safe }}{% endblock %}</body></html>",
+    )
+    .unwrap();
+    std::fs::write(
+        src.join("templates/list.html"),
+        "{% extends \"base.html\" %}{% block main %}<ul>\
+         {% for p in pages %}<li>{{ p.title }}</li>{% endfor %}</ul>{% endblock %}",
+    )
+    .unwrap();
+    let out = root.join("out");
+    build(&src, &out);
+
+    let listing = page(&out, "blog/index.html");
+    assert!(listing.contains("class=\"shared\""), "inherits the layout:\n{listing}");
+    assert!(listing.contains("Newer Post"), "and adds its own content:\n{listing}");
+}
+
+/// URLs are most of a template's output. Escaping `/` as `&#x2f;` is valid but makes
+/// every link unreadable; escaping user content is not optional.
+#[test]
+fn urls_stay_readable_while_user_content_is_still_escaped() {
+    let root = tmpdir("escaping");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_blog(&src, "");
+    std::fs::write(
+        src.join("blog/evil.org"),
+        "#+TITLE: <script>alert(1)</script>\n#+DATE: 2026-02-02\n\nBody.\n",
+    )
+    .unwrap();
+    let out = root.join("out");
+    build(&src, &out);
+
+    let listing = page(&out, "blog/index.html");
+    assert!(listing.contains("../blog/new.html"), "URLs read as URLs:\n{listing}");
+    assert!(!listing.contains("&#x2f;"), "no escaped slashes:\n{listing}");
+    assert!(
+        listing.contains("&lt;script&gt;"),
+        "a title is user content and stays escaped:\n{listing}"
+    );
+    assert!(!listing.contains("<script>"), "never unescaped:\n{listing}");
+}
+
+/// Two generated pages writing the same file, or a listing writing over a real page,
+/// silently loses one of them.
+#[test]
+fn colliding_collection_outputs_are_rejected() {
+    let root = tmpdir("listcollide");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_blog(&src, "");
+
+    let mut config = std::fs::read_to_string(src.join("org-ssg.toml")).unwrap();
+    config.push_str("\n[[collections]]\nsource = \"\"\noutput = \"blog/index.html\"\n");
+    std::fs::write(src.join("org-ssg.toml"), &config).unwrap();
+    let err = build_site(&src, &root.join("out"), &BuildOptions::default())
+        .expect_err("two collections writing one file must fail");
+    assert!(format!("{err:#}").contains("blog/index.html"), "{err:#}");
+
+    // And a listing that would overwrite a real page.
+    std::fs::write(
+        src.join("org-ssg.toml"),
+        "[[collections]]\nsource = \"blog\"\noutput = \"index.html\"\ntemplate = \"list.html\"\n",
+    )
+    .unwrap();
+    let err = build_site(&src, &root.join("out2"), &BuildOptions::default())
+        .expect_err("a listing over a real page must fail");
+    assert!(format!("{err:#}").contains("index.org"), "names the page it would replace: {err:#}");
+}
+
+/// A missing template is a typo; listing what exists turns it into a one-second fix.
+#[test]
+fn a_missing_collection_template_names_the_ones_that_exist() {
+    let root = tmpdir("listnotpl");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_blog(&src, "");
+    std::fs::write(
+        src.join("org-ssg.toml"),
+        "[[collections]]\nsource = \"blog\"\noutput = \"blog/index.html\"\ntemplate = \"nope.html\"\n",
+    )
+    .unwrap();
+
+    let err = build_site(&src, &root.join("out"), &BuildOptions::default())
+        .expect_err("missing template must fail");
+    let message = format!("{err:#}");
+    assert!(message.contains("nope.html"), "names the missing one: {message}");
+    assert!(message.contains("list.html"), "lists what is available: {message}");
+}

@@ -86,6 +86,47 @@ your own metadata works without this crate knowing about it: `#+CUSTOM_THING: x`
 Editing a template re-renders the pages that use it — template sources are a hash input,
 so a design change never leaves a site half-updated.
 
+### Generated listing pages
+
+A blog index, an archive, a feed — output files with no source `.org` behind them.
+Repeat the block for each one:
+
+```toml
+[[collections]]
+source = "blog"             # directory to list; empty means every page
+output = "blog/index.html"  # where to write it
+template = "list.html"
+title = "Blog"
+sort = "date"               # date | title | path
+order = "desc"              # desc | asc
+nav = true                  # put this listing page in the nav
+```
+
+The template gets the collection's entries as `pages`, already sorted, plus the usual
+`site`/`nav`/`root`. It can `{% extends "base.html" %}` to inherit the site chrome:
+
+```jinja
+{% extends "base.html" %}
+{% block main %}
+<ul>{% for p in pages %}
+  <li><time datetime="{{ p.date_iso }}">{{ p.date_iso }}</time>
+      <a href="{{ root }}{{ p.url }}">{{ p.title }}</a></li>
+{% endfor %}</ul>
+{% endblock %}
+```
+
+`p.date_iso` is the `YYYY-MM-DD` extracted from `#+DATE:`, whatever org syntax it was
+written in — `[2025-09-05 Fri 10:21:00]`, `<2024-05-01 Wed>` or bare `2024-05-01`. It is
+also the sort key; pages without a parseable date sort last, so an undated draft never
+leads a dated archive.
+
+**A feed is a listing page with an XML template**, not a separate feature — templates are
+loaded by full filename and any extension, so `output = "feed.xml"` with
+`template = "feed.xml"` is all it takes.
+
+Listing pages are cached on the entries they list, so adding a post re-renders that
+section's index and nothing else.
+
 ### `#+SLUG:`
 
 A page's output filename comes from its `#+SLUG:` when it has one, so
@@ -154,6 +195,7 @@ all-of-org. Phase 0 checked this line against a real 179-file corpus and found i
 | 6 | Incremental build layer (hashing, dep graph, invalidation) done; `watch` is a simple poll loop | done |
 | **7** | **Hardening: rayon parallelism, error locations in parse diagnostics** | **done** |
 | **8** | **General use: config file, user templates, nav modes, `init` scaffold, safe discovery** | **done** |
+| **9** | **Generated listing pages: `[[collections]]`, sorted indexes, feeds via XML templates** | **done** |
 
 ### v0.2 in / out
 
@@ -416,7 +458,7 @@ PARSE/RESOLVE/RENDER), `chrono`, `camino`, `walkdir`, `clap`, `anyhow`/`thiserro
 
 ```
 cargo build
-cargo test                                                # 86 tests
+cargo test                                                # 99 tests
 cargo run -- init my-site                                 # scaffold a new site
 cargo run -- build fixtures/minimal.org -o minimal.html   # single file
 cargo run -- build fixtures/site -o _site                 # whole site (incremental)

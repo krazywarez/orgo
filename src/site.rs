@@ -19,14 +19,15 @@ use walkdir::WalkDir;
 
 use crate::incremental::{
     self, combine, config_hash, render_key, resolved_links_hash, site_structure_hash,
-    template_hash, DepGraph, Hash, Manifest, PageRecord, CACHE_FORMAT_VERSION,
+    site_structure_hash_ordered, template_hash, DepGraph, Hash, Manifest, PageRecord,
+    CACHE_FORMAT_VERSION,
 };
 use crate::index::{document_targets, SymbolTable, TargetId};
 use crate::model::{ContentHash, Diagnostic, Document};
 use crate::parser::parse;
 use crate::render::{self, render_with, Html, RenderOptions, SyntectHighlighter};
 use crate::resolve::resolve;
-use crate::config::{self, Config, NavMode};
+use crate::config::{self, Config, NavMode, SortKey, SortOrder};
 use crate::template::{NavItem, PageContext, SiteContext, Templater};
 use crate::util::{output_path, output_url, relative_root};
 
@@ -102,6 +103,164 @@ struct PagePrep {
     diagnostics: Vec<Diagnostic>,
     nav: Vec<NavItem>,
     context: PageContext,
+}
+
+/// A generated listing page, resolved against the pages it lists.
+struct Listing {
+    output: Utf8PathBuf,
+    template: String,
+    title: String,
+    /// The pages it lists, already sorted.
+    entries: Vec<PageContext>,
+}
+
+/// The `YYYY-MM-DD` inside an org date, if there is one. Org dates arrive as
+/// `[2025-09-05 Fri 10:21:00]`, `<2024-05-01 Wed>` or bare `2024-05-01`, and a listing
+/// needs one key it can sort on.
+pub fn iso_date(raw: &str) -> Option<String> {
+    let bytes = raw.as_bytes();
+    for i in 0..bytes.len().saturating_sub(9) {
+        let window = &bytes[i..i + 10];
+        let digits = |r: std::ops::Range<usize>| window[r].iter().all(u8::is_ascii_digit);
+        if digits(0..4) && window[4] == b'-' && digits(5..7) && window[7] == b'-' && digits(8..10) {
+            // Must not be part of a longer number, or `123-45-6789` would parse.
+            let before_ok = i == 0 || !bytes[i - 1].is_ascii_digit();
+            let after_ok = i + 10 >= bytes.len() || !bytes[i + 10].is_ascii_digit();
+            if before_ok && after_ok {
+                return Some(raw[i..i + 10].to_string());
+            }
+        }
+    }
+    None
+}
+
+/// Build the listing pages a config asks for, each with its entries sorted.
+fn build_listings(config: &Config, preps: &[PagePrep]) -> Result<Vec<Listing>> {
+    let mut listings = Vec::new();
+    for collection in &config.collections {
+        let mut entries: Vec<PageContext> = preps
+            .iter()
+            .filter(|p| {
+                collection.source.as_str().is_empty() || p.source.starts_with(&collection.source)
+            })
+            .map(|p| p.context.clone())
+            .collect();
+
+        // Sort ascending first, then reverse for `desc`, so the two orders are exact
+        // mirrors of one another rather than two separately-written comparisons.
+        match collection.sort {
+            SortKey::Title => entries.sort_by(|a, b| a.title.cmp(&b.title)),
+            SortKey::Path => entries.sort_by(|a, b| a.url.cmp(&b.url)),
+            // Undated pages sort last in the final order regardless of direction: a
+            // draft with no date should not lead an archive.
+            SortKey::Date => entries.sort_by(|a, b| {
+                let key = |p: &PageContext| p.date_iso.clone();
+                match (key(a), key(b)) {
+                    (Some(x), Some(y)) => x.cmp(&y).then_with(|| a.url.cmp(&b.url)),
+                    (Some(_), None) => std::cmp::Ordering::Greater,
+                    (None, Some(_)) => std::cmp::Ordering::Less,
+                    (None, None) => a.url.cmp(&b.url),
+                }
+            }),
+        }
+        if collection.order == SortOrder::Desc {
+            entries.reverse();
+        }
+
+        listings.push(Listing {
+            output: collection.output.clone(),
+            template: collection.template.clone(),
+            title: collection.title.clone(),
+            entries,
+        });
+    }
+
+    // A listing page writing over a real page would silently replace it.
+    for listing in &listings {
+        if let Some(clash) = preps.iter().find(|p| p.output == listing.output) {
+            anyhow::bail!(
+                "collection output {} collides with the page built from {}",
+                listing.output,
+                clash.source
+            );
+        }
+    }
+    Ok(listings)
+}
+
+/// Everything a listing template can see about its entries, hashed. This is the listing
+/// page's whole dependency: if none of these change, its output cannot have changed.
+fn listing_entries_hash(listing: &Listing) -> Hash {
+    let fields: Vec<(String, String)> = listing
+        .entries
+        .iter()
+        .flat_map(|e| {
+            [
+                (e.url.clone(), e.title.clone()),
+                (
+                    e.date.clone().unwrap_or_default(),
+                    e.tags.join(",") + "\u{0}" + &e.keywords.len().to_string(),
+                ),
+            ]
+        })
+        .chain([(listing.title.clone(), listing.template.clone())])
+        .collect();
+    // Entry *order* is meaningful in a listing, so this hashes the sorted-by-us sequence
+    // rather than a set: a re-ordering is a real change to the page.
+    site_structure_hash_ordered(&fields)
+}
+
+/// The nav a listing page shows: whatever the site's nav is, relativized to this
+/// listing's own location.
+fn listing_nav(preps: &[PagePrep], output: &Utf8Path) -> Vec<NavItem> {
+    let Some(first) = preps.first() else {
+        return Vec::new();
+    };
+    first
+        .nav
+        .iter()
+        .map(|item| {
+            // Nav URLs on `preps[0]` are relative to that page; re-resolve them against
+            // the site root, then against this listing's depth.
+            let absolute = resolve_relative(&first.output, &item.url);
+            NavItem {
+                title: item.title.clone(),
+                url: output_url(output, &absolute, None),
+            }
+        })
+        .collect()
+}
+
+/// Turn a URL relative to `from` back into a site-root-relative path.
+fn resolve_relative(from: &Utf8Path, url: &str) -> Utf8PathBuf {
+    if url == "#" {
+        return from.to_owned();
+    }
+    let base = from.parent().unwrap_or_else(|| Utf8Path::new(""));
+    let mut stack: Vec<&str> = base.components().map(|c| c.as_str()).collect();
+    for part in url.split('/') {
+        match part {
+            "." | "" => {}
+            ".." => {
+                stack.pop();
+            }
+            other => stack.push(other),
+        }
+    }
+    Utf8PathBuf::from(stack.join("/"))
+}
+
+/// The `PageContext` a listing page presents for *itself*.
+fn listing_context(listing: &Listing) -> PageContext {
+    PageContext {
+        title: listing.title.clone(),
+        url: listing.output.to_string(),
+        source: String::new(),
+        date: None,
+        date_iso: None,
+        tags: Vec::new(),
+        keywords: Default::default(),
+    }
 }
 
 /// Which pages the configured [`NavMode`] selects, in nav order.
@@ -190,10 +349,15 @@ fn prepare_pages(
             }
         }
     }
-    let entries: Vec<(Utf8PathBuf, String)> = nav_selection(config, &all_pages)
+    let mut entries: Vec<(Utf8PathBuf, String)> = nav_selection(config, &all_pages)
         .into_iter()
         .map(|(_, out, title)| (out.clone(), title.clone()))
         .collect();
+    // A listing page is exactly what a section's nav entry should point at — `/blog/`
+    // rather than any one post — so collections can opt into the nav directly.
+    for collection in config.collections.iter().filter(|c| c.nav) {
+        entries.push((collection.output.clone(), collection.title.clone()));
+    }
 
     // RESOLVE reads the shared symbol table and writes only into its own page's output,
     // so it parallelizes for free once INDEX has finished building the table.
@@ -355,10 +519,18 @@ pub fn build_site(src: &Utf8Path, out: &Utf8Path, opts: &BuildOptions) -> Result
             .map(|(_, out, title)| (out.to_string(), title.clone()))
             .collect()
     } else {
-        // The same selection the nav itself is built from, so the two can never drift.
+        // The same selection the nav itself is built from, so the two can never drift —
+        // including the listing pages that opted into the nav, whose titles appear on
+        // every page just as a source page's would.
         nav_selection(&cfg, &all_pages)
             .into_iter()
             .map(|(_, out, title)| (out.to_string(), title.clone()))
+            .chain(
+                cfg.collections
+                    .iter()
+                    .filter(|c| c.nav)
+                    .map(|c| (c.output.to_string(), c.title.clone())),
+            )
             .collect()
     };
     let cfg_hash = combine(config_hash(&cfg), site_structure_hash(&structure));
@@ -367,6 +539,7 @@ pub fn build_site(src: &Utf8Path, out: &Utf8Path, opts: &BuildOptions) -> Result
     // Compose each page's render key and record its dependency edges.
     let mut new_graph = DepGraph::default();
     let mut new_records: Vec<(Utf8PathBuf, PageRecord, Hash)> = Vec::new();
+    let listings = build_listings(&cfg, &preps)?;
     for p in &preps {
         let rlh = resolved_links_hash(&p.source, &p.used, &symbols);
         let key = render_key(p.content_hash, rlh, cfg_hash, tmpl_hash);
@@ -405,9 +578,14 @@ pub fn build_site(src: &Utf8Path, out: &Utf8Path, opts: &BuildOptions) -> Result
     // removed files). Their targets are already in the merged graph, so their linkers were
     // invalidated above.
     if let Some(prior) = &prior {
-        let current: HashSet<&Utf8PathBuf> = preps.iter().map(|p| &p.source).collect();
-        for (src_path, rec) in &prior.pages {
-            if !current.contains(src_path) {
+        // Keyed by source path for real pages and by output path for generated listings,
+        // which is also how each records itself in the manifest. Listings have to be in
+        // this set or the cleanup would delete the file it just decided to keep — and a
+        // removed collection genuinely should have its output deleted.
+        let mut current: HashSet<&Utf8PathBuf> = preps.iter().map(|p| &p.source).collect();
+        current.extend(listings.iter().map(|l| &l.output));
+        for (key, rec) in &prior.pages {
+            if !current.contains(key) {
                 let dest = out.join(&rec.output_path);
                 let _ = fs::remove_file(&dest);
             }
@@ -458,6 +636,61 @@ pub fn build_site(src: &Utf8Path, out: &Utf8Path, opts: &BuildOptions) -> Result
         } else {
             report.skipped.push(p.output.clone());
         }
+    }
+
+    // Generated listing pages (spec §2.1 EMIT). A listing has no source file, so it is
+    // cached on the one thing it actually depends on: the entries it lists. Adding a post
+    // therefore re-renders that section's index and nothing else — the same precision the
+    // rest of the build gets from content hashing.
+    for listing in &listings {
+        let key = combine(listing_entries_hash(listing), combine(cfg_hash, tmpl_hash));
+        let dest = out.join(&listing.output);
+        let cached = prior
+            .as_ref()
+            .and_then(|m| m.pages.get(&listing.output))
+            .map(|rec| rec.render_key == key)
+            .unwrap_or(false);
+
+        report.pages.push(listing.output.clone());
+        if cached && dest.exists() {
+            report.skipped.push(listing.output.clone());
+        } else {
+            if let Some(parent) = dest.parent() {
+                fs::create_dir_all(parent).with_context(|| format!("creating {parent}"))?;
+            }
+            let root = relative_root(&listing.output);
+            let html = templater
+                .render_named(
+                    &listing.template,
+                    &site,
+                    &listing_context(listing),
+                    "",
+                    &listing_nav(&preps, &listing.output),
+                    &format!("{root}{SYNTAX_STYLESHEET}"),
+                    &root,
+                    Some(&listing.entries),
+                )
+                .with_context(|| {
+                    format!(
+                        "rendering collection {} with template {} (available: {})",
+                        listing.output,
+                        listing.template,
+                        templater.names().join(", ")
+                    )
+                })?;
+            fs::write(&dest, &html).with_context(|| format!("writing {dest}"))?;
+            report.rendered.push(listing.output.clone());
+        }
+
+        new_records.push((
+            listing.output.clone(),
+            PageRecord {
+                content_hash: key,
+                render_key: key,
+                output_path: listing.output.clone(),
+            },
+            key,
+        ));
     }
 
     // The syntax stylesheet the highlighter's CSS classes refer to. Written every build
@@ -705,6 +938,7 @@ fn page_context(doc: &Document, output: &Utf8Path) -> PageContext {
         title: page_title(doc),
         url: output.to_string(),
         source: doc.source_path.to_string(),
+        date_iso: keyword("DATE").as_deref().and_then(iso_date),
         date: keyword("DATE"),
         tags: keyword("FILETAGS")
             .unwrap_or_default()

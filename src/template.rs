@@ -46,6 +46,10 @@ pub struct PageContext {
     /// `#+DATE:` verbatim, if present — org date syntax is not normalized here because
     /// templates are better placed to decide how a date should read.
     pub date: Option<String>,
+    /// The `YYYY-MM-DD` found inside `date`, if there is one. Org dates arrive in many
+    /// shapes (`[2025-09-05 Fri 10:21:00]`, `<2024-05-01>`, `2024-05-01`), and a listing
+    /// wants one it can sort and print. `None` when the date is free text like "someday".
+    pub date_iso: Option<String>,
     /// `#+FILETAGS:` split on `:`.
     pub tags: Vec<String>,
     /// Every `#+KEYWORD:` in the file, keyed by lowercased name, so a template can use
@@ -91,7 +95,7 @@ const BASE_TEMPLATE: &str = r#"<!DOCTYPE html>
 "#;
 
 /// The name a template must have to serve as the page layout.
-pub const BASE_TEMPLATE_NAME: &str = "base";
+pub const BASE_TEMPLATE_NAME: &str = "base.html";
 
 #[derive(Debug, thiserror::Error)]
 pub enum TemplateError {
@@ -118,23 +122,27 @@ impl Templater {
         let mut sources: Vec<(String, String)> = Vec::new();
 
         if let Some(dir) = dir.filter(|d| d.is_dir()) {
-            let mut entries: Vec<_> = std::fs::read_dir(dir)
-                .with_context(|| format!("reading template directory {dir}"))?
-                .collect::<std::io::Result<Vec<_>>>()
-                .with_context(|| format!("reading template directory {dir}"))?;
-            entries.sort_by_key(|e| e.file_name());
-
-            for entry in entries {
-                let path = Utf8Path::from_path(&entry.path())
-                    .map(Utf8Path::to_owned)
-                    .ok_or_else(|| anyhow::anyhow!("non-UTF-8 template path"))?;
-                if path.extension() != Some("html") || !path.is_file() {
+            // Registered by full relative filename — `base.html`, `partials/head.html` —
+            // because that is what `{% extends "base.html" %}` names, and a stem-based
+            // scheme silently breaks the include syntax every Jinja user already knows.
+            // Any extension is loaded, so a feed can be a listing page with an XML
+            // template rather than a separate mechanism.
+            for entry in walkdir::WalkDir::new(dir).sort_by_file_name() {
+                let entry = entry.with_context(|| format!("reading templates from {dir}"))?;
+                if !entry.file_type().is_file() {
                     continue;
                 }
+                let path = Utf8Path::from_path(entry.path())
+                    .map(Utf8Path::to_owned)
+                    .ok_or_else(|| anyhow::anyhow!("non-UTF-8 template path"))?;
                 let name = path
-                    .file_stem()
-                    .ok_or_else(|| anyhow::anyhow!("template with no name: {path}"))?
-                    .to_string();
+                    .strip_prefix(dir)
+                    .unwrap_or(&path)
+                    .as_str()
+                    .replace('\\', "/");
+                if name.starts_with('.') || name.contains("/.") {
+                    continue;
+                }
                 let source = std::fs::read_to_string(&path)
                     .with_context(|| format!("reading template {path}"))?;
                 sources.push((name, source));
@@ -147,6 +155,7 @@ impl Templater {
         sources.sort_by(|a, b| a.0.cmp(&b.0));
 
         let mut env = Environment::new();
+        env.set_formatter(html_formatter);
         for (name, source) in &sources {
             // `Environment<'static>` needs owned sources; leaking is bounded by the
             // template count and lives as long as the build anyway.
@@ -165,7 +174,17 @@ impl Templater {
         &self.sources
     }
 
-    /// fragment + page metadata → full HTML page.
+    /// Is a template with this name registered?
+    pub fn has(&self, name: &str) -> bool {
+        self.env.get_template(name).is_ok()
+    }
+
+    /// Every registered template name, for error messages.
+    pub fn names(&self) -> Vec<&str> {
+        self.sources.iter().map(|(n, _)| n.as_str()).collect()
+    }
+
+    /// fragment + page metadata → full page, through the base layout.
     ///
     /// `stylesheet` and `root` are URLs relative to *this* page, so a template works the
     /// same at any directory depth.
@@ -180,9 +199,27 @@ impl Templater {
         root: &str,
         pages: Option<&[PageContext]>,
     ) -> Result<String, TemplateError> {
+        self.render_named(BASE_TEMPLATE_NAME, site, page, body, nav, stylesheet, root, pages)
+    }
+
+    /// Render through a named template. Generated listing pages use this to reach their
+    /// own layout; the context is identical to a normal page's, so a listing template can
+    /// `{% extends "base.html" %}` and inherit the site's chrome for free.
+    #[allow(clippy::too_many_arguments)]
+    pub fn render_named(
+        &self,
+        template: &str,
+        site: &SiteContext,
+        page: &PageContext,
+        body: &str,
+        nav: &[NavItem],
+        stylesheet: &str,
+        root: &str,
+        pages: Option<&[PageContext]>,
+    ) -> Result<String, TemplateError> {
         let tmpl = self
             .env
-            .get_template(BASE_TEMPLATE_NAME)
+            .get_template(template)
             .map_err(|e| TemplateError::Render(e.to_string()))?;
         tmpl.render(context! {
             site => site,
@@ -195,6 +232,76 @@ impl Templater {
         })
         .map_err(|e| TemplateError::Render(render_error_detail(e)))
     }
+}
+
+/// The starter listing template written by `org-ssg init`: a blog index, showing how a
+/// collection's `pages` are iterated.
+pub const STARTER_LIST_TEMPLATE: &str = r#"<!DOCTYPE html>
+<html lang="{{ site.language }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ page.title }} &middot; {{ site.title }}</title>
+{%- if stylesheet %}
+<link rel="stylesheet" href="{{ stylesheet }}">
+{%- endif %}
+</head>
+<body>
+<header>
+<a class="site-title" href="{{ root }}index.html">{{ site.title }}</a>
+{%- if nav %}
+<nav>
+{%- for item in nav %}
+<a href="{{ item.url }}">{{ item.title }}</a>
+{%- endfor %}
+</nav>
+{%- endif %}
+</header>
+<main>
+<h1>{{ page.title }}</h1>
+<ul class="post-list">
+{%- for post in pages %}
+<li>
+{%- if post.date_iso %}<time datetime="{{ post.date_iso }}">{{ post.date_iso }}</time> {% endif %}
+<a href="{{ root }}{{ post.url }}">{{ post.title }}</a>
+</li>
+{%- endfor %}
+</ul>
+</main>
+</body>
+</html>
+"#;
+
+/// HTML-escape template output, escaping the same characters Jinja2 does.
+///
+/// minijinja additionally escapes `/` as `&#x2f;`, which is a defence for values
+/// interpolated into JavaScript. It is correct but, since `<` is escaped anyway, it buys
+/// nothing in an HTML document — and it makes every generated URL read
+/// `..&#x2f;index.html`. Templates emit a lot of URLs, so that is most of the output.
+///
+/// Auto-escaping itself stays on: page titles come from `#+TITLE:` and are user content.
+fn html_formatter(
+    out: &mut minijinja::Output,
+    state: &minijinja::State,
+    value: &minijinja::Value,
+) -> Result<(), minijinja::Error> {
+    if state.auto_escape() == minijinja::AutoEscape::Html && !value.is_safe() {
+        if let Some(text) = value.as_str() {
+            let mut escaped = String::with_capacity(text.len());
+            for c in text.chars() {
+                match c {
+                    '&' => escaped.push_str("&amp;"),
+                    '<' => escaped.push_str("&lt;"),
+                    '>' => escaped.push_str("&gt;"),
+                    '"' => escaped.push_str("&quot;"),
+                    '\'' => escaped.push_str("&#x27;"),
+                    _ => escaped.push(c),
+                }
+            }
+            return out.write_str(&escaped).map_err(minijinja::Error::from);
+        }
+    }
+    minijinja::escape_formatter(out, state, value)
 }
 
 /// minijinja's `Display` gives only the top-level message; the useful part (which

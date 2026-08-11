@@ -66,8 +66,15 @@ pub fn combine(a: Hash, b: Hash) -> Hash {
 pub fn site_structure_hash(entries: &[(String, String)]) -> Hash {
     let mut sorted = entries.to_vec();
     sorted.sort();
+    site_structure_hash_ordered(&sorted)
+}
+
+/// As [`site_structure_hash`], but hashing the sequence *as given*. Used where order is
+/// itself part of the output — a listing page's entries are sorted deliberately, so
+/// re-ordering them is a real change even when the set is identical.
+pub fn site_structure_hash_ordered(entries: &[(String, String)]) -> Hash {
     let mut hasher = blake3::Hasher::new();
-    for (path, title) in &sorted {
+    for (path, title) in entries {
         hasher.update(path.as_bytes());
         hasher.update(&[0]);
         hasher.update(title.as_bytes());

@@ -132,10 +132,11 @@ fn main() -> Result<()> {
 /// in a directory that has content is safe and additive rather than destructive.
 fn init(dir: &Utf8Path) -> Result<()> {
     use org_ssg::config::{CONFIG_FILE, STARTER_CONFIG};
-    use org_ssg::template::starter_template;
+    use org_ssg::template::{starter_template, STARTER_LIST_TEMPLATE};
 
     fs::create_dir_all(dir).with_context(|| format!("creating {dir}"))?;
     fs::create_dir_all(dir.join("templates")).with_context(|| format!("creating {dir}/templates"))?;
+    fs::create_dir_all(dir.join("blog")).with_context(|| format!("creating {dir}/blog"))?;
 
     let index = concat!(
         "#+TITLE: Hello\n",
@@ -155,10 +156,21 @@ fn init(dir: &Utf8Path) -> Result<()> {
         "#+END_SRC\n",
     );
 
-    let files: [(Utf8PathBuf, &str); 3] = [
+    let post = concat!(
+        "#+TITLE: A first post\n",
+        "#+DATE: <2026-01-15 Thu>\n",
+        "#+FILETAGS: :example:\n",
+        "\n",
+        "Posts in this directory are collected into /blog/ by the [[collections]] block\n",
+        "in org-ssg.toml, newest first.\n",
+    );
+
+    let files: [(Utf8PathBuf, &str); 5] = [
         (dir.join(CONFIG_FILE), STARTER_CONFIG),
         (dir.join("templates/base.html"), starter_template()),
+        (dir.join("templates/list.html"), STARTER_LIST_TEMPLATE),
         (dir.join("index.org"), index),
+        (dir.join("blog/first-post.org"), post),
     ];
 
     let mut created = Vec::new();
@@ -279,6 +291,7 @@ fn build_file(input: &Utf8Path, output: &Utf8Path) -> Result<()> {
         url: output.file_name().unwrap_or("index.html").to_string(),
         source: input.to_string(),
         date: None,
+        date_iso: None,
         tags: Vec::new(),
         keywords: Default::default(),
     };
