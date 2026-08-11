@@ -9,7 +9,7 @@
 //! `--no-cache` forces a full rebuild; the cache is never a correctness dependency, so a
 //! full rebuild and an incremental rebuild produce byte-identical output.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 
 use anyhow::{Context, Result};
@@ -28,8 +28,8 @@ use crate::parser::parse;
 use crate::render::{self, render_with, Html, RenderOptions, SyntectHighlighter};
 use crate::resolve::resolve;
 use crate::config::{self, Config, NavMode, SortKey, SortOrder};
-use crate::template::{NavItem, PageContext, SiteContext, Templater};
-use crate::util::{output_path, output_url, relative_root};
+use crate::template::{GroupContext, NavItem, PageContext, RenderContext, SiteContext, Templater};
+use crate::util::{output_path, output_url, relative_root, slugify};
 
 /// A fully built page: source and output paths (relative to their roots) and its
 /// final templated HTML.
@@ -105,13 +105,18 @@ struct PagePrep {
     context: PageContext,
 }
 
-/// A generated listing page, resolved against the pages it lists.
+/// A generated page, resolved against the pages it lists.
 struct Listing {
     output: Utf8PathBuf,
     template: String,
     title: String,
-    /// The pages it lists, already sorted.
+    /// The pages it lists, already sorted. Empty for a group index, which lists groups.
     entries: Vec<PageContext>,
+    /// The group this page is for, when it belongs to a grouped collection.
+    group: Option<GroupContext>,
+    /// Every group of the owning collection. The content of a group index, and context
+    /// for a group page.
+    groups: Vec<GroupContext>,
 }
 
 /// The `YYYY-MM-DD` inside an org date, if there is one. Org dates arrive as
@@ -167,15 +172,102 @@ fn build_listings(config: &Config, preps: &[PagePrep]) -> Result<Vec<Listing>> {
             entries.reverse();
         }
 
-        listings.push(Listing {
-            output: collection.output.clone(),
-            template: collection.template.clone(),
-            title: collection.title.clone(),
-            entries,
-        });
+        if collection.group_by.is_empty() {
+            listings.push(Listing {
+                output: collection.output.clone(),
+                template: collection.template.clone(),
+                title: collection.title.clone(),
+                entries,
+                group: None,
+                groups: Vec::new(),
+            });
+            continue;
+        }
+
+        // Grouped: one page per distinct term. `entries` is already sorted, and grouping
+        // preserves that order within each group.
+        let mut terms: Vec<String> = Vec::new();
+        let mut members: HashMap<String, Vec<PageContext>> = HashMap::new();
+        for entry in &entries {
+            for term in group_terms(entry, &collection.group_by) {
+                if !members.contains_key(&term) {
+                    terms.push(term.clone());
+                }
+                members.entry(term).or_default().push(entry.clone());
+            }
+        }
+        // Terms are discovered in page order, which is arbitrary from a reader's point of
+        // view; sort so a tag index reads alphabetically and hashes deterministically.
+        terms.sort();
+
+        let mut groups: Vec<GroupContext> = Vec::new();
+        let mut slugs: HashMap<String, String> = HashMap::new();
+        for term in &terms {
+            let slug = slugify(term);
+            if slug.is_empty() {
+                anyhow::bail!(
+                    "the {} value {term:?} has no URL-safe form; it cannot name a page",
+                    collection.group_by
+                );
+            }
+            // `C++` and `C  ++` both slugify to `c`, and one would silently overwrite the
+            // other's page.
+            if let Some(other) = slugs.insert(slug.clone(), term.clone()) {
+                anyhow::bail!(
+                    "the {} values {other:?} and {term:?} both become {slug:?} in a URL; \
+                     rename one so their pages do not collide",
+                    collection.group_by
+                );
+            }
+            groups.push(GroupContext {
+                name: term.clone(),
+                slug: slug.clone(),
+                url: if collection.output.as_str().is_empty() {
+                    String::new()
+                } else {
+                    collection
+                        .output
+                        .as_str()
+                        .replace(config::GROUP_PLACEHOLDER, &slug)
+                }
+                .to_string(),
+                count: members.get(term).map(Vec::len).unwrap_or(0),
+            });
+        }
+
+        if !collection.output.as_str().is_empty() {
+            for group in &groups {
+                listings.push(Listing {
+                    output: Utf8PathBuf::from(&group.url),
+                    template: collection.template.clone(),
+                    title: collection
+                        .title
+                        .replace(config::GROUP_PLACEHOLDER, &group.name),
+                    entries: members.get(&group.name).cloned().unwrap_or_default(),
+                    group: Some(group.clone()),
+                    // Deliberately not the whole group list. A page that can see every
+                    // group depends on every group, so one new post would re-render every
+                    // tag page — cost that scales with tag count, to support a tag cloud
+                    // nobody has asked for. A tag page depends on its own posts, and the
+                    // group index is where the group list belongs.
+                    groups: Vec::new(),
+                });
+            }
+        }
+        if !collection.index_output.as_str().is_empty() {
+            listings.push(Listing {
+                output: collection.index_output.clone(),
+                template: collection.index_template.clone(),
+                title: collection.index_title.clone(),
+                entries: Vec::new(),
+                group: None,
+                groups: groups.clone(),
+            });
+        }
     }
 
-    // A listing page writing over a real page would silently replace it.
+    // A generated page writing over a real page would silently replace it. Group pages
+    // make this easy to hit by accident, since their paths come from content.
     for listing in &listings {
         if let Some(clash) = preps.iter().find(|p| p.output == listing.output) {
             anyhow::bail!(
@@ -185,7 +277,39 @@ fn build_listings(config: &Config, preps: &[PagePrep]) -> Result<Vec<Listing>> {
             );
         }
     }
+    let mut claimed: HashMap<&Utf8PathBuf, ()> = HashMap::new();
+    for listing in &listings {
+        if claimed.insert(&listing.output, ()).is_some() {
+            anyhow::bail!("two generated pages both write to {}", listing.output);
+        }
+    }
     Ok(listings)
+}
+
+/// The `(output, title)` a collection contributes to the nav. A grouped collection
+/// offers its index; an ungrouped one offers its single page.
+fn nav_target(collection: &config::Collection) -> (Utf8PathBuf, String) {
+    if !collection.group_by.is_empty() {
+        return (
+            collection.index_output.clone(),
+            collection.index_title.clone(),
+        );
+    }
+    (collection.output.clone(), collection.title.clone())
+}
+
+/// The group terms a page belongs to. `tags` is multi-valued — a page appears under
+/// every tag it carries — while any other key names a single-valued `#+KEYWORD:`.
+fn group_terms(page: &PageContext, group_by: &str) -> Vec<String> {
+    if group_by.eq_ignore_ascii_case("tags") {
+        return page.tags.clone();
+    }
+    page.keywords
+        .get(&group_by.to_lowercase())
+        .map(|v| v.trim())
+        .filter(|v| !v.is_empty())
+        .map(|v| vec![v.to_string()])
+        .unwrap_or_default()
 }
 
 /// Everything a listing template can see about its entries, hashed. This is the listing
@@ -203,6 +327,14 @@ fn listing_entries_hash(listing: &Listing) -> Hash {
                 ),
             ]
         })
+        // A group index has no entries at all — its content *is* the group list, so the
+        // groups have to be in the hash or a tag index would never notice a new tag.
+        .chain(
+            listing
+                .groups
+                .iter()
+                .map(|g| (g.url.clone(), format!("{}\u{0}{}", g.name, g.count))),
+        )
         .chain([(listing.title.clone(), listing.template.clone())])
         .collect();
     // Entry *order* is meaningful in a listing, so this hashes the sorted-by-us sequence
@@ -354,9 +486,11 @@ fn prepare_pages(
         .map(|(_, out, title)| (out.clone(), title.clone()))
         .collect();
     // A listing page is exactly what a section's nav entry should point at — `/blog/`
-    // rather than any one post — so collections can opt into the nav directly.
-    for collection in config.collections.iter().filter(|c| c.nav) {
-        entries.push((collection.output.clone(), collection.title.clone()));
+    // rather than any one post — so collections can opt into the nav directly. For a
+    // grouped collection that means its *index*: a nav listing every tag is the same
+    // mistake as a nav listing every page.
+    for (output, title) in config.collections.iter().filter(|c| c.nav).map(nav_target) {
+        entries.push((output, title));
     }
 
     // RESOLVE reads the shared symbol table and writes only into its own page's output,
@@ -466,8 +600,11 @@ fn render_page(
     // Relative to the *output* path, since `#+SLUG:` can move a page between depths.
     let root = relative_root(&p.output);
     let stylesheet = format!("{root}{SYNTAX_STYLESHEET}");
+    let mut ctx = RenderContext::new(site, &p.context, &p.nav, &stylesheet, &root);
+    ctx.body = &fragment;
+    ctx.pages = pages;
     templater
-        .render_page(site, &p.context, &fragment, &p.nav, &stylesheet, &root, pages)
+        .render_page(&ctx)
         .with_context(|| format!("templating {}", p.source))
 }
 
@@ -529,7 +666,8 @@ pub fn build_site(src: &Utf8Path, out: &Utf8Path, opts: &BuildOptions) -> Result
                 cfg.collections
                     .iter()
                     .filter(|c| c.nav)
-                    .map(|c| (c.output.to_string(), c.title.clone())),
+                    .map(nav_target)
+                    .map(|(out, title)| (out.to_string(), title)),
             )
             .collect()
     };
@@ -659,17 +797,15 @@ pub fn build_site(src: &Utf8Path, out: &Utf8Path, opts: &BuildOptions) -> Result
                 fs::create_dir_all(parent).with_context(|| format!("creating {parent}"))?;
             }
             let root = relative_root(&listing.output);
+            let stylesheet = format!("{root}{SYNTAX_STYLESHEET}");
+            let nav = listing_nav(&preps, &listing.output);
+            let page_ctx = listing_context(listing);
+            let mut ctx = RenderContext::new(&site, &page_ctx, &nav, &stylesheet, &root);
+            ctx.pages = Some(&listing.entries);
+            ctx.group = listing.group.as_ref();
+            ctx.groups = &listing.groups;
             let html = templater
-                .render_named(
-                    &listing.template,
-                    &site,
-                    &listing_context(listing),
-                    "",
-                    &listing_nav(&preps, &listing.output),
-                    &format!("{root}{SYNTAX_STYLESHEET}"),
-                    &root,
-                    Some(&listing.entries),
-                )
+                .render(&listing.template, &ctx)
                 .with_context(|| {
                     format!(
                         "rendering collection {} with template {} (available: {})",

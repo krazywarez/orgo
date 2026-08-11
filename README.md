@@ -120,6 +120,47 @@ written in — `[2025-09-05 Fri 10:21:00]`, `<2024-05-01 Wed>` or bare `2024-05-
 also the sort key; pages without a parseable date sort last, so an undated draft never
 leads a dated archive.
 
+#### Tag pages
+
+Add `group_by` and the collection emits one page *per group* instead of one page total,
+plus an optional index of the groups:
+
+```toml
+[[collections]]
+source = "blog"
+group_by = "tags"             # "tags", or any #+KEYWORD: name to group by its value
+output = "tags/{tag}.html"    # {tag} is replaced by each group's slug
+template = "tag.html"
+title = "Tagged: {tag}"
+index_output = "tags/index.html"   # the tag index
+index_template = "tags.html"
+index_title = "Tags"
+nav = true                    # adds the *index*, not every tag
+```
+
+A group page receives its own posts as `pages` and itself as `group`
+(`.name`, `.slug`, `.url`, `.count`). The index receives `groups` — every group, sorted
+by name:
+
+```jinja
+<ul>{% for tag in groups %}
+  <li><a href="{{ root }}{{ tag.url }}">{{ tag.name }}</a> ({{ tag.count }})</li>
+{% endfor %}</ul>
+```
+
+`group_by = "tags"` is multi-valued: a post appears under every tag it carries. Any other
+value names a single-valued `#+KEYWORD:`, so `group_by = "category"` buckets by
+`#+CATEGORY:`.
+
+Two tags that would produce the same URL (`web_dev` and `web@dev` both slugify to
+`web-dev`) are a build error rather than one page silently overwriting the other.
+
+A tag page depends on its own posts and nothing else, so adding a post tagged `rust`
+re-renders that post, its section index, `tags/rust.html`, and the tag index whose counts
+changed — four pages, not one per tag. That precision is why `groups` is given to the
+index and not to every group page: a page that can see every group depends on every
+group.
+
 **A feed is a listing page with an XML template**, not a separate feature — templates are
 loaded by full filename and any extension, so `output = "feed.xml"` with
 `template = "feed.xml"` is all it takes.
@@ -196,6 +237,7 @@ all-of-org. Phase 0 checked this line against a real 179-file corpus and found i
 | **7** | **Hardening: rayon parallelism, error locations in parse diagnostics** | **done** |
 | **8** | **General use: config file, user templates, nav modes, `init` scaffold, safe discovery** | **done** |
 | **9** | **Generated listing pages: `[[collections]]`, sorted indexes, feeds via XML templates** | **done** |
+| **10** | **Grouped collections: one page per tag plus a tag index — full parity with the incumbent** | **done** |
 
 ### v0.2 in / out
 
@@ -302,7 +344,8 @@ Emacs does.
 The audit runs against any corpus — point it at your own notes before trusting this tool
 with them. The numbers below come from a 179-file site published today by weblorg, a
 wrapper around org's own HTML exporter, which makes it both a realistic workload and a
-directly comparable incumbent.
+directly comparable incumbent. With collections configured, org-ssg now reproduces
+**all 182 of that site's URLs**.
 
 ```
 cargo run -- audit <src-dir>   # what does this corpus use, and is it in scope?
@@ -458,7 +501,7 @@ PARSE/RESOLVE/RENDER), `chrono`, `camino`, `walkdir`, `clap`, `anyhow`/`thiserro
 
 ```
 cargo build
-cargo test                                                # 99 tests
+cargo test                                                # 107 tests
 cargo run -- init my-site                                 # scaffold a new site
 cargo run -- build fixtures/minimal.org -o minimal.html   # single file
 cargo run -- build fixtures/site -o _site                 # whole site (incremental)

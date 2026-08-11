@@ -812,3 +812,249 @@ fn a_missing_collection_template_names_the_ones_that_exist() {
     assert!(message.contains("nope.html"), "names the missing one: {message}");
     assert!(message.contains("list.html"), "lists what is available: {message}");
 }
+
+// ---------------------------------------------------------------------------
+// Grouped collections: tag pages and the tag index
+// ---------------------------------------------------------------------------
+
+/// Posts carrying tags, a per-tag template, a tag-index template, and a grouped
+/// collection over them.
+fn write_tagged_blog(src: &Utf8PathBuf, extra: &str) {
+    std::fs::create_dir_all(src.join("blog")).unwrap();
+    std::fs::create_dir_all(src.join("templates")).unwrap();
+    std::fs::write(src.join("index.org"), "#+TITLE: Home\n\nWelcome.\n").unwrap();
+    for (name, title, date, tags) in [
+        ("a", "Post A", "2024-01-01", ":rust:web:"),
+        ("b", "Post B", "2024-02-02", ":rust:"),
+        ("c", "Post C", "2024-03-03", ":emacs:"),
+        ("d", "Post D", "2024-04-04", ""),
+    ] {
+        let filetags = if tags.is_empty() {
+            String::new()
+        } else {
+            format!("#+FILETAGS: {tags}\n")
+        };
+        std::fs::write(
+            src.join(format!("blog/{name}.org")),
+            format!("#+TITLE: {title}\n#+DATE: {date}\n{filetags}\nBody.\n"),
+        )
+        .unwrap();
+    }
+    std::fs::write(
+        src.join("templates/tag.html"),
+        "<html><body><h1>{{ page.title }}</h1><p>slug={{ group.slug }} count={{ group.count }}</p>\
+         <ul>{% for p in pages %}<li>{{ p.title }}</li>{% endfor %}</ul></body></html>",
+    )
+    .unwrap();
+    std::fs::write(
+        src.join("templates/tags.html"),
+        "<html><body><h1>{{ page.title }}</h1><ul>\
+         {% for g in groups %}<li>{{ g.name }}={{ g.count }}@{{ root }}{{ g.url }}</li>\
+         {% endfor %}</ul></body></html>",
+    )
+    .unwrap();
+    std::fs::write(
+        src.join("org-ssg.toml"),
+        format!(
+            "[[collections]]\nsource = \"blog\"\ngroup_by = \"tags\"\n\
+             output = \"tags/{{tag}}.html\"\ntemplate = \"tag.html\"\ntitle = \"Tagged: {{tag}}\"\n\
+             index_output = \"tags/index.html\"\nindex_template = \"tags.html\"\n\
+             index_title = \"All tags\"\n{extra}"
+        ),
+    )
+    .unwrap();
+}
+
+/// One collection, many outputs — the shape the earlier listing feature could not express.
+#[test]
+fn a_grouped_collection_emits_one_page_per_tag() {
+    let root = tmpdir("tags");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_tagged_blog(&src, "");
+    let out = root.join("out");
+    build(&src, &out);
+
+    for (tag, expected) in [("rust", vec!["Post A", "Post B"]), ("emacs", vec!["Post C"])] {
+        let html = page(&out, &format!("tags/{tag}.html"));
+        for title in &expected {
+            assert!(html.contains(title), "{tag} lists {title}:\n{html}");
+        }
+        assert!(
+            html.contains(&format!("count={}", expected.len())),
+            "{tag} knows its own size:\n{html}"
+        );
+    }
+    assert!(
+        !out.join("tags/.html").exists(),
+        "an untagged post creates no empty group"
+    );
+    assert!(
+        !page(&out, "tags/rust.html").contains("Post C"),
+        "a tag page lists only its own posts"
+    );
+}
+
+/// The index lists the groups themselves, not the pages.
+#[test]
+fn the_tag_index_lists_every_tag_with_counts() {
+    let root = tmpdir("tagindex");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_tagged_blog(&src, "");
+    let out = root.join("out");
+    build(&src, &out);
+
+    let index = page(&out, "tags/index.html");
+    assert!(index.contains("All tags"), "uses index_title:\n{index}");
+    assert!(index.contains("rust=2@../tags/rust.html"), "counts and links:\n{index}");
+    assert!(index.contains("emacs=1@"), "every tag appears:\n{index}");
+    assert!(index.contains("web=1@"), "every tag appears:\n{index}");
+    // Alphabetical, so the index reads predictably rather than in discovery order.
+    let pos = |t: &str| index.find(t).unwrap();
+    assert!(pos("emacs") < pos("rust") && pos("rust") < pos("web"), "sorted:\n{index}");
+}
+
+/// A tag page depends on its own posts. Adding a post tagged `rust` must not re-render
+/// the `emacs` page — invalidation that scales with tag count would undo the point.
+#[test]
+fn adding_a_tagged_post_rebuilds_only_the_affected_pages() {
+    let root = tmpdir("tagsinc");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_tagged_blog(&src, "");
+    let out = root.join("out");
+    build(&src, &out);
+    assert!(build(&src, &out).rendered.is_empty(), "unchanged rebuild renders nothing");
+
+    std::fs::write(
+        src.join("blog/e.org"),
+        "#+TITLE: Post E\n#+DATE: 2024-05-05\n#+FILETAGS: :rust:\n\nBody.\n",
+    )
+    .unwrap();
+    let report = build(&src, &out);
+
+    let mut rendered = report.rendered.clone();
+    rendered.sort();
+    assert_eq!(
+        rendered,
+        vec![
+            Utf8PathBuf::from("blog/e.html"),
+            Utf8PathBuf::from("tags/index.html"),
+            Utf8PathBuf::from("tags/rust.html"),
+        ],
+        "the post, its tag page, and the index whose counts changed — nothing else"
+    );
+    assert!(page(&out, "tags/rust.html").contains("Post E"));
+}
+
+/// A new tag has to produce a new page and reach the index.
+#[test]
+fn a_new_tag_creates_its_page_and_joins_the_index() {
+    let root = tmpdir("newtag");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_tagged_blog(&src, "");
+    let out = root.join("out");
+    build(&src, &out);
+    assert!(!out.join("tags/zig.html").exists());
+
+    std::fs::write(
+        src.join("blog/f.org"),
+        "#+TITLE: Post F\n#+DATE: 2024-06-06\n#+FILETAGS: :zig:\n\nBody.\n",
+    )
+    .unwrap();
+    build(&src, &out);
+
+    assert!(out.join("tags/zig.html").exists(), "the new tag gets a page");
+    assert!(
+        page(&out, "tags/index.html").contains("zig=1@"),
+        "and the index knows about it"
+    );
+}
+
+/// Grouping by any `#+KEYWORD:`, not just tags — same mechanism, single-valued.
+#[test]
+fn a_collection_can_group_by_any_keyword() {
+    let root = tmpdir("groupkw");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_tagged_blog(&src, "");
+    std::fs::write(
+        src.join("blog/a.org"),
+        "#+TITLE: Post A\n#+DATE: 2024-01-01\n#+CATEGORY: Notes\n\nBody.\n",
+    )
+    .unwrap();
+    std::fs::write(
+        src.join("org-ssg.toml"),
+        "[[collections]]\nsource = \"blog\"\ngroup_by = \"category\"\n\
+         output = \"cat/{tag}.html\"\ntemplate = \"tag.html\"\ntitle = \"{tag}\"\n",
+    )
+    .unwrap();
+    let out = root.join("out");
+    build(&src, &out);
+
+    assert!(out.join("cat/notes.html").exists(), "grouped by #+CATEGORY:");
+    assert!(page(&out, "cat/notes.html").contains("Post A"));
+}
+
+/// A grouped collection puts its *index* in the nav. A nav listing every tag is the same
+/// mistake as a nav listing every page.
+#[test]
+fn a_grouped_collection_contributes_its_index_to_the_nav() {
+    let root = tmpdir("tagnav");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_tagged_blog(&src, "nav = true\n");
+    let out = root.join("out");
+    build(&src, &out);
+
+    let nav = nav_of(&page(&out, "index.html"));
+    assert!(nav.contains("tags/index.html"), "the index is in the nav:\n{nav}");
+    assert!(!nav.contains("tags/rust.html"), "individual tags are not:\n{nav}");
+}
+
+/// An output path with no `{tag}` would have every group overwrite one file — a config
+/// that looks reasonable and silently produces one page instead of many.
+#[test]
+fn grouping_without_a_placeholder_is_rejected() {
+    let root = tmpdir("noplaceholder");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_tagged_blog(&src, "");
+    std::fs::write(
+        src.join("org-ssg.toml"),
+        "[[collections]]\nsource = \"blog\"\ngroup_by = \"tags\"\n\
+         output = \"tags/all.html\"\ntemplate = \"tag.html\"\n",
+    )
+    .unwrap();
+
+    let err = build_site(&src, &root.join("out"), &BuildOptions::default())
+        .expect_err("grouping without {tag} must fail");
+    assert!(format!("{err:#}").contains("{tag}"), "explains what is missing: {err:#}");
+}
+
+/// Two tags that differ only in punctuation slugify to the same path, and one page would
+/// silently overwrite the other.
+#[test]
+fn tags_that_collide_in_a_url_are_rejected() {
+    let root = tmpdir("tagcollide");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_tagged_blog(&src, "");
+    std::fs::write(
+        src.join("blog/a.org"),
+        "#+TITLE: Post A\n#+DATE: 2024-01-01\n#+FILETAGS: :web_dev:\n\nBody.\n",
+    )
+    .unwrap();
+    std::fs::write(
+        src.join("blog/b.org"),
+        "#+TITLE: Post B\n#+DATE: 2024-02-02\n#+FILETAGS: :web@dev:\n\nBody.\n",
+    )
+    .unwrap();
+
+    let err = build_site(&src, &root.join("out"), &BuildOptions::default())
+        .expect_err("colliding tag slugs must fail");
+    let message = format!("{err:#}");
+    assert!(message.contains("web_dev") && message.contains("web@dev"), "{message}");
+}

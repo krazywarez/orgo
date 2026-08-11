@@ -53,6 +53,21 @@ pub struct Collection {
     pub template: String,
     /// Title for the generated page, available to the template as `page.title`.
     pub title: String,
+    /// Split the collection into groups and emit one page per group.
+    ///
+    /// `"tags"` groups by `#+FILETAGS:`, where a page belongs to every tag it carries.
+    /// Any other value names a `#+KEYWORD:` and groups by its value, so `"category"`
+    /// buckets pages by `#+CATEGORY:`. Empty means one page for the whole collection.
+    ///
+    /// When set, `output` and `title` may contain `{tag}`, replaced by the group — and
+    /// `output` must, or every group would write to the same file.
+    pub group_by: String,
+    /// Where to write a page listing the groups themselves — a tag index. Empty means
+    /// no such page. Only meaningful with `group_by`.
+    pub index_output: Utf8PathBuf,
+    /// Template for the group-index page. It receives `groups` rather than `pages`.
+    pub index_template: String,
+    pub index_title: String,
     pub sort: SortKey,
     pub order: SortOrder,
     /// Add this listing page to the site navigation. This is how a section landing page
@@ -67,12 +82,19 @@ impl Default for Collection {
             output: Utf8PathBuf::from("index.html"),
             template: "list.html".to_string(),
             title: "Index".to_string(),
+            group_by: String::new(),
+            index_output: Utf8PathBuf::new(),
+            index_template: "tags.html".to_string(),
+            index_title: "Tags".to_string(),
             sort: SortKey::default(),
             order: SortOrder::default(),
             nav: false,
         }
     }
 }
+
+/// The `{tag}` placeholder in a grouped collection's `output` and `title`.
+pub const GROUP_PLACEHOLDER: &str = "{tag}";
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -251,16 +273,47 @@ impl Config {
         }
         let mut seen: Vec<&Utf8PathBuf> = Vec::new();
         for collection in &self.collections {
-            if collection.output.as_str().is_empty() {
-                anyhow::bail!("a collection has an empty `output`; it needs a file to write");
+            let grouped = !collection.group_by.is_empty();
+            if collection.output.as_str().is_empty() && collection.index_output.as_str().is_empty()
+            {
+                anyhow::bail!("a collection has no `output`; it needs a file to write");
             }
-            if seen.contains(&&collection.output) {
+            if grouped
+                && !collection.output.as_str().is_empty()
+                && !collection.output.as_str().contains(GROUP_PLACEHOLDER)
+            {
                 anyhow::bail!(
-                    "two collections both write to {}; give them different `output` paths",
+                    "collection output {} groups by \"{}\" but has no {GROUP_PLACEHOLDER} in \
+                     its path, so every group would overwrite the same file",
+                    collection.output,
+                    collection.group_by
+                );
+            }
+            if !grouped && collection.output.as_str().contains(GROUP_PLACEHOLDER) {
+                anyhow::bail!(
+                    "collection output {} uses {GROUP_PLACEHOLDER} but sets no `group_by`",
                     collection.output
                 );
             }
-            seen.push(&collection.output);
+            if !grouped && !collection.index_output.as_str().is_empty() {
+                anyhow::bail!(
+                    "collection writes an `index_output` of {} but sets no `group_by`; \
+                     there are no groups to index",
+                    collection.index_output
+                );
+            }
+            for path in [&collection.output, &collection.index_output] {
+                if path.as_str().is_empty() || path.as_str().contains(GROUP_PLACEHOLDER) {
+                    continue;
+                }
+                if seen.contains(&path) {
+                    anyhow::bail!(
+                        "two collections both write to {path}; give them different \
+                         `output` paths"
+                    );
+                }
+                seen.push(path);
+            }
         }
         if !self.site.base_url.is_empty() && self.site.base_url.ends_with('/') {
             anyhow::bail!(
@@ -323,4 +376,17 @@ title = "Blog"
 sort = "date"              # date | title | path
 order = "desc"             # desc | asc
 nav = true                 # put this listing page in the site nav
+
+# One page per tag, plus an index of all tags. `{tag}` in `output`/`title` is replaced
+# by each tag; the index gets `groups` instead of `pages`.
+[[collections]]
+source = "blog"
+group_by = "tags"            # "tags", or any #+KEYWORD: name to group by its value
+output = "tags/{tag}.html"
+template = "list.html"
+title = "Tagged: {tag}"
+index_output = "tags/index.html"
+index_template = "tags.html"
+index_title = "Tags"
+nav = true                   # adds the tag *index*, not every tag
 "#;

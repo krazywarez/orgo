@@ -184,55 +184,127 @@ impl Templater {
         self.sources.iter().map(|(n, _)| n.as_str()).collect()
     }
 
-    /// fragment + page metadata → full page, through the base layout.
-    ///
-    /// `stylesheet` and `root` are URLs relative to *this* page, so a template works the
-    /// same at any directory depth.
-    #[allow(clippy::too_many_arguments)]
-    pub fn render_page(
-        &self,
-        site: &SiteContext,
-        page: &PageContext,
-        body: &str,
-        nav: &[NavItem],
-        stylesheet: &str,
-        root: &str,
-        pages: Option<&[PageContext]>,
-    ) -> Result<String, TemplateError> {
-        self.render_named(BASE_TEMPLATE_NAME, site, page, body, nav, stylesheet, root, pages)
-    }
-
-    /// Render through a named template. Generated listing pages use this to reach their
-    /// own layout; the context is identical to a normal page's, so a listing template can
+    /// Render through a named template. Generated pages use this to reach their own
+    /// layout; the context is identical to a normal page's, so a listing template can
     /// `{% extends "base.html" %}` and inherit the site's chrome for free.
-    #[allow(clippy::too_many_arguments)]
-    pub fn render_named(
-        &self,
-        template: &str,
-        site: &SiteContext,
-        page: &PageContext,
-        body: &str,
-        nav: &[NavItem],
-        stylesheet: &str,
-        root: &str,
-        pages: Option<&[PageContext]>,
-    ) -> Result<String, TemplateError> {
+    pub fn render(&self, template: &str, ctx: &RenderContext) -> Result<String, TemplateError> {
         let tmpl = self
             .env
             .get_template(template)
             .map_err(|e| TemplateError::Render(e.to_string()))?;
         tmpl.render(context! {
-            site => site,
-            page => page,
-            body => body,
-            nav => nav,
-            stylesheet => stylesheet,
-            root => root,
-            pages => pages,
+            site => ctx.site,
+            page => ctx.page,
+            body => ctx.body,
+            nav => ctx.nav,
+            stylesheet => ctx.stylesheet,
+            root => ctx.root,
+            pages => ctx.pages,
+            group => ctx.group,
+            groups => ctx.groups,
         })
         .map_err(|e| TemplateError::Render(render_error_detail(e)))
     }
+
+    /// Render through the site's base layout.
+    pub fn render_page(&self, ctx: &RenderContext) -> Result<String, TemplateError> {
+        self.render(BASE_TEMPLATE_NAME, ctx)
+    }
 }
+
+/// One group of a grouped collection — a tag, or a `#+CATEGORY:` value.
+#[derive(Debug, Clone, Serialize)]
+pub struct GroupContext {
+    /// The term as written, e.g. `Rust Lang`.
+    pub name: String,
+    /// URL-safe form used in the output path, e.g. `rust-lang`.
+    pub slug: String,
+    /// Output path of this group's page, relative to the site root. Empty when the
+    /// collection emits no per-group pages.
+    pub url: String,
+    /// How many pages carry this term.
+    pub count: usize,
+}
+
+/// Everything a template can see. A struct rather than a dozen positional arguments,
+/// because the list grows every time templates learn something new.
+pub struct RenderContext<'a> {
+    pub site: &'a SiteContext,
+    pub page: &'a PageContext,
+    /// Rendered page HTML. Empty for generated pages, which build their body from
+    /// `pages`/`groups` instead.
+    pub body: &'a str,
+    pub nav: &'a [NavItem],
+    /// URL of the syntax stylesheet, relative to this page.
+    pub stylesheet: &'a str,
+    /// `../`-prefix back to the site root from this page.
+    pub root: &'a str,
+    /// The pages this listing shows, or every page when `expose_page_list` is on.
+    pub pages: Option<&'a [PageContext]>,
+    /// The group this page is for, on a grouped collection's per-group page.
+    pub group: Option<&'a GroupContext>,
+    /// Every group of a grouped collection — the group index's content. Empty on a
+    /// per-group page, which depends on its own entries and not on the other groups.
+    pub groups: &'a [GroupContext],
+}
+
+impl<'a> RenderContext<'a> {
+    /// A context with only the universally-present parts filled in.
+    pub fn new(
+        site: &'a SiteContext,
+        page: &'a PageContext,
+        nav: &'a [NavItem],
+        stylesheet: &'a str,
+        root: &'a str,
+    ) -> Self {
+        RenderContext {
+            site,
+            page,
+            body: "",
+            nav,
+            stylesheet,
+            root,
+            pages: None,
+            group: None,
+            groups: &[],
+        }
+    }
+}
+
+/// The starter tag-index template written by `org-ssg init`: shows how `groups` is
+/// iterated, and how a group page is linked.
+pub const STARTER_TAGS_TEMPLATE: &str = r#"<!DOCTYPE html>
+<html lang="{{ site.language }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ page.title }} &middot; {{ site.title }}</title>
+{%- if stylesheet %}
+<link rel="stylesheet" href="{{ stylesheet }}">
+{%- endif %}
+</head>
+<body>
+<header>
+<a class="site-title" href="{{ root }}index.html">{{ site.title }}</a>
+{%- if nav %}
+<nav>
+{%- for item in nav %}
+<a href="{{ item.url }}">{{ item.title }}</a>
+{%- endfor %}
+</nav>
+{%- endif %}
+</header>
+<main>
+<h1>{{ page.title }}</h1>
+<ul class="tag-list">
+{%- for tag in groups %}
+<li><a href="{{ root }}{{ tag.url }}">{{ tag.name }}</a> ({{ tag.count }})</li>
+{%- endfor %}
+</ul>
+</main>
+</body>
+</html>
+"#;
 
 /// The starter listing template written by `org-ssg init`: a blog index, showing how a
 /// collection's `pages` are iterated.

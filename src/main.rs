@@ -11,7 +11,7 @@ use org_ssg::config::Config;
 use org_ssg::render::{self, render, Html, SyntectHighlighter};
 use org_ssg::resolve::ResolvedDoc;
 use org_ssg::site::{build_site, BuildOptions, SYNTAX_STYLESHEET};
-use org_ssg::template::{PageContext, SiteContext, Templater};
+use org_ssg::template::{PageContext, RenderContext, SiteContext, Templater};
 
 #[derive(Parser)]
 #[command(name = "org-ssg", version, about = "Org-mode static site generator")]
@@ -132,7 +132,7 @@ fn main() -> Result<()> {
 /// in a directory that has content is safe and additive rather than destructive.
 fn init(dir: &Utf8Path) -> Result<()> {
     use org_ssg::config::{CONFIG_FILE, STARTER_CONFIG};
-    use org_ssg::template::{starter_template, STARTER_LIST_TEMPLATE};
+    use org_ssg::template::{starter_template, STARTER_LIST_TEMPLATE, STARTER_TAGS_TEMPLATE};
 
     fs::create_dir_all(dir).with_context(|| format!("creating {dir}"))?;
     fs::create_dir_all(dir.join("templates")).with_context(|| format!("creating {dir}/templates"))?;
@@ -165,10 +165,11 @@ fn init(dir: &Utf8Path) -> Result<()> {
         "in org-ssg.toml, newest first.\n",
     );
 
-    let files: [(Utf8PathBuf, &str); 5] = [
+    let files: [(Utf8PathBuf, &str); 6] = [
         (dir.join(CONFIG_FILE), STARTER_CONFIG),
         (dir.join("templates/base.html"), starter_template()),
         (dir.join("templates/list.html"), STARTER_LIST_TEMPLATE),
+        (dir.join("templates/tags.html"), STARTER_TAGS_TEMPLATE),
         (dir.join("index.org"), index),
         (dir.join("blog/first-post.org"), post),
     ];
@@ -295,8 +296,10 @@ fn build_file(input: &Utf8Path, output: &Utf8Path) -> Result<()> {
         tags: Vec::new(),
         keywords: Default::default(),
     };
+    let mut ctx = RenderContext::new(&site, &page_ctx, &[], SYNTAX_STYLESHEET, "");
+    ctx.body = &fragment;
     let page = templater
-        .render_page(&site, &page_ctx, &fragment, &[], SYNTAX_STYLESHEET, "", None)
+        .render_page(&ctx)
         .with_context(|| format!("templating {input}"))?;
     fs::write(output, page).with_context(|| format!("writing output file {output}"))?;
 
