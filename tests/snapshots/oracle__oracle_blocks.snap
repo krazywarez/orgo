@@ -3,7 +3,9 @@ source: tests/oracle.rs
 expression: report
 ---
 agreement: 67/77 skeleton lines (87.0%)
-(- org-ssg, + emacs)
+deliberate: 11 line(s) — pre-code ×6, semantic-emphasis ×4, verse-trailing-break ×1
+unexplained: 0 line(s)
+(- org-ssg, + emacs, ~ a difference we mean to have)
 
   <h2>
   "Quote"
@@ -11,11 +13,9 @@ agreement: 67/77 skeleton lines (87.0%)
   <blockquote>
   <p>
   "A quoted paragraph with"
-- <em>
-+ <i>
+~ semantic-emphasis (1 line(s))
   "markup"
-- </em>
-+ </i>
+~ semantic-emphasis (1 line(s))
   "."
   </p>
   <p>
@@ -44,14 +44,14 @@ agreement: 67/77 skeleton lines (87.0%)
   "Source"
   </h2>
   <pre>
-- <code>
+~ pre-code (1 line(s))
   "def greet(name): return f\"hello {name}\""
-- </code>
+~ pre-code (1 line(s))
   </pre>
   <pre>
-- <code>
+~ pre-code (1 line(s))
   "plain block, no language"
-- </code>
+~ pre-code (1 line(s))
   </pre>
   <h2>
   "Nested"
@@ -61,9 +61,9 @@ agreement: 67/77 skeleton lines (87.0%)
   "A quote containing a source block:"
   </p>
   <pre>
-- <code>
+~ pre-code (1 line(s))
   "echo hi"
-- </code>
+~ pre-code (1 line(s))
   </pre>
   </blockquote>
   <h2>
@@ -73,17 +73,15 @@ agreement: 67/77 skeleton lines (87.0%)
   "Line breaks are the point"
   <br>
   "and indentation survives."
-+ <br>
+~ verse-trailing-break (1 line(s))
   </p>
   <h2>
   "A named special block"
   </h2>
   <p>
   "Contents are"
-- <strong>
-+ <b>
+~ semantic-emphasis (1 line(s))
   "org"
-- </strong>
-+ </b>
+~ semantic-emphasis (1 line(s))
   ", not literal text."
   </p>

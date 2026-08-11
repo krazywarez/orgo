@@ -3,7 +3,9 @@ source: tests/oracle.rs
 expression: report
 ---
 agreement: 51/58 skeleton lines (87.9%)
-(- org-ssg, + emacs)
+deliberate: 7 line(s) — list-per-bullet-type ×2, pre-code ×2, semantic-emphasis ×2
+unexplained: 0 line(s)
+(- org-ssg, + emacs, ~ a difference we mean to have)
 
   <p>
   "Intro paragraph with a bare URL"
@@ -25,14 +27,11 @@ agreement: 51/58 skeleton lines (87.9%)
   </li>
   <li>
   "second item with"
-- <em>
-+ <i>
+~ semantic-emphasis (1 line(s))
   "emphasis"
-- </em>
-+ </i>
+~ semantic-emphasis (1 line(s))
   </li>
-- </ol>
-- <ul>
+~ list-per-bullet-type (2 line(s))
   <li>
   <code>
   "[ ]"
@@ -45,8 +44,7 @@ agreement: 51/58 skeleton lines (87.9%)
   </code>
   "done item"
   </li>
-- </ul>
-+ </ol>
+~ list-per-bullet-type (1 line(s))
   <h2>
   "Links and code"
   </h2>
@@ -62,7 +60,7 @@ agreement: 51/58 skeleton lines (87.9%)
   "."
   </p>
   <pre>
-- <code>
+~ pre-code (1 line(s))
   "fn main() { println!(\"hello\"); }"
-- </code>
+~ pre-code (1 line(s))
   </pre>

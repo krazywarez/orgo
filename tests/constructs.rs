@@ -227,7 +227,7 @@ fn table_formulas_are_inert() {
 #[test]
 fn latex_macros_and_radio_targets_stay_literal() {
     let html = render_fixture("outofscope.org");
-    for literal in ["$x^2 + y^2$", "E = mc^2", "{{{author}}}", "\\alpha"] {
+    for literal in ["$x^2 + y^2$", "E = mc^2", "{{{author}}}", "\\notanentity"] {
         assert!(
             html.contains(literal),
             "`{literal}` should survive as literal text:\n{html}"
@@ -387,7 +387,6 @@ fn well_formed_fixtures_produce_no_diagnostics() {
         "blocks.org",
         "timestamps.org",
         "images.org",
-        "outofscope.org",
     ] {
         let document = parse_fixture(name);
         assert!(
@@ -396,6 +395,17 @@ fn well_formed_fixtures_produce_no_diagnostics() {
             document.diagnostics
         );
     }
+
+    // The out-of-scope fixture is the exception, and only for the one construct that is
+    // *meant* to announce itself: an unexpanded `#+INCLUDE:` means content is missing
+    // from the page, which is worth a line in the build output.
+    let out = parse_fixture("outofscope.org");
+    let messages: Vec<&str> = out.diagnostics.iter().map(|d| d.message.as_str()).collect();
+    assert_eq!(messages.len(), 1, "one diagnostic, not a pile: {messages:?}");
+    assert!(
+        messages[0].contains("#+INCLUDE:") && messages[0].contains("not expanded"),
+        "and it is the include: {messages:?}"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -679,5 +689,66 @@ fn a_blank_line_ends_a_captions_association() {
     assert!(
         attached.contains("<figcaption>"),
         "a caption directly above its image still works:\n{attached}"
+    );
+}
+
+/// Org's entity table, taken from Emacs' own `org-entities` so the mapping is not a
+/// hand-typed approximation of 400 entries.
+#[test]
+fn entities_become_their_characters() {
+    let html = html_of("Greek \\alpha and \\beta{}s, an arrow \\rarr, and 20\\deg today.\n");
+    assert!(html.contains("&alpha;"), "alpha:\n{html}");
+    // `{}` is the explicit terminator and must not survive into the text.
+    assert!(html.contains("&beta;s"), "beta with {{}}:\n{html}");
+    assert!(html.contains("&rarr;"), "arrow:\n{html}");
+    assert!(html.contains("20&deg;"), "degree:\n{html}");
+}
+
+/// A name org does not know is a typo, and a typo should look like one rather than
+/// disappear. `\alphabet` is not a Greek letter followed by "bet", either.
+#[test]
+fn unknown_entities_and_longer_words_stay_literal() {
+    let html = html_of("Neither \\notanentity nor \\alphabet is an entity.\n");
+    assert!(html.contains("\\notanentity"), "unknown stays:\n{html}");
+    assert!(html.contains("\\alphabet"), "no prefix match:\n{html}");
+}
+
+/// `#+OPTIONS: e:nil` is org's own switch for turning entities off.
+#[test]
+fn a_document_can_turn_entities_off() {
+    let html = html_of("#+OPTIONS: e:nil\n\nGreek \\alpha stays.\n");
+    assert!(html.contains("\\alpha"), "left alone:\n{html}");
+    assert!(!html.contains("&alpha;"), "not converted:\n{html}");
+}
+
+/// A caption above a table becomes a numbered `<caption>`, as it does for figures.
+#[test]
+fn tables_take_a_numbered_caption() {
+    let html = html_of(
+        "#+CAPTION: Quarterly figures\n| Q | Rev |\n\n\
+         #+CAPTION: Second table\n| A | B |\n",
+    );
+    assert!(
+        html.contains("<caption><span class=\"table-number\">Table 1: </span>Quarterly figures"),
+        "first table:\n{html}"
+    );
+    assert!(html.contains("Table 2: </span>Second table"), "second:\n{html}");
+}
+
+/// `#+INCLUDE:` is not expanded, and says so. Silently dropping it publishes a page with
+/// content missing and nobody told.
+#[test]
+fn an_unexpanded_include_reports_itself() {
+    let doc = parse(
+        Utf8PathBuf::from("t.org").as_path(),
+        "#+TITLE: T\n\n#+INCLUDE: \"other.org\" :lines \"5-10\"\n\nBody.\n",
+    )
+    .expect("parse");
+    assert_eq!(doc.diagnostics.len(), 1, "{:?}", doc.diagnostics);
+    assert_eq!(doc.diagnostics[0].line, 3, "the line it is on");
+    assert!(
+        doc.diagnostics[0].message.contains("other.org"),
+        "names the file: {:?}",
+        doc.diagnostics[0]
     );
 }

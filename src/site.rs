@@ -770,6 +770,7 @@ fn render_options(config: &Config) -> RenderOptions {
         section_numbers: config.html.section_numbers,
         special_strings: config.html.special_strings,
         sub_superscript: config.html.sub_superscript,
+        entities: config.html.entities,
     }
 }
 

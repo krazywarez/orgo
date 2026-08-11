@@ -10,6 +10,7 @@
 
 pub mod audit;
 pub mod config;
+pub mod entities;
 pub mod incremental;
 pub mod index;
 pub mod model;

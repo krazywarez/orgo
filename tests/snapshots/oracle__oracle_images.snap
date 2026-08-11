@@ -3,7 +3,9 @@ source: tests/oracle.rs
 expression: report
 ---
 agreement: 30/42 skeleton lines (71.4%)
-(- org-ssg, + emacs)
+deliberate: 14 line(s) — figure-element ×8, semantic-emphasis ×2
+unexplained: 0 line(s)
+(- org-ssg, + emacs, ~ a difference we mean to have)
 
   <h2>
   "Bare image"
@@ -14,43 +16,29 @@ agreement: 30/42 skeleton lines (71.4%)
   <h2>
   "Captioned figure"
   </h2>
-- <figure>
-+ <p>
+~ figure-element (1 line(s))
   <img src="pipeline.svg">
-- <figcaption>
-+ </p>
-+ <p>
+~ figure-element (2 line(s))
   "Figure 1: The pipeline, end to end"
-- </figcaption>
-- </figure>
-+ </p>
+~ figure-element (2 line(s))
   <h2>
   "Caption with markup"
   </h2>
-- <figure>
-+ <p>
+~ figure-element (1 line(s))
   <img src="chart.png">
-- <figcaption>
-+ </p>
-+ <p>
+~ figure-element (2 line(s))
   "Figure 2: A"
-- <em>
-+ <i>
+~ semantic-emphasis (1 line(s))
   "stylised"
-- </em>
-+ </i>
+~ semantic-emphasis (1 line(s))
   "chart"
-- </figcaption>
-- </figure>
-+ </p>
+~ figure-element (2 line(s))
   <h2>
   "Quoted attribute values"
   </h2>
-- <figure>
-+ <p>
+~ figure-element (1 line(s))
   <img src="cat.jpg">
-- </figure>
-+ </p>
+~ figure-element (1 line(s))
   <h2>
   "Image with a description is a link"
   </h2>

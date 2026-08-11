@@ -218,6 +218,8 @@ struct Renderer<'a> {
     headline_offset: u8,
     /// Captioned figures seen so far, for `Figure N:`.
     figures: usize,
+    /// Captioned tables seen so far, for `Table N:`.
+    tables: usize,
 }
 
 /// Options affecting how the tree becomes HTML. Presentation choices that belong to the
@@ -237,6 +239,9 @@ pub struct RenderOptions {
     /// Whether `x^2` and `a_{b}` become `<sup>`/`<sub>`. See
     /// [`HtmlOutput::sub_superscript`](crate::config::HtmlOutput::sub_superscript).
     pub sub_superscript: SubSuperscript,
+    /// Whether `\alpha` becomes `&alpha;`. See
+    /// [`HtmlOutput::entities`](crate::config::HtmlOutput::entities).
+    pub entities: bool,
 }
 
 impl Default for RenderOptions {
@@ -247,6 +252,7 @@ impl Default for RenderOptions {
             section_numbers: html.section_numbers,
             special_strings: html.special_strings,
             sub_superscript: html.sub_superscript,
+            entities: html.entities,
         }
     }
 }
@@ -267,6 +273,7 @@ fn document_options(keywords: &crate::model::Keywords, opts: &RenderOptions) -> 
             Some(value) => SubSuperscript::from_option(value),
             None => opts.sub_superscript,
         },
+        entities: option_enabled(keywords, "e", opts.entities),
     }
 }
 
@@ -304,6 +311,7 @@ pub fn render_with(doc: &ResolvedDoc, highlighter: &dyn Highlighter, opts: &Rend
         counters: Vec::new(),
         headline_offset: headline_offset(&doc.document.root),
         figures: 0,
+        tables: 0,
     };
     r.collect_defs(&doc.document.root);
     let mut out = String::new();
@@ -550,6 +558,16 @@ impl Renderer<'_> {
             .iter()
             .position(|r| matches!(r, TableRow::Rule));
         out.push_str("<table>\n");
+        if !table.caption.is_empty() {
+            self.tables += 1;
+            out.push_str(&format!(
+                "<caption><span class=\"table-number\">Table {}: </span>",
+                self.tables
+            ));
+            let caption = table.caption.clone();
+            self.render_objects(&caption, out);
+            out.push_str("</caption>\n");
+        }
         let mut wrote_body = false;
         let mut in_body = rule_at.is_none();
         for (idx, row) in table.rows.iter().enumerate() {
@@ -627,6 +645,11 @@ impl Renderer<'_> {
     fn render_object(&mut self, obj: &Object, out: &mut String) {
         match obj {
             Object::Text(t) => out.push_str(&self.text_html(t)),
+            // The table's HTML column is an entity reference, so it is emitted raw.
+            Object::Entity(name) => match self.opts.entities {
+                true => out.push_str(crate::entities::lookup(name).unwrap_or(name)),
+                false => out.push_str(&escape_html(&format!("\\{name}"))),
+            },
             Object::Bold(inner) => self.wrap(out, "strong", inner),
             Object::Italic(inner) => self.wrap(out, "em", inner),
             Object::Underline(inner) => self.wrap(out, "u", inner),
@@ -668,7 +691,6 @@ impl Renderer<'_> {
             }
             Object::LineBreak => out.push_str("<br>\n"),
             Object::Timestamp(ts) => out.push_str(&timestamp_html(ts)),
-            Object::Entity(e) => out.push_str(&escape_html(e)),
         }
     }
 
@@ -889,7 +911,10 @@ fn strip_special_column(table: &crate::model::Table) -> crate::model::Table {
             _ => row.clone(),
         })
         .collect();
-    crate::model::Table { rows }
+    crate::model::Table {
+        rows,
+        caption: table.caption.clone(),
+    }
 }
 
 /// Split text into alternating prose and LaTeX spans, `(text, is_latex)`.

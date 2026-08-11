@@ -241,6 +241,11 @@ pub struct HtmlOutput {
     /// explicit `a_{b}` form, and `"no"` leaves both alone. A document chooses for itself
     /// with `#+OPTIONS: ^:nil` or `^:{}`.
     pub sub_superscript: SubSuperscript,
+    /// Whether `\alpha` and the rest of org's entity table become their characters.
+    ///
+    /// On, as in Emacs. A name org does not know is left as the literal text that was
+    /// typed. A document turns the whole thing off with `#+OPTIONS: e:nil`.
+    pub entities: bool,
 }
 
 /// How `_` and `^` are treated in prose. Mirrors org's `^:` export option.
@@ -275,6 +280,7 @@ impl Default for HtmlOutput {
             section_numbers: false,
             special_strings: true,
             sub_superscript: SubSuperscript::Yes,
+            entities: true,
         }
     }
 }
@@ -577,6 +583,9 @@ special_strings = true
 # becomes snake<sub>case</sub>), "braces" for the `a_{b}` form only, or "no".
 # A document overrides with `#+OPTIONS: ^:nil` or `^:{}`.
 sub_superscript = "yes"
+# Convert `\alpha` and the rest of org's entity table. An unknown name stays literal.
+# A document overrides with `#+OPTIONS: e:nil`.
+entities = true
 
 # Generated listing pages: output files with no source .org behind them. Repeat the
 # [[collections]] block for each one. A feed is the same thing with an XML template.

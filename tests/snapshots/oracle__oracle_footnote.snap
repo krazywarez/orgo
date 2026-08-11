@@ -3,20 +3,20 @@ source: tests/oracle.rs
 expression: report
 ---
 agreement: 30/53 skeleton lines (56.6%)
-(- org-ssg, + emacs)
+deliberate: 29 line(s) — footnote-anchor-naming ×3, footnote-section-shape ×6, semantic-emphasis ×2
+unexplained: 0 line(s)
+(- org-ssg, + emacs, ~ a difference we mean to have)
 
   <p>
   "Text with a reference."
   <sup>
-- <a href="#fn-1">
-+ <a href="#fn.1">
+~ footnote-anchor-naming (1 line(s))
   "1"
   </a>
   </sup>
   "And a second one."
   <sup>
-- <a href="#fn-2">
-+ <a href="#fn.2">
+~ footnote-anchor-naming (1 line(s))
   "2"
   </a>
   </sup>
@@ -24,60 +24,27 @@ agreement: 30/53 skeleton lines (56.6%)
   <p>
   "An inline footnote."
   <sup>
-- <a href="#fn-3">
-+ <a href="#fn.3">
+~ footnote-anchor-naming (1 line(s))
   "3"
   </a>
   </sup>
   </p>
-- <section>
-- <hr>
-- <ol>
-- <li>
-+ <h2>
-+ "Footnotes:"
-+ </h2>
-+ <sup>
-+ <a href="#fnr.1">
-+ "1"
-+ </a>
-+ </sup>
+~ footnote-section-shape (8 line(s))
   <p>
   "The first definition."
   </p>
-- <a href="#fnr-1">
-- "↩"
-+ <sup>
-+ <a href="#fnr.2">
-+ "2"
+~ footnote-section-shape (3 line(s))
   </a>
-- </li>
-- <li>
-+ </sup>
+~ footnote-section-shape (2 line(s))
   <p>
   "The second definition, with"
-- <em>
-+ <i>
+~ semantic-emphasis (1 line(s))
   "emphasis"
-- </em>
-+ </i>
+~ semantic-emphasis (1 line(s))
   "."
   </p>
-- <a href="#fnr-2">
-- "↩"
-+ <sup>
-+ <a href="#fnr.3">
-+ "3"
+~ footnote-section-shape (3 line(s))
   </a>
-- </li>
-- <li>
-+ </sup>
-+ <p>
+~ footnote-section-shape (2 line(s))
   "defined right here"
-- <a href="#fnr-3">
-- "↩"
-- </a>
-- </li>
-- </ol>
-- </section>
-+ </p>
+~ footnote-section-shape (6 line(s))

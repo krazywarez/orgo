@@ -3,21 +3,20 @@ source: tests/oracle.rs
 expression: report
 ---
 agreement: 64/82 skeleton lines (78.0%)
-(- org-ssg, + emacs)
+deliberate: 26 line(s) — footnote-anchor-naming ×1, footnote-section-shape ×2, id-link-resolution ×1, no-colgroup ×1, pre-code ×2
+unexplained: 0 line(s)
+(- org-ssg, + emacs, ~ a difference we mean to have)
 
   <h2>
   "Code and tables"
   </h2>
   <pre>
-- <code>
+~ pre-code (1 line(s))
   "fn main() { println!(\"hello\"); }"
-- </code>
+~ pre-code (1 line(s))
   </pre>
   <table>
-+ <colgroup>
-+ <col>
-+ <col>
-+ </colgroup>
+~ no-colgroup (4 line(s))
   <thead>
   <tr>
   <th>
@@ -55,18 +54,12 @@ agreement: 64/82 skeleton lines (78.0%)
   <a href="https://example.com">
   "Example"
   </a>
-- "and an id link"
-- <a href="#abc-123">
-- "abc-123"
-- </a>
-- "."
-+ "and an id link ."
+~ id-link-resolution (5 line(s))
   </p>
   <p>
   "Text with a footnote reference."
   <sup>
-- <a href="#fn-1">
-+ <a href="#fn.1">
+~ footnote-anchor-naming (1 line(s))
   "1"
   </a>
   </sup>
@@ -80,24 +73,8 @@ agreement: 64/82 skeleton lines (78.0%)
   </p>
   </blockquote>
   <hr>
-- <section>
-- <hr>
-- <ol>
-- <li>
-+ <h2>
-+ "Footnotes:"
-+ </h2>
-+ <sup>
-+ <a href="#fnr.1">
-+ "1"
-+ </a>
-+ </sup>
+~ footnote-section-shape (8 line(s))
   <p>
   "The footnote definition."
   </p>
-- <a href="#fnr-1">
-- "↩"
-- </a>
-- </li>
-- </ol>
-- </section>
+~ footnote-section-shape (6 line(s))

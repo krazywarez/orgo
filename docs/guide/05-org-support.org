@@ -46,6 +46,12 @@ Org rewrites some prose on export, and so does org-ssg:
 | =...= | … |
 | =x^2= | x superscript 2 |
 | =H_{2}O= | H subscript 2 O |
+| =\alpha=, =\rarr=, =20\deg= | α, →, 20° |
+
+The entity table is org's own, generated from Emacs' =org-entities= rather than
+transcribed, so all 412 names behave as they do in Emacs. A name org does not know —
+=\notanentity= — stays as the literal text you typed, and =\alphabet= is a word rather
+than α followed by "bet". =#+OPTIONS: e:nil= turns the whole table off.
 
 Neither reaches inside verbatim, code, a source block or a LaTeX fragment — =--verbose= in
 a shell transcript stays a flag, and =$x^2$= stays mathematics.
@@ -123,7 +129,8 @@ in Emacs as much as here. If a code block seems to stop early, that is why.
 
 ** Tables and footnotes
 
-Pipe tables, with the rule row establishing a header band. Org's *special column* is
+Pipe tables, with the rule row establishing a header band and an affiliated =#+CAPTION:=
+becoming a numbered =<caption>=. Org's *special column* is
 honoured: a first column holding only export markers (=/=, =#=, =!=, =^=, =_=, =$=) is
 dropped, and rows marked =/=, =!=, =^=, =_= or =$= are instructions to org rather than
 content, so they never reach the page.
@@ -174,7 +181,7 @@ a build.
 |-----------+--------------|
 | Babel execution, =:results= | The source block renders as code. A checked-in =#+RESULTS:= block is *dropped*. |
 | =#+TBLFM:= | Inert. The table renders with the values as written. |
-| =#+INCLUDE:= | Never expanded. Captured as an inert keyword. |
+| =#+INCLUDE:= | Never expanded, and *reported*: the build prints =file:line: `#+INCLUDE: …` is not expanded=, so a page is never quietly missing content. =--strict= makes it a failure. |
 | LaTeX, MathJax | Survives as the literal text you typed. |
 | Macros ={{{name}}}=, radio targets | Literal text. |
 | Drawers other than =PROPERTIES= | Captured and dropped, including =LOGBOOK=. |

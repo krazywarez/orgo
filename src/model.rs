@@ -194,6 +194,9 @@ pub enum Checkbox {
 pub struct Table {
     /// Rule rows preserved to locate the header band.
     pub rows: Vec<TableRow>,
+    /// An affiliated `#+CAPTION:` directly above the table.
+    #[serde(default)]
+    pub caption: Vec<Object>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

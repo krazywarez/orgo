@@ -43,6 +43,6 @@ CLOCK: [2024-01-15 Mon 09:00]--[2024-01-15 Mon 10:00] =>  1:00
 Drawer contents are captured and dropped.
 :END:
 
-* Entities
+* Unknown entities
 
-The full entity set is out of scope, so \alpha stays literal.
+An entity org does not know, \notanentity, stays literal.

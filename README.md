@@ -334,14 +334,16 @@ rows and org's special marker column, no `#+TBLFM:`); source blocks with syntax
 highlighting; example/quote/center/verse blocks and named special blocks; links (external,
 internal `[[*Heading]]`/`[[#custom-id]]`, `id:`); footnotes (inline and referenced); `#+`
 keywords/directives; inline markup (bold/italic/underline/verbatim/code/strike); org's
-export-time text conversions (`--`/`---`/`...`, `x^2`, `a_{b}`); timestamps
+export-time text conversions (`--`/`---`/`...`, `x^2`, `a_{b}`, `\alpha`); timestamps
 (active/inactive, ranges); paragraphs and horizontal rules; images with
 `#+CAPTION`/`#+ATTR_HTML`, numbered `Figure N:`.
 
 **OUT — explicitly not v1 (parse-and-ignore or reject loudly):** Babel execution /
 `:results`; `#+TBLFM:` formulas; LaTeX / MathJax (passed through untouched, including past
-the text conversions); `#+INCLUDE:`; citations; radio targets and macros; drawers other than PROPERTIES/LOGBOOK; column view / clocking / agenda
-semantics; non-HTML export blocks; the full Unicode entity set.
+the text conversions); `#+INCLUDE:` (never expanded — reported as a diagnostic, so a page
+is never quietly short of content); citations; radio targets and macros; drawers other
+than PROPERTIES/LOGBOOK; column view / clocking / agenda semantics; non-HTML export
+blocks.
 
 **Scope guardrail:** every IN item gets a golden-file fixture; every OUT item gets a test
 asserting it degrades predictably (ignored, no crash). The IN/OUT line is enforced by
@@ -377,6 +379,11 @@ all-of-org. Phase 0 checked this line against a real 179-file corpus and found i
 | **15** | **Table of contents, section numbers, and org's `#+OPTIONS:` per-file switches** | **done** |
 | **16** | **`serve`: development server with long-poll live reload, loopback-bound** | **done** |
 | **17** | **Bundled TOML and Org syntaxes, a user syntax directory, and org's comma escape** | **done** |
+| **18** | **Per-page layouts: `[[pages]]` rules and `#+TEMPLATE:`** | **done** |
+| **19** | **Export parity: relative heading levels, special strings, sub/superscript, caption numbering, checkbox and counter markup, table marker columns, special blocks** | **done** |
+| **20** | **Correctness debt: org's entity table, table captions, a reported `#+INCLUDE:`, and an oracle that separates deliberate divergence from defects** | **done** |
+| 21 | Extra asset roots; per-template hashing so one layout edit does not re-render the site | next |
+| 22 | Release engineering: CI, MSRV, published binaries, changelog, a written compatibility promise | 1.0 |
 
 ### v0.2 in / out
 
@@ -465,7 +472,7 @@ construct the IN list claims is now parsed, rendered, and pinned by a golden fil
 **The OUT line is now enforced, not just asserted.** `tests/constructs.rs` pins each
 excluded construct to a specific degradation: babel is never executed *and* a checked-in
 `#+RESULTS:` block is dropped rather than published as if it were verified output;
-`#+TBLFM:` is inert; `#+INCLUDE:` is never expanded; LaTeX, macros and radio targets survive
+`#+TBLFM:` is inert; `#+INCLUDE:` is never expanded and says so; LaTeX, macros and radio targets survive
 as literal text; drawers other than PROPERTIES are captured and dropped; unmodelled block
 types keep their content verbatim.
 

@@ -3,7 +3,9 @@ source: tests/oracle.rs
 expression: report
 ---
 agreement: 109/111 skeleton lines (98.2%)
-(- org-ssg, + emacs)
+deliberate: 2 line(s) — semantic-emphasis ×2
+unexplained: 0 line(s)
+(- org-ssg, + emacs, ~ a difference we mean to have)
 
   <h2>
   "Nesting"
@@ -91,11 +93,9 @@ agreement: 109/111 skeleton lines (98.2%)
   "the second definition, which is soft-wrapped across two lines"
   </dd>
   <dt>
-- <em>
-+ <i>
+~ semantic-emphasis (1 line(s))
   "marked up"
-- </em>
-+ </i>
+~ semantic-emphasis (1 line(s))
   "term"
   </dt>
   <dd>

@@ -3,7 +3,9 @@ source: tests/oracle.rs
 expression: report
 ---
 agreement: 38/42 skeleton lines (90.5%)
-(- org-ssg, + emacs)
+deliberate: 4 line(s) — semantic-emphasis ×4
+unexplained: 0 line(s)
+(- org-ssg, + emacs, ~ a difference we mean to have)
 
   <p>
   "A single paragraph of preamble text before any heading."
@@ -13,17 +15,13 @@ agreement: 38/42 skeleton lines (90.5%)
   </h2>
   <p>
   "Some body text with"
-- <strong>
-+ <b>
+~ semantic-emphasis (1 line(s))
   "bold"
-- </strong>
-+ </b>
+~ semantic-emphasis (1 line(s))
   ","
-- <em>
-+ <i>
+~ semantic-emphasis (1 line(s))
   "italic"
-- </em>
-+ </i>
+~ semantic-emphasis (1 line(s))
   ", and"
   <code>
   "verbatim"

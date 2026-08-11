@@ -407,6 +407,20 @@ fn parse_elements(lines: &[&str], base: usize, diags: &mut Vec<Diagnostic>) -> V
             continue;
         }
         if let Some((key, value)) = keyword_kv(line) {
+            if key.eq_ignore_ascii_case("INCLUDE") {
+                // Never expanded (README §OUT). Expanding it means resolving paths,
+                // recursion and `:lines`/`:only-contents`; dropping it silently means a
+                // page missing content nobody was told about. Saying so is the honest
+                // middle, and `--strict` turns it into a failure.
+                diags.push(Diagnostic {
+                    line: base + i + 1,
+                    message: format!(
+                        "`#+INCLUDE: {}` is not expanded; that content will be missing \
+                         from the page",
+                        value.trim()
+                    ),
+                });
+            }
             if key.eq_ignore_ascii_case("RESULTS") {
                 // Babel is never executed (README §OUT), so a checked-in `#+RESULTS:`
                 // block is output from someone else's Emacs session at some other time.
@@ -672,8 +686,8 @@ fn is_affiliated(key: &str) -> bool {
 }
 
 /// A paragraph holding nothing but an image link becomes a block-level figure when a
-/// `#+CAPTION:`/`#+ATTR_HTML:` precedes it. Affiliated keywords on anything else are
-/// parsed and dropped (README §IN covers captions for images only).
+/// `#+CAPTION:`/`#+ATTR_HTML:` precedes it, and a table takes its caption. Affiliated
+/// keywords on anything else are parsed and dropped.
 fn attach_affiliated(element: Element, affiliated: Vec<(String, String)>) -> Element {
     let value = |key: &str| {
         affiliated
@@ -685,6 +699,12 @@ fn attach_affiliated(element: Element, affiliated: Vec<(String, String)>) -> Ele
     let attrs = value("ATTR_HTML").unwrap_or_default();
     if caption.is_empty() && attrs.is_empty() {
         return element;
+    }
+    if let Element::Table(table) = element {
+        return Element::Table(Table {
+            caption: inline(&caption),
+            ..table
+        });
     }
     let Element::Paragraph(objs) = &element else {
         return element;
@@ -741,7 +761,13 @@ fn parse_table(lines: &[&str], start: usize) -> (Table, usize) {
         }
         i += 1;
     }
-    (Table { rows }, i)
+    (
+        Table {
+            rows,
+            caption: Vec::new(),
+        },
+        i,
+    )
 }
 
 /// A rule row: only `|`, `-`, `+`, whitespace, and at least one `-`.
@@ -1142,6 +1168,14 @@ fn parse_inline_run(chars: &[char]) -> Vec<Object> {
                 continue;
             }
         }
+        if c == '\\' {
+            if let Some((obj, next)) = try_entity(chars, i) {
+                flush(&mut buf, &mut out);
+                out.push(obj);
+                i = next;
+                continue;
+            }
+        }
         if is_marker(c) {
             if let Some((obj, next)) = try_emphasis(chars, i) {
                 flush(&mut buf, &mut out);
@@ -1426,6 +1460,30 @@ fn try_emphasis(chars: &[char], i: usize) -> Option<(Object, usize)> {
         j += 1;
     }
     None
+}
+
+/// An org entity: `\alpha`, closed by end of text, `{}`, or any non-letter — which is
+/// what stops `\alphabet` from being a Greek letter followed by "bet".
+///
+/// Only names org actually knows become entities; anything else stays the literal text
+/// the author typed, since a typo should look like a typo rather than vanish.
+fn try_entity(chars: &[char], i: usize) -> Option<(Object, usize)> {
+    let mut j = i + 1;
+    while chars.get(j).is_some_and(|c| c.is_ascii_alphabetic()) {
+        j += 1;
+    }
+    if j == i + 1 {
+        return None;
+    }
+    let name: String = chars[i + 1..j].iter().collect();
+    crate::entities::lookup(&name)?;
+    // `{}` is the explicit terminator and is consumed; anything else is left in place.
+    let next = if chars.get(j) == Some(&'{') && chars.get(j + 1) == Some(&'}') {
+        j + 2
+    } else {
+        j
+    };
+    Some((Object::Entity(name), next))
 }
 
 /// May this character sit directly inside an emphasis marker?

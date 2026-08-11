@@ -3,11 +3,12 @@ source: tests/oracle.rs
 expression: report
 ---
 agreement: 28/30 skeleton lines (93.3%)
-(- org-ssg, + emacs)
+deliberate: 2 line(s) — semantic-time ×2
+unexplained: 0 line(s)
+(- org-ssg, + emacs, ~ a difference we mean to have)
 
   <h2>
-- "TODO [#A] Write the parser work rust"
-+ "TODO Write the parser work rust"
+~ semantic-time (1 line(s))
   </h2>
   <p>
   "A heading carrying a keyword, a priority, tags and a property drawer."
@@ -19,8 +20,7 @@ agreement: 28/30 skeleton lines (93.3%)
   "Sub-headings nest by star count."
   </p>
   <h3>
-- "[#C] Priority without a keyword"
-+ "Priority without a keyword"
+~ semantic-time (1 line(s))
   </h3>
   <p>
   "A priority cookie can stand alone."
