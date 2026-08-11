@@ -4,7 +4,7 @@
 
 use camino::{Utf8Path, Utf8PathBuf};
 
-use crate::model::{Keywords, Object};
+use crate::model::{Element, Keywords, Object, Section, TableRow};
 
 /// The output path for a document, relative to the site root.
 ///
@@ -74,6 +74,105 @@ fn plain_text_into(objs: &[Object], out: &mut String) {
             Object::FootnoteRef { .. } | Object::Timestamp(_) | Object::LineBreak => {}
         }
     }
+}
+
+/// Is this document marked as a draft?
+///
+/// `#+DRAFT:` counts as true by its mere presence — writing the keyword at all is the
+/// signal — unless the value explicitly says otherwise. Someone who types `#+DRAFT: t`,
+/// `#+DRAFT: yes` or a bare `#+DRAFT:` means the same thing, and publishing an unfinished
+/// post because the value was not the expected spelling is the wrong way to be strict.
+pub fn is_draft(keywords: &Keywords) -> bool {
+    keywords
+        .entries
+        .iter()
+        .find(|(k, _)| k.eq_ignore_ascii_case("DRAFT"))
+        .map(|(_, v)| {
+            !matches!(
+                v.trim().to_ascii_lowercase().as_str(),
+                "nil" | "false" | "no" | "0" | "off"
+            )
+        })
+        .unwrap_or(false)
+}
+
+/// The document's prose as plain text, for word counts and excerpts.
+///
+/// Source and example blocks are excluded on purpose: a reading-time estimate over a
+/// post that is mostly a shell transcript should describe the prose someone reads, not
+/// the code they skim. Headings are included — they are read.
+pub fn document_text(root: &Section) -> String {
+    let mut out = String::new();
+    section_text(root, &mut out);
+    out
+}
+
+fn section_text(section: &Section, out: &mut String) {
+    if let Some(heading) = &section.heading {
+        push_words(&plain_text(&heading.title), out);
+    }
+    elements_text(&section.content, out);
+    for child in &section.children {
+        section_text(child, out);
+    }
+}
+
+fn elements_text(elements: &[Element], out: &mut String) {
+    for element in elements {
+        match element {
+            Element::Paragraph(objs) => push_words(&plain_text(objs), out),
+            Element::List(list) => {
+                for item in &list.items {
+                    if let Some(term) = &item.term {
+                        push_words(&plain_text(term), out);
+                    }
+                    elements_text(&item.content, out);
+                }
+            }
+            Element::Table(table) => {
+                for row in &table.rows {
+                    if let TableRow::Cells(cells) = row {
+                        for cell in cells {
+                            push_words(&plain_text(cell), out);
+                        }
+                    }
+                }
+            }
+            Element::QuoteBlock(inner) | Element::CenterBlock(inner) => elements_text(inner, out),
+            Element::Figure { caption, .. } => push_words(&plain_text(caption), out),
+            Element::FootnoteDefinition { content, .. } => elements_text(content, out),
+            // Code, drawers, comments, keywords and raw export blocks are not prose.
+            _ => {}
+        }
+    }
+}
+
+fn push_words(text: &str, out: &mut String) {
+    let text = text.trim();
+    if text.is_empty() {
+        return;
+    }
+    if !out.is_empty() {
+        out.push(' ');
+    }
+    out.push_str(text);
+}
+
+/// The document's first paragraph as plain text — the fallback excerpt for a page with
+/// no `#+DESCRIPTION:`.
+pub fn first_paragraph(root: &Section) -> Option<String> {
+    fn find(section: &Section) -> Option<String> {
+        for element in &section.content {
+            if let Element::Paragraph(objs) = element {
+                let text = plain_text(objs);
+                if !text.trim().is_empty() {
+                    return Some(text.trim().to_string());
+                }
+            }
+        }
+        section.children.iter().find_map(find)
+    }
+    find(root)
 }
 
 /// Turn heading text into a URL-safe anchor slug.

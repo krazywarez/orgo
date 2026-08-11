@@ -1469,3 +1469,224 @@ fn changing_base_url_re_renders_the_site() {
     assert_eq!(report.rendered.len(), 3, "every page carries the base URL");
     assert!(page(&out, "index.html").contains("https://moved.example/index.html"));
 }
+
+// ---------------------------------------------------------------------------
+// Excerpts, reading metadata, and drafts
+// ---------------------------------------------------------------------------
+
+/// Posts with and without a `#+DESCRIPTION:`, and a template that prints the metadata.
+fn write_excerpt_site(src: &Utf8PathBuf, extra_config: &str) {
+    std::fs::create_dir_all(src.join("blog")).unwrap();
+    std::fs::create_dir_all(src.join("templates")).unwrap();
+    std::fs::write(src.join("index.org"), "#+TITLE: Home\n\nWelcome.\n").unwrap();
+    std::fs::write(
+        src.join("blog/described.org"),
+        "#+TITLE: Described\n#+DATE: 2024-02-02\n#+DESCRIPTION: A hand-written summary.\n\n\
+         The body's first paragraph, which is not the excerpt here.\n",
+    )
+    .unwrap();
+    std::fs::write(
+        src.join("blog/plain.org"),
+        "#+TITLE: Plain\n#+DATE: 2024-01-01\n\nThe opening paragraph stands in for a summary.\n\n\
+         A second paragraph that should not appear in the excerpt.\n",
+    )
+    .unwrap();
+    std::fs::write(
+        src.join("templates/list.html"),
+        "<html><body>{% for p in pages %}<li>{{ p.title }}|{{ p.excerpt }}|\
+         {{ p.word_count }}|{{ p.reading_time }}</li>{% endfor %}</body></html>",
+    )
+    .unwrap();
+    std::fs::write(
+        src.join("org-ssg.toml"),
+        format!(
+            "[[collections]]\nsource = \"blog\"\noutput = \"blog/index.html\"\n\
+             template = \"list.html\"\ntitle = \"Blog\"\n{extra_config}"
+        ),
+    )
+    .unwrap();
+}
+
+/// A listing of bare titles is thin. 176 of the 179 corpus files set a
+/// `#+DESCRIPTION:`, so that is the excerpt when it exists — and the first paragraph
+/// when it does not, so a page that never thought about summaries still has one.
+#[test]
+fn excerpts_prefer_the_description_and_fall_back_to_the_first_paragraph() {
+    let root = tmpdir("excerpt");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_excerpt_site(&src, "");
+    let out = root.join("out");
+    build(&src, &out);
+
+    let listing = page(&out, "blog/index.html");
+    assert!(
+        listing.contains("Described|A hand-written summary.|"),
+        "an explicit description wins:\n{listing}"
+    );
+    assert!(
+        listing.contains("Plain|The opening paragraph stands in for a summary.|"),
+        "otherwise the first paragraph:\n{listing}"
+    );
+    assert!(
+        !listing.contains("A second paragraph"),
+        "only the *first* paragraph:\n{listing}"
+    );
+}
+
+/// Reading time should describe the prose someone reads, not the code they skim.
+#[test]
+fn word_count_and_reading_time_ignore_code_blocks() {
+    let root = tmpdir("wordcount");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_excerpt_site(&src, "");
+    let prose = "word ".repeat(400);
+    std::fs::write(
+        src.join("blog/plain.org"),
+        format!(
+            "#+TITLE: Plain\n#+DATE: 2024-01-01\n\n{prose}\n\n\
+             #+BEGIN_SRC rust\n{}\n#+END_SRC\n",
+            "let noise = 1; ".repeat(200)
+        ),
+    )
+    .unwrap();
+    let out = root.join("out");
+    build(&src, &out);
+
+    let listing = page(&out, "blog/index.html");
+    // Exactly the 400 prose words: the 600+ words of code are not prose, and neither is
+    // `#+TITLE:`, which is metadata the layout renders as chrome rather than body text.
+    assert!(
+        listing.contains("|400|2</li>"),
+        "code must not inflate the count or the estimate:\n{listing}"
+    );
+}
+
+/// An excerpt is usually a whole paragraph, and minijinja ships no `truncate`, so
+/// without one a listing's only options are the full paragraph or nothing.
+#[test]
+fn the_truncate_filter_cuts_on_a_word_boundary() {
+    let root = tmpdir("truncate");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_excerpt_site(&src, "");
+    std::fs::write(
+        src.join("templates/list.html"),
+        "<html><body>{% for p in pages %}<li>{{ p.excerpt | truncate(20) }}</li>\
+         {% endfor %}<x>{{ \"short\" | truncate(20) }}</x></body></html>",
+    )
+    .unwrap();
+    let out = root.join("out");
+    build(&src, &out);
+
+    let listing = page(&out, "blog/index.html");
+    assert!(
+        listing.contains("<li>A hand-written…</li>"),
+        "cut at a space, not mid-word:\n{listing}"
+    );
+    assert!(
+        listing.contains("<x>short</x>"),
+        "text under the limit is untouched:\n{listing}"
+    );
+}
+
+/// The point of marking something a draft is that it is not ready to be read.
+#[test]
+fn drafts_are_excluded_from_the_build_by_default() {
+    let root = tmpdir("draft");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_excerpt_site(&src, "");
+    std::fs::write(
+        src.join("blog/wip.org"),
+        "#+TITLE: Unfinished\n#+DRAFT: t\n#+DATE: 2024-03-03\n\nNot ready.\n",
+    )
+    .unwrap();
+    let out = root.join("out");
+    build(&src, &out);
+
+    assert!(!out.join("blog/wip.html").exists(), "no page is written");
+    assert!(
+        !page(&out, "blog/index.html").contains("Unfinished"),
+        "and it is absent from listings, not merely unlinked"
+    );
+}
+
+/// `--drafts` is for previewing one while writing it, typically under `watch`.
+#[test]
+fn the_drafts_flag_includes_them() {
+    let root = tmpdir("draftflag");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_excerpt_site(&src, "");
+    std::fs::write(
+        src.join("blog/wip.org"),
+        "#+TITLE: Unfinished\n#+DRAFT: t\n#+DATE: 2024-03-03\n\nNot ready.\n",
+    )
+    .unwrap();
+    let out = root.join("out");
+    build_site(
+        &src,
+        &out,
+        &BuildOptions {
+            drafts: true,
+            ..Default::default()
+        },
+    )
+    .expect("build");
+
+    assert!(out.join("blog/wip.html").exists());
+    assert!(page(&out, "blog/index.html").contains("Unfinished"));
+}
+
+/// A draft is absent from the symbol table too, so a link to one is reported as the dead
+/// link it would be on the published site — rather than silently pointing at nothing.
+#[test]
+fn a_link_to_a_draft_is_reported_as_broken() {
+    let root = tmpdir("draftlink");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_excerpt_site(&src, "");
+    std::fs::write(
+        src.join("blog/wip.org"),
+        "#+TITLE: Unfinished\n#+DRAFT: t\n\nNot ready.\n",
+    )
+    .unwrap();
+    std::fs::write(
+        src.join("index.org"),
+        "#+TITLE: Home\n\nSee [[file:blog/wip.org][the draft]].\n",
+    )
+    .unwrap();
+    let out = root.join("out");
+    let report = build(&src, &out);
+
+    assert!(
+        report.warnings().iter().any(|w| w.contains("wip.org")),
+        "linking to a draft must be reported: {:?}",
+        report.warnings()
+    );
+}
+
+/// Writing the keyword at all is the signal. Publishing an unfinished post because the
+/// value was not the expected spelling is the wrong way to be strict — but an explicit
+/// "no" has to mean no.
+#[test]
+fn draft_truthiness_is_forgiving_but_respects_an_explicit_negative() {
+    use org_ssg::model::Keywords;
+    let draft = |value: &str| {
+        org_ssg::util::is_draft(&Keywords {
+            entries: vec![("DRAFT".to_string(), value.to_string())],
+        })
+    };
+    for yes in ["t", "true", "yes", "1", "", "  ", "anything"] {
+        assert!(draft(yes), "{yes:?} should mean draft");
+    }
+    for no in ["nil", "false", "no", "0", "off", "NIL"] {
+        assert!(!draft(no), "{no:?} should mean published");
+    }
+    assert!(
+        !org_ssg::util::is_draft(&Keywords::default()),
+        "no keyword at all means published"
+    );
+}

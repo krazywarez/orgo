@@ -72,7 +72,7 @@ receive:
 | Variable | What it is |
 |---|---|
 | `body` | the rendered page HTML — use `{{ body \| safe }}` |
-| `page` | `.title`, `.url`, `.source`, `.date`, `.tags`, `.keywords` |
+| `page` | `.title`, `.url`, `.source`, `.date`, `.date_iso`, `.tags`, `.excerpt`, `.word_count`, `.reading_time`, `.keywords` |
 | `site` | `.title`, `.base_url`, `.description`, `.language` |
 | `nav` | list of `{title, url}`, relative to this page |
 | `root` | `../`-prefix back to the site root from this page |
@@ -218,6 +218,7 @@ broken. Set `site.base_url` and use the `absolute` filter:
 |---|---|
 | `absolute` | site-root-relative path → absolute URL; already-absolute URLs pass through |
 | `rfc822` | any org or ISO date → the format RSS `pubDate` requires |
+| `truncate(n)` | shorten to at most `n` characters on a word boundary, with an ellipsis |
 
 Apply `absolute` to the site-root-relative values — `page.url`, `pages[].url`,
 `group.url` — and not to `nav[].url`, `paginator.*_url`, `stylesheet` or `root`, which
@@ -229,6 +230,24 @@ The default layout also emits `<link rel="canonical">` when a base URL is set.
 
 Listing pages are cached on the entries they list, so adding a post re-renders that
 section's index and nothing else.
+
+### Excerpts and drafts
+
+`page.excerpt` is a page's `#+DESCRIPTION:` when it sets one and its first paragraph
+otherwise, so a listing has something to show whether or not the author thought about
+summaries. `page.word_count` and `page.reading_time` (minutes at 200 wpm) count prose
+only — a post that is mostly a shell transcript should not read as an hour's work.
+`truncate` exists because an excerpt is usually a whole paragraph and minijinja has no
+such filter.
+
+`#+DRAFT:` keeps a page out of the build entirely — no page, and absent from listings and
+the nav rather than merely unlinked. `--drafts` includes them, which is what you want
+under `watch` while writing one. A draft is out of the symbol table too, so a link *to*
+one is reported as the dead link it would be once published.
+
+The keyword is read forgivingly: `t`, `yes`, `1` and a bare `#+DRAFT:` all mean draft,
+because writing the keyword at all is the signal. Only an explicit `nil`, `false`, `no`,
+`0` or `off` means published.
 
 ### `#+SLUG:`
 
@@ -303,6 +322,7 @@ all-of-org. Phase 0 checked this line against a real 179-file corpus and found i
 | **11** | **Pagination: numbered pages with a `paginator` context, composing with grouping** | **done** |
 | **12** | **`base_url`: `absolute`/`rfc822` filters, a valid RSS feed in the scaffold, canonical links** | **done** |
 | **13** | **`watch` on OS filesystem events, debounced, with the feedback loop closed** | **done** |
+| **14** | **Authoring: excerpts, word count, reading time, `truncate`, and draft pages** | **done** |
 
 ### v0.2 in / out
 
@@ -590,7 +610,7 @@ PARSE/RESOLVE/RENDER), `notify` (filesystem events for `watch`), `toml` (config)
 
 ```
 cargo build
-cargo test                                                # 128 tests
+cargo test                                                # 135 tests
 cargo run -- init my-site                                 # scaffold a new site
 cargo run -- build fixtures/minimal.org -o minimal.html   # single file
 cargo run -- build fixtures/site -o _site                 # whole site (incremental)

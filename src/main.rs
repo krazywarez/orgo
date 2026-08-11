@@ -39,6 +39,9 @@ enum Command {
         /// Config file to use, overriding `org-ssg.toml` in the source directory.
         #[arg(long, value_name = "FILE")]
         config: Option<Utf8PathBuf>,
+        /// Include pages marked `#+DRAFT:`.
+        #[arg(long)]
+        drafts: bool,
     },
     /// Watch a source directory and rebuild incrementally on change, driven by OS
     /// filesystem events.
@@ -57,6 +60,9 @@ enum Command {
         /// Config file to use, overriding `org-ssg.toml` in the source directory.
         #[arg(long, value_name = "FILE")]
         config: Option<Utf8PathBuf>,
+        /// Include pages marked `#+DRAFT:`. Handy while writing one.
+        #[arg(long)]
+        drafts: bool,
     },
     /// Remove the build output directory (which holds the cache manifest).
     Clean {
@@ -87,6 +93,7 @@ fn main() -> Result<()> {
             no_cache,
             strict,
             config,
+            drafts,
         } => {
             if input.is_dir() {
                 let out = output
@@ -95,6 +102,7 @@ fn main() -> Result<()> {
                     no_cache,
                     strict,
                     config_path: config.clone(),
+                    drafts,
                 };
                 let report = build_site(&input, &out, &opts)?;
                 println!(
@@ -121,6 +129,7 @@ fn main() -> Result<()> {
             no_cache,
             strict,
             config,
+            drafts,
         } => org_ssg::watch::run(
             &input,
             &output,
@@ -128,6 +137,7 @@ fn main() -> Result<()> {
                 no_cache,
                 strict,
                 config_path: config,
+                drafts,
             },
         ),
         Command::Audit { input } => {
@@ -266,6 +276,9 @@ fn build_file(input: &Utf8Path, output: &Utf8Path) -> Result<()> {
         date: None,
         date_iso: None,
         tags: Vec::new(),
+        excerpt: String::new(),
+        word_count: 0,
+        reading_time: 0,
         keywords: Default::default(),
     };
     let mut ctx = RenderContext::new(&site, &page_ctx, &[], SYNTAX_STYLESHEET, "");

@@ -30,6 +30,7 @@ pub struct Config {
     pub templates: Templates,
     pub highlight: Highlight,
     pub html: HtmlOutput,
+    pub build: Build,
     /// Generated listing pages. Each produces one output file that has no source `.org`
     /// file behind it — a blog index, an archive, a feed.
     pub collections: Vec<Collection>,
@@ -128,6 +129,17 @@ pub enum SortOrder {
     #[default]
     Desc,
     Asc,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Build {
+    /// Include pages marked `#+DRAFT:` in the build.
+    ///
+    /// Off by default, because the point of marking something a draft is that it is not
+    /// ready to be read. `--drafts` turns it on for a session, which is what you want
+    /// under `watch` while writing one.
+    pub drafts: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -399,6 +411,11 @@ expose_page_list = false
 # A syntect theme name: InspiredGitHub, Solarized (dark), base16-ocean.dark,
 # base16-eighties.dark, base16-mocha.dark, base16-ocean.light.
 theme = "InspiredGitHub"
+
+[build]
+# Include pages marked `#+DRAFT:`. Off by default — the point of marking a draft is that
+# it is not ready to be read. `--drafts` turns it on for one run, handy under `watch`.
+drafts = false
 
 [html]
 # How far to push heading levels down: a level-1 org heading becomes <h(1 + offset)>.

@@ -52,6 +52,14 @@ pub struct PageContext {
     pub date_iso: Option<String>,
     /// `#+FILETAGS:` split on `:`.
     pub tags: Vec<String>,
+    /// A short summary for listings: `#+DESCRIPTION:` when the page sets one, otherwise
+    /// its first paragraph. Empty only when the page has neither.
+    pub excerpt: String,
+    /// Words of prose, excluding code and example blocks.
+    pub word_count: usize,
+    /// Minutes to read at 200 words per minute, rounded up; at least 1 for a page with
+    /// any prose at all.
+    pub reading_time: usize,
     /// Every `#+KEYWORD:` in the file, keyed by lowercased name, so a template can use
     /// project-specific metadata this crate has never heard of.
     pub keywords: BTreeMap<String, String>,
@@ -375,6 +383,10 @@ pub const STARTER_LIST_TEMPLATE: &str = r#"<!DOCTYPE html>
 <li>
 {%- if post.date_iso %}<time datetime="{{ post.date_iso }}">{{ post.date_iso }}</time> {% endif %}
 <a href="{{ root }}{{ post.url }}">{{ post.title }}</a>
+{%- if post.excerpt %}
+<p class="excerpt">{{ post.excerpt | truncate(180) }}</p>
+{%- endif %}
+<span class="reading-time">{{ post.reading_time }} min read</span>
 </li>
 {%- endfor %}
 </ul>
@@ -424,6 +436,25 @@ fn add_filters(env: &mut Environment<'static>, base_url: &str) {
                 return Ok(path.to_string());
             }
             Ok(format!("{base}/{}", path.trim_start_matches('/')))
+        },
+    );
+
+    // `truncate`: shorten to at most N characters, on a word boundary, with an ellipsis.
+    //
+    // minijinja ships no truncate, and an excerpt is usually a whole first paragraph —
+    // so without this the only options in a listing are the full paragraph or nothing.
+    env.add_filter(
+        "truncate",
+        |text: &str, limit: Option<usize>| -> String {
+            let limit = limit.unwrap_or(160);
+            if text.chars().count() <= limit {
+                return text.to_string();
+            }
+            let head: String = text.chars().take(limit).collect();
+            // Cut at the last space so a word is never sliced in half; if there is no
+            // space at all, the hard cut is the only option.
+            let cut = head.rfind(char::is_whitespace).unwrap_or(head.len());
+            format!("{}…", head[..cut].trim_end())
         },
     );
 

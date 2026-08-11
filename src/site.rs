@@ -32,7 +32,14 @@ use crate::template::{
     GroupContext, NavItem, PageContext, Paginator, PaginatorPage, RenderContext, SiteContext,
     Templater,
 };
-use crate::util::{iso_date, output_path, output_url, relative_root, slugify};
+use crate::util::{
+    document_text, first_paragraph, is_draft, iso_date, output_path, output_url, relative_root,
+    slugify,
+};
+
+/// Reading speed for [`PageContext::reading_time`]. 200 wpm is the conventional figure
+/// for prose on screen.
+const WORDS_PER_MINUTE: usize = 200;
 
 /// A fully built page: source and output paths (relative to their roots) and its
 /// final templated HTML.
@@ -56,6 +63,8 @@ pub struct BuildOptions {
     pub strict: bool,
     /// Explicit config file, overriding `org-ssg.toml` in the source directory.
     pub config_path: Option<Utf8PathBuf>,
+    /// Include pages marked `#+DRAFT:`, overriding `build.drafts` when set.
+    pub drafts: bool,
 }
 
 /// Summary of a site build.
@@ -468,6 +477,9 @@ fn listing_context(listing: &Listing) -> PageContext {
         date: None,
         date_iso: None,
         tags: Vec::new(),
+        excerpt: String::new(),
+        word_count: 0,
+        reading_time: 0,
         keywords: Default::default(),
     }
 }
@@ -516,6 +528,15 @@ fn prepare_pages(
             parse(rel.as_path(), &source).with_context(|| format!("parsing {rel}"))
         })
         .collect::<Result<Vec<_>>>()?;
+
+    // Drop drafts before anything else sees them. Removing them here rather than at emit
+    // time means they are absent from listings, the nav and the symbol table too — so a
+    // link *to* a draft is reported as broken, which is exactly what it would be on the
+    // published site.
+    let docs: Vec<Document> = docs
+        .into_iter()
+        .filter(|d| config.build.drafts || !is_draft(&d.keywords))
+        .collect();
 
     // INDEX: collect every link target across the corpus.
     let mut symbols = SymbolTable::new();
@@ -692,11 +713,13 @@ pub const SYNTAX_STYLESHEET: &str = "syntax.css";
 /// `render_key` changed or that link into a changed file's targets; reuses the on-disk
 /// output of everything else; persists an updated cache manifest.
 pub fn build_site(src: &Utf8Path, out: &Utf8Path, opts: &BuildOptions) -> Result<SiteReport> {
-    let cfg = match &opts.config_path {
+    let mut cfg = match &opts.config_path {
         Some(path) => Config::load_file(path)?,
         None => Config::load(src)?,
     };
     cfg.validate()?;
+    // The flag turns drafts on; it never turns off a config that asked for them.
+    cfg.build.drafts |= opts.drafts;
 
     // Create the output directory up front so it can be recognised and excluded when it
     // lives inside the source tree.
@@ -1141,6 +1164,7 @@ fn is_top_level(output: &Utf8Path) -> bool {
 /// under its lowercased name, so a template can use metadata this crate has never heard
 /// of without the crate needing a release to support it.
 fn page_context(doc: &Document, output: &Utf8Path) -> PageContext {
+    let words = document_text(&doc.root).split_whitespace().count();
     let keyword = |name: &str| {
         doc.keywords
             .entries
@@ -1154,6 +1178,12 @@ fn page_context(doc: &Document, output: &Utf8Path) -> PageContext {
         source: doc.source_path.to_string(),
         date_iso: keyword("DATE").as_deref().and_then(iso_date),
         date: keyword("DATE"),
+        excerpt: keyword("DESCRIPTION")
+            .filter(|d| !d.trim().is_empty())
+            .or_else(|| first_paragraph(&doc.root))
+            .unwrap_or_default(),
+        word_count: words,
+        reading_time: words.div_ceil(WORDS_PER_MINUTE).max(usize::from(words > 0)),
         tags: keyword("FILETAGS")
             .unwrap_or_default()
             .split(':')
