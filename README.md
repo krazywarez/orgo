@@ -23,13 +23,19 @@ You need [Rust](https://rustup.rs) (1.88 or newer). Nothing else — syntax high
 its themes are compiled in.
 
 ```sh
+cargo install orgo
+```
+
+Or from a checkout, if you want to build the version you can read:
+
+```sh
 git clone https://github.com/krazywarez/orgo
 cd orgo
 cargo install --path .
 ```
 
-That puts an `orgo` command on your `PATH`. Full notes, including how to run it without
-installing anything: <https://krazywarez.github.io/orgo/install.html>
+Either way you get an `orgo` command on your `PATH`. Full notes, including how to run it
+without installing anything: <https://krazywarez.github.io/orgo/install.html>
 
 ## Your First Site
 
