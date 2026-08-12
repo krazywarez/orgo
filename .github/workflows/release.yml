@@ -30,10 +30,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Apple Silicon and Intel Macs, built natively on their own runners so neither
-          # is a cross-compile nobody has run.
+          # Apple Silicon and Intel Macs, each built natively on its own runner. The
+          # Intel label moves with the image: macos-13 was retired, and a job asking for
+          # a retired label does not fail — it sits queued until someone notices, which
+          # is how the v0.20.0 release spent fifteen minutes doing nothing.
           - { os: macos-latest, target: aarch64-apple-darwin }
-          - { os: macos-13, target: x86_64-apple-darwin }
+          - { os: macos-15-intel, target: x86_64-apple-darwin }
           # glibc for ordinary distributions, musl for containers and anything older than
           # the runner's glibc — a dynamically linked binary is the usual reason a
           # download does not run.
