@@ -77,6 +77,11 @@ const KNOWN_KEYWORDS: &[&str] = &[
     "TITLE", "AUTHOR", "DATE", "EMAIL", "LANGUAGE", "OPTIONS", "FILETAGS", "DESCRIPTION",
     "KEYWORDS", "CAPTION", "NAME", "ATTR_HTML", "RESULTS", "TBLFM", "INCLUDE", "TODO",
     "STARTUP", "SUBTITLE", "SETUPFILE", "MACRO", "PROPERTY", "HTML_HEAD", "EXCLUDE_TAGS",
+    // orgo's own keywords, each read by name: `SLUG` names the output file
+    // (`util::output_path`), `DRAFT` decides whether the page publishes at all
+    // (`util::is_draft`), and `TEMPLATE` picks the template (`config::page_template`).
+    // Leaving them out reported the corpus's most-used keyword as unrecognized.
+    "SLUG", "DRAFT", "TEMPLATE",
 ];
 /// Blocks with dedicated handling. Any *other* name renders as a special block — a div
 /// with that name holding parsed org — so an unlisted block is a note about what a corpus
