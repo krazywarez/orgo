@@ -1400,7 +1400,7 @@ fn collect_assets(
                 .strip_prefix(&base)
                 .map(|p| p.to_owned())
                 .unwrap_or_else(|_| abs.clone());
-            if rel.components().any(|c| c.as_str().starts_with('.')) {
+            if rel.components().any(|c| is_hidden(c.as_str())) {
                 continue;
             }
             assets.push(Asset { from: abs, rel });
@@ -1462,14 +1462,28 @@ fn excluded_dirs(src: &Utf8Path, config: &Config, out: Option<&Utf8Path>) -> Vec
 /// Is this source-relative path excluded from discovery?
 ///
 /// Dot-entries are skipped wholesale. That is the conventional rule for site generators,
+/// Is this path component a dot-entry that must not be published?
+///
+/// Dot-directories are excluded because a source directory is very often a git repository,
+/// and publishing `.git` — or `.env` — leaks a project's entire history alongside its
+/// homepage. `.well-known` is the exception the web actually defines (RFC 8615): it holds
+/// `security.txt`, ACME challenges, and other files whose entire purpose is to be served.
+/// Excluding it is how a deploy quietly deletes a site's security contact.
+fn is_hidden(component: &str) -> bool {
+    component.starts_with('.')
+        && component != "."
+        && component != ".."
+        && component != WELL_KNOWN
+}
+
+/// The one dot-directory the web expects to be published.
+const WELL_KNOWN: &str = ".well-known";
+
 /// and the reason is safety rather than tidiness: a source directory is very often a git
 /// repository, and publishing `.git` — or `.env` — is a way to leak a project's entire
 /// history alongside its homepage.
 fn is_excluded(rel: &Utf8Path, skip_dirs: &[Utf8PathBuf]) -> bool {
-    if rel
-        .components()
-        .any(|c| c.as_str().starts_with('.') && c.as_str() != "." && c.as_str() != "..")
-    {
+    if rel.components().any(|c| is_hidden(c.as_str())) {
         return true;
     }
     skip_dirs

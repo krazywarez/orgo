@@ -2463,3 +2463,39 @@ fn the_sitemap_can_be_disabled() {
 
     assert!(!out.join("sitemap.xml").exists(), "disabled means absent");
 }
+
+/// `.well-known` is the one dot-directory the web defines (RFC 8615): `security.txt`,
+/// ACME challenges, and other files whose whole purpose is to be served. Excluding it
+/// with the rest is how a deploy silently deletes a site's security contact — which is
+/// exactly what happened the first time this ran against a real server.
+#[test]
+fn well_known_is_published_but_other_dot_entries_are_not() {
+    let root = tmpdir("wellknown");
+    let src = root.join("src");
+    std::fs::create_dir_all(src.join(".well-known")).unwrap();
+    std::fs::create_dir_all(src.join(".git")).unwrap();
+    std::fs::create_dir_all(root.join("static/.well-known")).unwrap();
+    write_site(&src);
+    std::fs::write(src.join(".well-known/security.txt"), "Contact: mailto:a@b.c\n").unwrap();
+    std::fs::write(src.join(".git/config"), "[core]\n").unwrap();
+    std::fs::write(src.join(".env"), "SECRET=1\n").unwrap();
+    std::fs::write(root.join("static/.well-known/assetlinks.json"), "[]\n").unwrap();
+    std::fs::write(
+        src.join("orgo.toml"),
+        "[build]\nassets = [\"../static\"]\n",
+    )
+    .unwrap();
+    let out = root.join("out");
+    build(&src, &out);
+
+    assert!(
+        out.join(".well-known/security.txt").exists(),
+        "from the source directory"
+    );
+    assert!(
+        out.join(".well-known/assetlinks.json").exists(),
+        "and from an asset root"
+    );
+    assert!(!out.join(".git/config").exists(), ".git stays out");
+    assert!(!out.join(".env").exists(), ".env stays out");
+}
