@@ -113,6 +113,21 @@ Both zeros matter. Unresolved links are internal links pointing at nothing; diag
 are malformed org that degraded rather than failing. With =--strict= neither can reach
 this line, because either would have failed the build.
 
+* Do not publish the cache
+
+=<output>/.orgo-cache.json= is a build artefact that happens to live in the output
+directory, because it describes exactly that directory. Nothing breaks if it is served —
+it holds hashes and paths, not secrets — but it is not part of your site, so leave it
+behind:
+
+#+BEGIN_SRC sh
+rsync -r --delete-before --exclude '.orgo-cache.json' _site/ server:/var/www/example.com/
+#+END_SRC
+
+Anything that uploads a directory wholesale needs the same exclusion. A deploy that
+*deletes* it on the far side is worse than one that copies it: the next build then has no
+cache to reuse and re-renders everything.
+
 * Telling a search engine where things are
 
 A build with =site.base_url= set writes =sitemap.xml= at the site root, listing every
