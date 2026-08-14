@@ -20,5 +20,6 @@ pub mod resolve;
 pub mod serve;
 pub mod site;
 pub mod template;
+pub mod theme;
 pub mod util;
 pub mod watch;

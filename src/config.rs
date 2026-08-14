@@ -331,6 +331,14 @@ pub struct Site {
     pub description: String,
     /// `<html lang="…">` in the default layout.
     pub language: String,
+    /// A built-in theme name — see [`crate::theme::THEMES`] — written to the output root
+    /// as `theme.css` and linked by the built-in layout and the starter templates.
+    ///
+    /// Empty by default, which emits no stylesheet and leaves the HTML unstyled. A theme
+    /// is a convenience for a site that has not grown its own CSS yet, and defaulting
+    /// one on would restyle every existing site on upgrade and fight the stylesheets
+    /// people already ship as assets.
+    pub theme: String,
 }
 
 impl Default for Site {
@@ -340,6 +348,7 @@ impl Default for Site {
             base_url: String::new(),
             description: String::new(),
             language: "en".to_string(),
+            theme: String::new(),
         }
     }
 }
@@ -539,6 +548,14 @@ impl Config {
                 );
             }
         }
+        if !self.site.theme.is_empty() && crate::theme::theme_css(&self.site.theme).is_none() {
+            anyhow::bail!(
+                "unknown site.theme {:?}. Available: {} — or leave it empty for no \
+                 stylesheet",
+                self.site.theme,
+                crate::theme::available_themes().join(", ")
+            );
+        }
         if !self.site.base_url.is_empty() && self.site.base_url.ends_with('/') {
             anyhow::bail!(
                 "site.base_url must not end with a slash (got {:?}) — URLs are joined \
@@ -551,9 +568,12 @@ impl Config {
 }
 
 /// The starter config written by `orgo init`, and the documentation of record for
-/// what is configurable. Every value shown is the default, so deleting any line is safe.
-pub const STARTER_CONFIG: &str = r#"# orgo configuration. Every setting here is optional and shown at its default,
-# so you can delete any line you do not need — or the whole file.
+/// what is configurable. Every value shown is the default — except `site.theme`, which
+/// picks a stylesheet so a new site looks like something on its first build — so
+/// deleting any line is safe.
+pub const STARTER_CONFIG: &str = r#"# orgo configuration. Every setting here is optional and shown at its default — apart
+# from `theme`, noted below — so you can delete any line you do not need, or the whole
+# file.
 
 [site]
 title = "orgo site"
@@ -562,6 +582,12 @@ title = "orgo site"
 base_url = ""
 description = ""
 language = "en"
+# A built-in stylesheet, written to the output as theme.css: "plain" (readable defaults
+# to build your own CSS on), "blog" (serif prose, masthead, styled post lists), "wiki"
+# (wide and dense, contents in the margin, TODO states shown) or "docs" (a guide read in
+# order). The one line here that is not a default: the default is "", which emits no
+# stylesheet at all. Your own base.html can ignore theme.css and link whatever it likes.
+theme = "blog"
 
 [nav]
 # Which pages appear in the shared navigation:

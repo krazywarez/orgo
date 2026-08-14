@@ -48,7 +48,9 @@ Open <http://127.0.0.1:3000>. Edit `my-site/index.org`, save, and the page reloa
 own — that is the loop you will spend your time in.
 
 `init` writes a starter post, a page layout you can edit, and a config file with every
-setting explained in comments. It never overwrites a file you already have.
+setting explained in comments. It never overwrites a file you already have. It also picks
+one of the four built-in themes — `plain`, `blog`, `wiki`, `docs` — so the site is styled
+from the first build; change `theme` in `orgo.toml`, or empty it and write your own CSS.
 
 ## Org-Mode, Anywhere
 
@@ -78,6 +80,7 @@ Each of these is a few lines of config, and each has a page in the guide:
 | Tag pages, and an index of tags | [Collections](https://krazywarez.github.io/orgo/guide/03-collections.html) |
 | An RSS feed | [Collections](https://krazywarez.github.io/orgo/guide/03-collections.html) |
 | Numbered pages when a list gets long | [Collections](https://krazywarez.github.io/orgo/guide/03-collections.html) |
+| A built-in theme for a blog, a wiki or a doc site | [Configuration](https://krazywarez.github.io/orgo/guide/02-configuration.html) |
 | Your own design, in ordinary HTML templates | [Templates](https://krazywarez.github.io/orgo/guide/04-templates.html) |
 | Drafts that stay unpublished until you say so | [Authoring](https://krazywarez.github.io/orgo/guide/06-authoring.html) |
 | A table of contents on long posts | [Authoring](https://krazywarez.github.io/orgo/guide/06-authoring.html) |

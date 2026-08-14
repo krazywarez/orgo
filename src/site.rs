@@ -32,6 +32,7 @@ use crate::template::{
     GroupContext, NavItem, PageContext, Paginator, PaginatorPage, RenderContext, SiteContext,
     Templater,
 };
+use crate::theme;
 use crate::util::{
     document_text, first_paragraph, is_draft, iso_date, iso_time, option_enabled,
     output_path, output_url,
@@ -882,8 +883,10 @@ fn render_page(
     // Relative to the *output* path, since `#+SLUG:` can move a page between depths.
     let root = relative_root(&p.output);
     let stylesheet = format!("{root}{SYNTAX_STYLESHEET}");
+    let theme = theme_href(config, &root);
     let mut ctx = RenderContext::new(site, &p.context, &p.nav, &stylesheet, &root);
     ctx.body = &fragment;
+    ctx.theme = &theme;
     ctx.pages = pages;
     templater
         .render(&p.template, &ctx)
@@ -892,6 +895,20 @@ fn render_page(
 
 /// Site-root-relative name of the generated syntax stylesheet. Every page links to it.
 pub const SYNTAX_STYLESHEET: &str = "syntax.css";
+
+/// Site-root-relative name of the built-in theme's stylesheet, written only when
+/// `site.theme` names one.
+pub const THEME_STYLESHEET: &str = "theme.css";
+
+/// Where a page at `root` finds `theme.css` — empty when the site has no theme, which
+/// is how a template knows to link nothing at all.
+fn theme_href(config: &Config, root: &str) -> String {
+    if config.site.theme.is_empty() {
+        String::new()
+    } else {
+        format!("{root}{THEME_STYLESHEET}")
+    }
+}
 
 /// Site-root-relative name of the generated sitemap.
 pub const SITEMAP: &str = "sitemap.xml";
@@ -1132,7 +1149,9 @@ pub fn build_site(src: &Utf8Path, out: &Utf8Path, opts: &BuildOptions) -> Result
             let with_content = listing
                 .include_content
                 .then(|| entries_with_content(&listing.entries, &preps, &highlighter, &cfg));
+            let theme = theme_href(&cfg, &root);
             let mut ctx = RenderContext::new(&site, &page_ctx, &nav, &stylesheet, &root);
+            ctx.theme = &theme;
             ctx.pages = Some(with_content.as_deref().unwrap_or(&listing.entries));
             ctx.group = listing.group.as_ref();
             ctx.groups = &listing.groups;
@@ -1166,6 +1185,13 @@ pub fn build_site(src: &Utf8Path, out: &Utf8Path, opts: &BuildOptions) -> Result
     // (it is a few KB and depends only on the theme, which lives in the config hash).
     fs::write(out.join(SYNTAX_STYLESHEET), &syntax_css)
         .with_context(|| format!("writing {SYNTAX_STYLESHEET} under {out}"))?;
+
+    // The built-in theme, on the same terms: compiled in, written every build, and named
+    // in the config hash so switching themes re-renders the pages that link it.
+    if let Some(css) = theme::theme_css(&cfg.site.theme) {
+        fs::write(out.join(THEME_STYLESHEET), css)
+            .with_context(|| format!("writing {THEME_STYLESHEET} under {out}"))?;
+    }
 
     // A sitemap covers every page the build emits, authored and generated alike, so it is
     // written here rather than declared as a collection: a collection lists the pages it

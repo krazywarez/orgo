@@ -10,6 +10,9 @@ language = "en"
 # Left empty so the docs build with relative URLs and open from the filesystem. Set it to
 # your real origin to enable canonical links and feeds.
 base_url = ""
+# The built-in theme written for exactly this: a guide read in order, with a contents
+# block that matters. The site's own CSS is six lines of overrides on top of it.
+theme = "docs"
 
 [nav]
 # Explicit, because the header already links home: listing index.org here as well would
@@ -25,6 +28,8 @@ dir = "templates"
 # A dark theme, with code blocks styled dark in both colour schemes. syntax.css is
 # generated from a single syntect theme and cannot respond to prefers-color-scheme, so
 # the page CSS matches the theme rather than leaving code unreadable in one of them.
+# That match is style.css, which overrides the site theme's --orgo-code-* properties and
+# nothing else — the documented way to adjust a built-in theme instead of replacing it.
 theme = "base16-ocean.dark"
 
 [html]

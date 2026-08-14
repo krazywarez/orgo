@@ -10,7 +10,7 @@ use orgo::parser::parse;
 use orgo::config::{self, Config};
 use orgo::render::{self, render, Html, SyntectHighlighter};
 use orgo::resolve::ResolvedDoc;
-use orgo::site::{build_site, BuildOptions, SYNTAX_STYLESHEET};
+use orgo::site::{build_site, BuildOptions, SYNTAX_STYLESHEET, THEME_STYLESHEET};
 use orgo::template::{PageContext, RenderContext, SiteContext, Templater};
 
 #[derive(Parser)]
@@ -325,6 +325,13 @@ fn build_file(input: &Utf8Path, output: &Utf8Path) -> Result<()> {
     };
     let mut ctx = RenderContext::new(&site, &page_ctx, &[], SYNTAX_STYLESHEET, "");
     ctx.body = &fragment;
+    // The page and its stylesheets are written side by side here, so the link is a bare
+    // filename rather than a path back to a site root that does not exist.
+    ctx.theme = if config.site.theme.is_empty() {
+        ""
+    } else {
+        THEME_STYLESHEET
+    };
     // `#+TEMPLATE:` and `[[pages]]` apply here too, so `build one.org` and a whole-site
     // build put the same page through the same layout.
     let name = config::page_template(
@@ -339,5 +346,10 @@ fn build_file(input: &Utf8Path, output: &Utf8Path) -> Result<()> {
 
     let css = output.with_file_name(SYNTAX_STYLESHEET);
     fs::write(&css, css_text).with_context(|| format!("writing stylesheet {css}"))?;
+
+    if let Some(theme_css) = orgo::theme::theme_css(&config.site.theme) {
+        let path = output.with_file_name(THEME_STYLESHEET);
+        fs::write(&path, theme_css).with_context(|| format!("writing stylesheet {path}"))?;
+    }
     Ok(())
 }

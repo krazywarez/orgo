@@ -150,6 +150,20 @@ depth:
 URL of the generated =syntax.css=, relative to this page. Link it or code blocks are
 unstyled.
 
+** theme
+
+URL of =theme.css=, relative to this page — the [[file:02-configuration.org][built-in theme]] named by
+=site.theme=. Empty when there is none, which is the default, so guard it and link it
+*before* =stylesheet= or the theme's code colours would override the highlighter's:
+
+#+BEGIN_SRC html
+{% if theme %}<link rel="stylesheet" href="{{ theme }}">{% endif %}
+{% if stylesheet %}<link rel="stylesheet" href="{{ stylesheet }}">{% endif %}
+#+END_SRC
+
+A layout that ignores it is a layout with its own CSS, which is the point at which you
+have outgrown the setting.
+
 ** pages, group, groups, paginator
 
 Present on generated pages; see [[file:03-collections.org][Collections]]. =pages= is also
