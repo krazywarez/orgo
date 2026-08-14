@@ -1,6 +1,6 @@
 [package]
 name = "orgo"
-version = "0.20.2"
+version = "0.21.0"
 edition = "2021"
 description = "Org-mode static site generator that renders the org element tree straight to HTML"
 license = "0BSD"
