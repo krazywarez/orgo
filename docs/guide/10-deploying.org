@@ -14,8 +14,8 @@ Two differences from the build you run while writing:
   bad build fails rather than shipping.
 - No =--drafts=, so pages marked =#+DRAFT:= stay out.
 
-Everything in =_site= is the site: HTML, the generated =syntax.css=, and every asset
-copied from the source. There is no runtime, no server requirement and no build step
+Everything in =_site= is the site: HTML, the generated =syntax.css=, =theme.css= if the
+config names a [[file:02-configuration.org][theme]], and every asset copied from the source. There is no runtime, no server requirement and no build step
 downstream.
 
 * Set base_url for production

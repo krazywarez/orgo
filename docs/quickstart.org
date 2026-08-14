@@ -19,7 +19,7 @@ already has content is safe and additive.
 
 #+BEGIN_EXAMPLE
 my-site/
-  orgo.toml            every setting, at its default, commented
+  orgo.toml            every setting, commented — all at their defaults but `theme`
   index.org               the home page
   blog/first-post.org     a post, to show the collection working
   templates/

@@ -18,6 +18,7 @@ title = "orgo site"
 base_url = ""
 description = ""
 language = "en"
+theme = ""
 
 [nav]
 mode = "top-level"
@@ -52,6 +53,55 @@ Plus any number of =[[collections]]= blocks, documented in [[file:03-collections
 | =base_url= | ="" | Absolute origin, *no trailing slash*. |
 | =description= | ="" | Available as ={{ site.description }}=. |
 | =language= | ="en"= | Goes in =<html lang>= in the built-in layout. |
+| =theme= | ="" | A built-in stylesheet, written to the output as =theme.css=. |
+
+** theme
+
+Four themes are compiled into the binary. Name one and each build writes it to the
+output root as =theme.css=, which the built-in layout and the templates =orgo init=
+writes both link.
+
+| Theme | Shape | For |
+|-------+-------+-----|
+| ="plain"= | Narrow, system fonts, hairline rules. | Readable defaults to build your own CSS on. |
+| ="blog"= | Serif prose, a centred masthead, styled post lists. | Dated writing. |
+| ="wiki"= | Wide and dense, contents in the margin, TODO states as badges. | Notes, a reference site. |
+| ="docs"= | Narrow, a contents card, quote blocks as notes, =#+LEDE:=. | A guide read in order. |
+
+All four follow =prefers-color-scheme=, so a site gets a dark mode without a toggle, a
+setting or a line of JavaScript — and all four reflow from a 320px phone up, with tables
+and code blocks scrolling inside their own box rather than widening the page.
+
+The default is empty: no stylesheet is written and no page links one, so the output is
+unstyled HTML. That is deliberate — a site that already ships CSS of its own should not
+find a second stylesheet competing with it, and upgrading orgo should never restyle a
+site. An unknown name is an error listing the four.
+
+A theme styles the markup orgo already emits — headings, tags, TODO keywords, checkbox
+lists, footnotes, tables — plus the chrome the built-in layout puts around it. There is
+no theme-specific HTML, so switching or removing one touches no template.
+
+Every colour is a custom property on =:root=, named =--orgo-*=. To adjust rather than
+replace a theme, ship a stylesheet of your own as an asset, link it after =theme.css=,
+and redefine the handful you care about:
+
+#+BEGIN_SRC css
+:root {
+  --orgo-accent: #7a1fa2;
+  --orgo-measure: 46rem;
+}
+#+END_SRC
+
+Code /blocks/ are the one part a theme cannot make follow =prefers-color-scheme=:
+=syntax.css= is generated from a single syntect theme, so a theme's dark mode keeps its
+block surface light to stay readable against the default =InspiredGitHub=. Pair a dark
+=highlight.theme= with overrides of =--orgo-code-bg=, =--orgo-code-fg= and
+=--orgo-code-rule=. Those three colour blocks only — inline =~code~= follows the page's
+own scheme, so it stays legible whichever highlight theme you use. The documentation site
+does exactly this; its =style.css= is those three lines and nothing else.
+
+When you outgrow a theme, drop =theme= from the config and write =templates/base.html=
+against your own CSS. Nothing else changes.
 
 ** base_url
 

@@ -12,7 +12,7 @@ Changing any of this incompatibly requires a major version.
 | Stable | What that covers |
 |--------+------------------|
 | =orgo.toml= keys | Their names, types and meaning. |
-| Template context | =page=, =site=, =nav=, =root=, =pages=, =group=, =groups=, =paginator=, =stylesheet=, and the =absolute=, =rfc822= and =truncate= filters. |
+| Template context | =page=, =site=, =nav=, =root=, =pages=, =group=, =groups=, =paginator=, =stylesheet=, =theme=, and the =absolute=, =rfc822= and =truncate= filters. |
 | The CLI | Command names, flags and exit codes. |
 | URLs | How a source path becomes an output path, =#+SLUG:= included. |
 
@@ -41,6 +41,13 @@ notes every time, because your stylesheet is downstream of it.
 The class names the documentation names are the ones to write CSS against:
 =post-list=, =post-list-item=, =figure-number=, =table-number=, =section-number-N=,
 =footnote-ref=, =verbatim=, and the =on=/=off=/=trans= classes on checkbox items.
+
+** What a built-in theme looks like
+
+The names — =plain=, =blog=, =wiki=, =docs= — and the fact that the chosen one is written
+to =theme.css= are stable. Its CSS is not: a theme is a starting point that improves
+between releases, and a site that cannot afford that should copy the stylesheet it likes
+into its own assets and stop naming a theme.
 
 ** The Rust API
 

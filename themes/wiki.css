@@ -1,0 +1,275 @@
+/* orgo built-in theme: wiki
+ *
+ * A dense reference site: notes, a personal knowledge base, a manual. Wide and
+ * information-first rather than roomy — a table of contents parked in the margin on a
+ * large screen, compact headings with visible structure, tables and task lists styled
+ * because a wiki is mostly made of them, and org's TODO keywords shown as badges since
+ * in a notes site they are content rather than decoration.
+ *
+ * Every colour is a custom property on :root, so a stylesheet of your own loaded after
+ * this one can retheme the site by redefining a handful of values. */
+
+:root {
+  --orgo-ink: #1f2328;
+  --orgo-muted: #656d76;
+  --orgo-rule: #d8dee4;
+  --orgo-accent: #0969da;
+  --orgo-surface: #f6f8fa;
+  --orgo-bg: #ffffff;
+  --orgo-measure: 46rem;
+  --orgo-wide: 74rem;
+  --orgo-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --orgo-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  /* These three colour code *blocks* only; inline code follows the page. A block keeps
+     a light surface in both colour schemes because syntax.css is generated from one
+     syntect theme (`highlight.theme`, InspiredGitHub by default) and cannot follow
+     prefers-color-scheme. Pair a dark highlight theme with overrides of these three. */
+  --orgo-todo: #b02a37;
+  --orgo-done: #2c7a4b;
+  --orgo-code-bg: #f6f8fa;
+  --orgo-code-fg: #323232;
+  --orgo-code-rule: #d8dee4;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --orgo-ink: #e6edf3;
+    --orgo-muted: #8d96a0;
+    --orgo-rule: #30363d;
+    --orgo-accent: #6cb6ff;
+    --orgo-surface: #161b22;
+    --orgo-bg: #0d1117;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--orgo-bg);
+  color: var(--orgo-ink);
+  font: 15px/1.6 var(--orgo-font);
+  /* A bare URL or a long identifier must wrap, not widen the page on a phone. */
+  overflow-wrap: break-word;
+}
+
+/* Header ------------------------------------------------------------------- */
+
+body > header {
+  background: var(--orgo-surface);
+  border-bottom: 1px solid var(--orgo-rule);
+  padding: .7rem 1.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem 1.5rem;
+  align-items: baseline;
+}
+
+.site-title {
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--orgo-ink);
+  text-decoration: none;
+}
+
+body > header nav { display: flex; flex-wrap: wrap; gap: 1.1rem; font-size: .9rem; }
+body > header nav a { color: var(--orgo-muted); text-decoration: none; }
+body > header nav a:hover { color: var(--orgo-accent); text-decoration: underline; }
+
+/* Page body ---------------------------------------------------------------- */
+
+main {
+  max-width: var(--orgo-measure);
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+}
+
+h1 {
+  font-size: 1.8rem;
+  line-height: 1.25;
+  margin: 0 0 1rem;
+  padding-bottom: .4rem;
+  border-bottom: 1px solid var(--orgo-rule);
+}
+h2 {
+  font-size: 1.3rem;
+  margin: 2rem 0 .6rem;
+  padding-bottom: .25rem;
+  border-bottom: 1px solid var(--orgo-rule);
+}
+h3 { font-size: 1.05rem; margin: 1.5rem 0 .4rem; }
+h4, h5, h6 { font-size: .95rem; margin: 1.25rem 0 .4rem; }
+
+/* Section numbers, when html.section_numbers is on. */
+[class^="section-number-"] { color: var(--orgo-muted); font-weight: 400; }
+
+a { color: var(--orgo-accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+p.page-date { color: var(--orgo-muted); font-size: .9rem; margin-top: -.5rem; }
+
+p, ul, ol { margin: .6rem 0; }
+li { margin: .15rem 0; }
+
+img, video { max-width: 100%; height: auto; }
+
+figure { margin: 1.25rem 0; }
+figcaption { color: var(--orgo-muted); font-size: .85rem; margin-top: .35rem; }
+.figure-number, .table-number { font-weight: 600; }
+
+blockquote {
+  margin: 1rem 0;
+  padding: .1rem 0 .1rem 1rem;
+  border-left: 3px solid var(--orgo-rule);
+  color: var(--orgo-muted);
+}
+
+hr { border: 0; border-top: 1px solid var(--orgo-rule); margin: 1.75rem 0; }
+
+.center { text-align: center; }
+.verse { font-family: var(--orgo-mono); white-space: pre-wrap; }
+
+dt { font-weight: 600; margin-top: .5rem; }
+dd { margin: 0 0 0 1.5rem; color: var(--orgo-muted); }
+
+/* Code --------------------------------------------------------------------- */
+
+/* Inline code is prose furniture, so it follows the page rather than the code blocks. */
+code {
+  font: .875em/1.5 var(--orgo-mono);
+  background: var(--orgo-surface);
+  color: inherit;
+  border: 1px solid var(--orgo-rule);
+  padding: .05em .3em;
+  border-radius: 3px;
+}
+
+pre {
+  background: var(--orgo-code-bg);
+  color: var(--orgo-code-fg);
+  border: 1px solid var(--orgo-code-rule);
+  border-radius: 4px;
+  padding: .8rem 1rem;
+  font-size: .875rem;
+  overflow-x: auto;
+}
+
+pre code { background: none; color: inherit; border: 0; padding: 0; }
+
+/* Tables — a wiki lives in them, so they get zebra rows and a sticky-looking head. */
+
+table {
+  border-collapse: collapse;
+  margin: 1rem 0;
+  font-size: .9rem;
+  display: block;
+  overflow-x: auto;
+}
+caption { text-align: left; color: var(--orgo-muted); font-size: .85rem; padding-bottom: .35rem; }
+th, td { text-align: left; padding: .35rem .7rem; border: 1px solid var(--orgo-rule); }
+th { background: var(--orgo-surface); font-weight: 600; }
+tbody tr:nth-child(even) td { background: var(--orgo-surface); }
+
+/* Org-specific markup ------------------------------------------------------ */
+
+.tag {
+  font: .7rem/1.6 var(--orgo-mono);
+  color: var(--orgo-muted);
+  background: var(--orgo-surface);
+  border: 1px solid var(--orgo-rule);
+  border-radius: 3px;
+  padding: .05em .45em;
+  vertical-align: middle;
+}
+
+/* TODO state is content in a notes site, not decoration. */
+.todo, .done {
+  font: .7rem/1.6 var(--orgo-mono);
+  letter-spacing: .04em;
+  border-radius: 3px;
+  padding: .05em .45em;
+  vertical-align: middle;
+  color: #ffffff;
+}
+.todo { background: var(--orgo-todo); }
+.done { background: var(--orgo-done); }
+.priority { color: var(--orgo-todo); font-family: var(--orgo-mono); font-size: .8em; }
+
+time.timestamp { color: var(--orgo-muted); font-family: var(--orgo-mono); font-size: .9em; }
+time.inactive { opacity: .75; }
+
+/* Checkbox lists: the three org states, including `[-]`, which HTML has no input for.
+   The `[X]` marker is the bullet, so the list's own is dropped. */
+li.on, li.off, li.trans { list-style: none; }
+li.on { color: var(--orgo-muted); text-decoration: line-through; }
+li.trans { color: var(--orgo-muted); }
+
+.footnotes { margin-top: 2.5rem; font-size: .9rem; color: var(--orgo-muted); }
+.footnote-ref a { text-decoration: none; }
+
+/* Table of contents: in the margin once there is a margin to put it in ------ */
+
+nav.toc {
+  background: var(--orgo-surface);
+  border: 1px solid var(--orgo-rule);
+  border-radius: 4px;
+  padding: .6rem 1rem .8rem;
+  margin: 0 0 1.5rem;
+  font-size: .875rem;
+}
+nav.toc h2 {
+  font-size: .7rem;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: var(--orgo-muted);
+  margin: 0 0 .35rem;
+  padding: 0;
+  border: 0;
+}
+nav.toc ul { margin: 0; padding-left: 1rem; }
+nav.toc li { margin: .1rem 0; }
+
+@media (min-width: 62rem) {
+  main { max-width: var(--orgo-wide); }
+  /* Floated rather than gridded: the layout puts the contents block wherever it likes
+     in the document, and a float lands in the margin from any of those positions. */
+  nav.toc {
+    float: right;
+    width: 16rem;
+    margin: 0 0 1.5rem 2.5rem;
+  }
+  /* Prose keeps its measure even though the page is wide; the things that actually
+     want the extra room — code, tables, figures — are let out of it. */
+  main > * { max-width: var(--orgo-measure); }
+  main > pre, main > table, main > figure, main > nav.toc { max-width: none; }
+}
+
+/* Listing pages ------------------------------------------------------------ */
+
+ul.post-list { list-style: none; padding: 0; }
+ul.post-list > li { padding: .6rem 0; border-bottom: 1px solid var(--orgo-rule); }
+ul.post-list a { font-weight: 600; }
+ul.post-list time { color: var(--orgo-muted); font-family: var(--orgo-mono); font-size: .85rem; }
+p.excerpt { margin: .25rem 0; color: var(--orgo-muted); font-size: .9rem; }
+span.reading-time { font-size: .8rem; color: var(--orgo-muted); }
+
+ul.tag-list { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: .5rem 1.25rem; }
+
+nav.pagination {
+  display: flex;
+  gap: 1rem;
+  align-items: baseline;
+  margin-top: 1.5rem;
+  font-size: .9rem;
+  color: var(--orgo-muted);
+}
+
+/* Footer ------------------------------------------------------------------- */
+
+body > footer {
+  border-top: 1px solid var(--orgo-rule);
+  padding: 1.25rem 1.5rem;
+  color: var(--orgo-muted);
+  font-size: .85rem;
+  text-align: center;
+}

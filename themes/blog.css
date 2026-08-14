@@ -1,0 +1,298 @@
+/* orgo built-in theme: blog
+ *
+ * A personal site of dated writing. Serif prose at a narrow measure, a masthead rather
+ * than a toolbar, and listing pages — the blog index, a tag page, a feed's HTML
+ * counterpart — treated as first-class rather than as an afterthought.
+ *
+ * Every colour is a custom property on :root, so a stylesheet of your own loaded after
+ * this one can retheme the site by redefining a handful of values. */
+
+:root {
+  --orgo-ink: #23201d;
+  --orgo-muted: #6b645d;
+  --orgo-rule: #e5e0d8;
+  --orgo-accent: #9a3412;
+  --orgo-surface: #faf7f2;
+  --orgo-bg: #fdfcfa;
+  --orgo-measure: 36rem;
+  --orgo-font: Iowan Old Style, Charter, Palatino, Georgia, "Times New Roman", serif;
+  --orgo-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --orgo-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  /* These three colour code *blocks* only; inline code follows the page. A block keeps
+     a light surface in both colour schemes because syntax.css is generated from one
+     syntect theme (`highlight.theme`, InspiredGitHub by default) and cannot follow
+     prefers-color-scheme. Pair a dark highlight theme with overrides of these three. */
+  --orgo-todo: #b02a37;
+  --orgo-done: #2c7a4b;
+  --orgo-code-bg: #f5f2ec;
+  --orgo-code-fg: #323232;
+  --orgo-code-rule: #e5e0d8;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --orgo-ink: #e6e1da;
+    --orgo-muted: #a49c93;
+    --orgo-rule: #322e2a;
+    --orgo-accent: #f0a066;
+    --orgo-surface: #1b1917;
+    --orgo-todo: #f0909a;
+    --orgo-done: #74c795;
+    --orgo-bg: #141312;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--orgo-bg);
+  color: var(--orgo-ink);
+  font: 18px/1.7 var(--orgo-font);
+  -webkit-font-smoothing: antialiased;
+  /* A bare URL or a long identifier must wrap, not widen the page on a phone. */
+  overflow-wrap: break-word;
+}
+
+/* Masthead ----------------------------------------------------------------- */
+
+body > header {
+  max-width: var(--orgo-measure);
+  margin: 0 auto;
+  padding: 3rem 1.5rem 1.5rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .75rem;
+}
+
+.site-title {
+  font-size: 1.5rem;
+  font-weight: 400;
+  letter-spacing: .02em;
+  color: var(--orgo-ink);
+  text-decoration: none;
+}
+
+body > header nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1.5rem;
+  font: .8rem/1 var(--orgo-ui);
+  text-transform: uppercase;
+  letter-spacing: .1em;
+}
+body > header nav a { color: var(--orgo-muted); text-decoration: none; }
+body > header nav a:hover { color: var(--orgo-accent); }
+
+/* Page body ---------------------------------------------------------------- */
+
+main {
+  max-width: var(--orgo-measure);
+  margin: 0 auto;
+  padding: 2rem 1.5rem 5rem;
+}
+
+h1 {
+  font-size: 2.1rem;
+  font-weight: 400;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  margin: 0 0 .5rem;
+}
+h2 { font-size: 1.4rem; font-weight: 600; margin: 2.5rem 0 .75rem; }
+h3 { font-size: 1.15rem; font-weight: 600; margin: 2rem 0 .5rem; }
+h4, h5, h6 { font-size: 1rem; font-weight: 600; margin: 1.5rem 0 .5rem; }
+
+a { color: var(--orgo-accent); text-underline-offset: .15em; }
+
+/* The byline the built-in layout prints under the title. */
+p.page-date {
+  font: .8rem/1 var(--orgo-ui);
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: var(--orgo-muted);
+  margin: 0 0 2.5rem;
+}
+
+img, video { max-width: 100%; height: auto; }
+
+figure { margin: 2rem 0; }
+figcaption {
+  font: .85rem/1.5 var(--orgo-ui);
+  color: var(--orgo-muted);
+  margin-top: .5rem;
+  text-align: center;
+}
+.figure-number, .table-number { font-weight: 600; }
+
+blockquote {
+  margin: 2rem 0;
+  padding: 0 1.5rem;
+  border-left: 2px solid var(--orgo-accent);
+  font-style: italic;
+  color: var(--orgo-muted);
+}
+
+hr {
+  border: 0;
+  margin: 3rem auto;
+  width: 6rem;
+  border-top: 1px solid var(--orgo-rule);
+}
+
+.center { text-align: center; }
+.verse { font-family: var(--orgo-mono); font-size: .95rem; white-space: pre-wrap; }
+
+dt { font-weight: 600; margin-top: .75rem; }
+dd { margin: 0 0 0 1.5rem; }
+
+/* Code --------------------------------------------------------------------- */
+
+/* Inline code is prose furniture, so it follows the page rather than the code blocks. */
+code {
+  font: .85em/1.5 var(--orgo-mono);
+  background: var(--orgo-surface);
+  color: inherit;
+  padding: .1em .35em;
+  border-radius: 3px;
+}
+
+pre {
+  background: var(--orgo-code-bg);
+  color: var(--orgo-code-fg);
+  border: 1px solid var(--orgo-code-rule);
+  border-radius: 4px;
+  padding: 1rem 1.1rem;
+  font-size: .9rem;
+  line-height: 1.55;
+  overflow-x: auto;
+}
+
+pre code { background: none; color: inherit; padding: 0; }
+
+/* Tables ------------------------------------------------------------------- */
+
+table {
+  border-collapse: collapse;
+  margin: 2rem 0;
+  font: .95rem/1.5 var(--orgo-ui);
+  display: block;
+  overflow-x: auto;
+}
+caption { text-align: left; color: var(--orgo-muted); font-size: .9rem; padding-bottom: .5rem; }
+th, td { text-align: left; padding: .5rem .85rem; border-bottom: 1px solid var(--orgo-rule); }
+th {
+  font-size: .75rem;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--orgo-muted);
+}
+
+/* Org-specific markup ------------------------------------------------------ */
+
+.tag {
+  font: .7rem/1.6 var(--orgo-ui);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--orgo-muted);
+  background: var(--orgo-surface);
+  border: 1px solid var(--orgo-rule);
+  border-radius: 999px;
+  padding: .1em .7em;
+  vertical-align: middle;
+}
+
+.todo, .done { font: .7em/1 var(--orgo-mono); letter-spacing: .05em; }
+.todo { color: var(--orgo-todo); }
+.done { color: var(--orgo-done); }
+.priority { color: var(--orgo-muted); font-family: var(--orgo-mono); font-size: .8em; }
+
+time.timestamp { font: .9em/1 var(--orgo-ui); color: var(--orgo-muted); }
+
+li.on, li.trans { color: var(--orgo-muted); }
+li.on { text-decoration: line-through; }
+
+.footnotes {
+  margin-top: 4rem;
+  font-size: .9rem;
+  color: var(--orgo-muted);
+}
+.footnote-ref a { text-decoration: none; }
+
+/* Table of contents, from page.toc ----------------------------------------- */
+
+nav.toc {
+  border-top: 1px solid var(--orgo-rule);
+  border-bottom: 1px solid var(--orgo-rule);
+  padding: 1rem 0;
+  margin: 2rem 0 3rem;
+  font: .95rem/1.6 var(--orgo-ui);
+}
+nav.toc h2 {
+  font-size: .7rem;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: var(--orgo-muted);
+  margin: 0 0 .5rem;
+}
+nav.toc ul { margin: 0; padding-left: 1.1rem; }
+nav.toc li { margin: .15rem 0; }
+
+/* Listing pages ------------------------------------------------------------ */
+
+ul.post-list { list-style: none; padding: 0; margin: 2rem 0 0; }
+ul.post-list > li { padding: 1.75rem 0; border-bottom: 1px solid var(--orgo-rule); }
+ul.post-list > li:first-child { padding-top: 0; }
+ul.post-list time {
+  display: block;
+  font: .75rem/1 var(--orgo-ui);
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: var(--orgo-muted);
+  margin-bottom: .4rem;
+}
+ul.post-list a {
+  font-size: 1.3rem;
+  line-height: 1.3;
+  color: var(--orgo-ink);
+  text-decoration: none;
+}
+ul.post-list a:hover { color: var(--orgo-accent); }
+p.excerpt { margin: .5rem 0 .35rem; color: var(--orgo-muted); font-size: .95rem; }
+span.reading-time { font: .75rem/1 var(--orgo-ui); letter-spacing: .06em; color: var(--orgo-muted); }
+
+ul.tag-list {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: .75rem 1.25rem;
+  font: .95rem/1.6 var(--orgo-ui);
+}
+
+nav.pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  margin-top: 3rem;
+  font: .85rem/1 var(--orgo-ui);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--orgo-muted);
+}
+
+/* Footer ------------------------------------------------------------------- */
+
+body > footer {
+  max-width: var(--orgo-measure);
+  margin: 0 auto;
+  border-top: 1px solid var(--orgo-rule);
+  padding: 1.5rem;
+  font: .85rem/1.6 var(--orgo-ui);
+  color: var(--orgo-muted);
+  text-align: center;
+}

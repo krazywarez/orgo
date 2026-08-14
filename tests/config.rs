@@ -2499,3 +2499,113 @@ fn well_known_is_published_but_other_dot_entries_are_not() {
     assert!(!out.join(".git/config").exists(), ".git stays out");
     assert!(!out.join(".env").exists(), ".env stays out");
 }
+
+// ---------------------------------------------------------------------------
+// Built-in themes
+// ---------------------------------------------------------------------------
+
+/// A theme is one compiled-in stylesheet: named in the config, written to the output
+/// root, linked from every page at whatever depth that page sits.
+#[test]
+fn a_built_in_theme_is_written_once_and_linked_from_every_depth() {
+    let root = tmpdir("theme-site");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_site(&src);
+    std::fs::write(src.join("orgo.toml"), "[site]\ntheme = \"wiki\"\n").unwrap();
+    let out = root.join("out");
+    build(&src, &out);
+
+    let css = std::fs::read_to_string(out.join("theme.css")).expect("theme.css is written");
+    assert_eq!(
+        css,
+        orgo::theme::theme_css("wiki").unwrap(),
+        "verbatim, not a rebuilt approximation of it"
+    );
+
+    assert!(
+        page(&out, "index.html").contains("<link rel=\"stylesheet\" href=\"theme.css\">"),
+        "a root page links it directly"
+    );
+    assert!(
+        page(&out, "blog/post.html").contains("<link rel=\"stylesheet\" href=\"../theme.css\">"),
+        "a nested page reaches back up to it"
+    );
+}
+
+/// The theme has to come before `syntax.css`, or a theme's `pre code` colour would
+/// override the highlighter's and code blocks would render in one flat colour.
+#[test]
+fn the_theme_is_linked_ahead_of_the_syntax_stylesheet() {
+    let root = tmpdir("theme-order");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_site(&src);
+    std::fs::write(src.join("orgo.toml"), "[site]\ntheme = \"docs\"\n").unwrap();
+    let out = root.join("out");
+    build(&src, &out);
+
+    let home = page(&out, "index.html");
+    let theme = home.find("theme.css").expect("theme link");
+    let syntax = home.find("syntax.css").expect("syntax link");
+    assert!(theme < syntax, "theme first, highlighting on top of it: {home}");
+}
+
+/// No theme is the default. An existing site upgrading must not find itself restyled,
+/// and a site with a stylesheet of its own must not have a second one competing with it.
+#[test]
+fn no_theme_is_the_default_and_emits_no_stylesheet() {
+    let root = tmpdir("theme-none");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_site(&src);
+    let out = root.join("out");
+    build(&src, &out);
+
+    assert!(!out.join("theme.css").exists(), "nothing to write");
+    assert!(
+        !page(&out, "index.html").contains("theme.css"),
+        "and nothing to link"
+    );
+}
+
+/// A misspelled theme name would otherwise emit an unstyled site with no complaint,
+/// which looks exactly like the theme setting doing nothing.
+#[test]
+fn an_unknown_site_theme_is_rejected_with_the_available_ones() {
+    let root = tmpdir("theme-unknown");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_site(&src);
+    std::fs::write(src.join("orgo.toml"), "[site]\ntheme = \"blogg\"\n").unwrap();
+
+    let err = build_site(&src, &root.join("out"), &BuildOptions::default())
+        .expect_err("unknown theme must fail");
+    let message = format!("{err:#}");
+    assert!(message.contains("blogg"), "names the bad theme: {message}");
+    for name in orgo::theme::available_themes() {
+        assert!(message.contains(name), "lists {name}: {message}");
+    }
+}
+
+/// Switching themes changes every page's `<head>`, so every page has to be re-rendered.
+/// The theme name lives in the config hash, which is what makes that happen.
+#[test]
+fn switching_the_theme_re_renders_the_pages_that_link_it() {
+    let root = tmpdir("theme-switch");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_site(&src);
+    std::fs::write(src.join("orgo.toml"), "[site]\ntheme = \"plain\"\n").unwrap();
+    let out = root.join("out");
+    build(&src, &out);
+
+    std::fs::write(src.join("orgo.toml"), "[site]\ntheme = \"blog\"\n").unwrap();
+    let report = build(&src, &out);
+    assert!(report.skipped.is_empty(), "no page may keep the old head");
+    assert_eq!(
+        std::fs::read_to_string(out.join("theme.css")).unwrap(),
+        orgo::theme::theme_css("blog").unwrap(),
+        "and the stylesheet on disk is the new one"
+    );
+}

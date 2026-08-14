@@ -90,6 +90,9 @@ const BASE_TEMPLATE: &str = r##"<!DOCTYPE html>
 {%- if page.description %}
 <meta name="description" content="{{ page.description }}">
 {%- endif %}
+{%- if theme %}
+<link rel="stylesheet" href="{{ theme }}">
+{%- endif %}
 {%- if stylesheet %}
 <link rel="stylesheet" href="{{ stylesheet }}">
 {%- endif %}
@@ -267,6 +270,7 @@ impl Templater {
             body => ctx.body,
             nav => ctx.nav,
             stylesheet => ctx.stylesheet,
+            theme => ctx.theme,
             root => ctx.root,
             pages => ctx.pages,
             group => ctx.group,
@@ -338,6 +342,9 @@ pub struct RenderContext<'a> {
     pub nav: &'a [NavItem],
     /// URL of the syntax stylesheet, relative to this page.
     pub stylesheet: &'a str,
+    /// Path to the built-in theme's `theme.css`, relative to this page — empty when
+    /// `site.theme` names no theme, which is the default.
+    pub theme: &'a str,
     /// `../`-prefix back to the site root from this page.
     pub root: &'a str,
     /// The pages this listing shows, or every page when `expose_page_list` is on.
@@ -366,6 +373,9 @@ impl<'a> RenderContext<'a> {
             body: "",
             nav,
             stylesheet,
+            // Assigned after construction, like `body`: most callers have no theme, and
+            // an empty one is exactly "link no theme stylesheet".
+            theme: "",
             root,
             pages: None,
             group: None,
@@ -383,6 +393,9 @@ pub const STARTER_TAGS_TEMPLATE: &str = r#"<!DOCTYPE html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{ page.title }} &middot; {{ site.title }}</title>
+{%- if theme %}
+<link rel="stylesheet" href="{{ theme }}">
+{%- endif %}
 {%- if stylesheet %}
 <link rel="stylesheet" href="{{ stylesheet }}">
 {%- endif %}
@@ -418,6 +431,9 @@ pub const STARTER_LIST_TEMPLATE: &str = r#"<!DOCTYPE html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{ page.title }} &middot; {{ site.title }}</title>
+{%- if theme %}
+<link rel="stylesheet" href="{{ theme }}">
+{%- endif %}
 {%- if stylesheet %}
 <link rel="stylesheet" href="{{ stylesheet }}">
 {%- endif %}
