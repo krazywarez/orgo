@@ -294,13 +294,7 @@ fn build_file(input: &Utf8Path, output: &Utf8Path) -> Result<()> {
     let config = Config::load(dir)?;
     config.validate()?;
     let templater = Templater::load(Some(&dir.join(&config.templates.dir)), &config.site.base_url)?;
-    let css_text = render::syntax_css(&config.highlight.theme).ok_or_else(|| {
-        anyhow::anyhow!(
-            "unknown highlight.theme {:?}. Available: {}",
-            config.highlight.theme,
-            render::available_themes().join(", ")
-        )
-    })?;
+    let css_text = render::syntax_stylesheet(&config.highlight)?;
 
     let site = SiteContext {
         title: config.site.title.clone(),

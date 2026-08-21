@@ -19,9 +19,10 @@
   --orgo-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --orgo-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
   /* These three colour code *blocks* only; inline code follows the page. A block keeps
-     a light surface in both colour schemes because syntax.css is generated from one
-     syntect theme (`highlight.theme`, InspiredGitHub by default) and cannot follow
-     prefers-color-scheme. Pair a dark highlight theme with overrides of these three. */
+     a light surface in both colour schemes, because syntax.css is coloured by
+     `highlight.theme` and that default (InspiredGitHub) is light. To let blocks follow
+     prefers-color-scheme, set `highlight.theme_dark` to a dark theme and override these
+     three in a dark query of your own. */
   --orgo-todo: #b02a37;
   --orgo-done: #2c7a4b;
   --orgo-code-bg: #f5f2ec;
