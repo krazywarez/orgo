@@ -3,10 +3,9 @@
 Read the content below for the release process.
 
 ** Before the first publish
-#+begin_src sh
-cargo login          # a crates.io token, once per machine
-cargo publish --dry-run
-#+end_src
+Nothing to install and no token to store. The release workflow mints a short-lived
+crates.io token with OIDC, configured on crates.io against this repository, the
+=release.yml= workflow file and the =crates-io= environment that job runs in.
 
 =repository= and =homepage= in =Cargo.toml= point at GitHub and at the documentation site
 on Pages.
@@ -32,16 +31,20 @@ on Pages.
    git push && git push --tags
    #+end_src
 
-5. Publish the crate.
+5. The tag push is the release. It builds binaries for macOS (arm64 and x86_64) and
+   Linux (gnu and musl), opens a /draft/ GitHub release with them attached, and runs
+   =cargo publish --locked= — there is nothing to publish by hand, and running
+   =cargo publish= locally now only fails on a version crates.io already has.
 
-   #+begin_src sh
-   cargo publish
-   #+end_src
+   Publishing is the one step that cannot be undone: a version can be yanked but never
+   replaced. The publish job runs in the =crates-io= environment so it can be held —
+   add a required reviewer to that environment in the repository settings and a tag
+   push waits for a human before it reaches crates.io.
 
-   This is irreversible: a published version can be yanked but never replaced.
+   A release that fails halfway is re-run from the Actions tab: the workflow takes the
+   tag to build as an input, so it does not need a second tag.
 
-6. Finish the GitHub release. Pushing the tag builds binaries for macOS (arm64 and
-   x86_64) and Linux (gnu and musl) and opens a /draft/ release with them attached.
+6. Write the release notes and publish the draft.
 
 ** If a release goes wrong
 Yank rather than delete, and ship a fix as a new version:
