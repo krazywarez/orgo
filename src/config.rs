@@ -419,6 +419,11 @@ pub struct Highlight {
     /// `base16-ocean.light`. Highlighting emits CSS classes, and this theme is what the
     /// generated `syntax.css` colours them with.
     pub theme: String,
+    /// A second syntect theme for readers whose system asks for dark mode. `syntax.css`
+    /// then carries both, each behind its own `prefers-color-scheme` query, so one
+    /// stylesheet serves both schemes — see [`crate::render::syntax_stylesheet`]. Empty,
+    /// the default, means `theme` colours every reader whatever their scheme.
+    pub theme_dark: String,
 }
 
 impl Default for Highlight {
@@ -426,6 +431,7 @@ impl Default for Highlight {
         Highlight {
             syntaxes_dir: Utf8PathBuf::from("syntaxes"),
             theme: "InspiredGitHub".to_string(),
+            theme_dark: String::new(),
         }
     }
 }
@@ -617,6 +623,9 @@ expose_page_list = false
 # A syntect theme name: InspiredGitHub, Solarized (dark), base16-ocean.dark,
 # base16-eighties.dark, base16-mocha.dark, base16-ocean.light.
 theme = "InspiredGitHub"
+# A second theme for readers in dark mode. Set it and syntax.css carries both themes,
+# each behind its own prefers-color-scheme query. Empty means `theme` colours everyone.
+theme_dark = ""
 # Extra .sublime-syntax files for languages neither syntect nor orgo bundles.
 syntaxes_dir = "syntaxes"
 

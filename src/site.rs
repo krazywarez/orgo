@@ -975,13 +975,7 @@ pub fn build_site(src: &Utf8Path, out: &Utf8Path, opts: &BuildOptions) -> Result
 
     let templater = Templater::load(Some(&src.join(&cfg.templates.dir)), &cfg.site.base_url)?;
     check_page_templates(&templater, &preps)?;
-    let syntax_css = render::syntax_css(&cfg.highlight.theme).ok_or_else(|| {
-        anyhow::anyhow!(
-            "unknown highlight.theme {:?}. Available: {}",
-            cfg.highlight.theme,
-            render::available_themes().join(", ")
-        )
-    })?;
+    let syntax_css = render::syntax_stylesheet(&cfg.highlight)?;
 
     // The global hash classes (spec §4.1): a change in any invalidates the site. The
     // config hash is combined with a site-structure hash covering the global chrome each

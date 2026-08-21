@@ -30,6 +30,7 @@ expose_page_list = false
 
 [highlight]
 theme = "InspiredGitHub"
+theme_dark = ""
 syntaxes_dir = "syntaxes"
 
 [build]
@@ -92,13 +93,14 @@ and redefine the handful you care about:
 }
 #+END_SRC
 
-Code /blocks/ are the one part a theme cannot make follow =prefers-color-scheme=:
-=syntax.css= is generated from a single syntect theme, so a theme's dark mode keeps its
-block surface light to stay readable against the default =InspiredGitHub=. Pair a dark
-=highlight.theme= with overrides of =--orgo-code-bg=, =--orgo-code-fg= and
-=--orgo-code-rule=. Those three colour blocks only — inline =~code~= follows the page's
-own scheme, so it stays legible whichever highlight theme you use. The documentation site
-does exactly this; its =style.css= is those three lines and nothing else.
+Code /blocks/ are the one part a built-in theme leaves light in dark mode: =syntax.css=
+is coloured by =highlight.theme=, and that default is a light theme. Two pieces make a
+block follow =prefers-color-scheme= — =highlight.theme_dark= for the tokens, and
+=--orgo-code-bg=, =--orgo-code-fg= and =--orgo-code-rule= for the surface under them.
+Set both, or neither and blocks stay light in both schemes. Those three properties
+colour blocks only — inline =~code~= follows the page's own scheme, so it stays legible
+whichever highlight theme you use. The documentation site keeps a dark surface in both
+schemes instead; its =style.css= is those three lines and nothing else.
 
 When you outgrow a theme, drop =theme= from the config and write =templates/base.html=
 against your own CSS. Nothing else changes.
@@ -223,11 +225,33 @@ adding a post a one-page rebuild.
 | Key | Default | Meaning |
 |-----+---------+---------|
 | =theme= | ="InspiredGitHub"= | A syntect theme name. |
+| =theme_dark= | =""= | A second theme for readers in dark mode. |
 | =syntaxes_dir= | ="syntaxes"= | Extra =.sublime-syntax= files. |
 
 Any theme syntect ships: =InspiredGitHub=, =Solarized (dark)=, =Solarized (light)=,
 =base16-ocean.dark=, =base16-ocean.light=, =base16-eighties.dark=, =base16-mocha.dark=.
 An unknown name is an error listing the valid ones.
+
+=theme_dark= is off by default, and one theme colours every reader. Name a second one and
+=syntax.css= carries both, each behind the =prefers-color-scheme= query it belongs to, so
+a reader's system picks the colours — one stylesheet, no JavaScript, nothing extra for a
+layout to link:
+
+#+BEGIN_SRC toml
+[highlight]
+theme = "InspiredGitHub"
+theme_dark = "base16-ocean.dark"
+#+END_SRC
+
+Only the token colours change with the scheme. The surface a block sits on is the page's,
+so give your dark mode a dark =pre= background — a dark theme's colours are chosen for
+one — with =--orgo-code-bg= under a built-in theme, or your own CSS.
+
+The two themes are separated rather than stacked because they name different scopes: a
+light theme's =.source.python .keyword= outranks a dark theme's =.keyword=, so appending
+one to the other would leave light colours on some tokens. The cost of the separation is
+that a browser too old to know =prefers-color-scheme= matches neither query and shows
+code unhighlighted. Leaving =theme_dark= empty keeps the unconditional rules of before.
 
 Highlighting emits *CSS classes*, never inline styles, so themes live in a stylesheet.
 Each build writes =syntax.css= into the output and every page links it.

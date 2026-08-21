@@ -119,6 +119,44 @@ pub fn available_themes() -> Vec<&'static str> {
     theme_set().themes.keys().map(String::as_str).collect()
 }
 
+/// The whole stylesheet a build writes: `highlight.theme`'s rules, and — when
+/// `highlight.theme_dark` is set — a second theme's, each behind the
+/// `prefers-color-scheme` query it belongs to. One file, both schemes, no JavaScript and
+/// nothing extra for a layout to link.
+///
+/// The two themes are *separated* rather than stacked, because stacking does not work:
+/// syntect writes a rule per scope its theme names, and the themes name different ones.
+/// A light theme's language-specific selector (`.source.python .keyword`) outranks a
+/// dark theme's plain `.keyword`, so a dark theme appended after a light one would leave
+/// light colours on some tokens — the half-themed look this setting exists to avoid.
+/// The cost is that a browser too old to know `prefers-color-scheme` matches neither
+/// query and renders code unhighlighted; a site that sets one theme is untouched by this
+/// and keeps its unconditional rules.
+///
+/// Only token colours change with the scheme. A code block's *surface* is the page's,
+/// set by whatever stylesheet the layout links, so a dark theme needs a dark background
+/// there to sit on.
+pub fn syntax_stylesheet(cfg: &crate::config::Highlight) -> anyhow::Result<String> {
+    let light = theme_css_or_error(&cfg.theme, "highlight.theme")?;
+    if cfg.theme_dark.is_empty() {
+        return Ok(light);
+    }
+    let dark = theme_css_or_error(&cfg.theme_dark, "highlight.theme_dark")?;
+    Ok(format!(
+        "@media (prefers-color-scheme: light) {{\n{light}}}\n\n\
+         @media (prefers-color-scheme: dark) {{\n{dark}}}\n"
+    ))
+}
+
+fn theme_css_or_error(theme: &str, key: &str) -> anyhow::Result<String> {
+    syntax_css(theme).ok_or_else(|| {
+        anyhow::anyhow!(
+            "unknown {key} {theme:?}. Available: {}",
+            available_themes().join(", ")
+        )
+    })
+}
+
 /// The v1 highlighter: syntect tokenizing to CSS-class spans (spec §3.2, §4.2). A block
 /// whose language syntect does not know falls back to escaped `<pre><code>`.
 pub struct SyntectHighlighter {

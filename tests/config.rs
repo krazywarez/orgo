@@ -381,6 +381,65 @@ fn an_unknown_highlight_theme_is_rejected_with_the_available_ones() {
     );
 }
 
+/// Highlighting emits classes, so a dark reading of a page is a second set of colours
+/// for them — not a second stylesheet the layout has to know to link. Each theme is
+/// behind its own query: the two name different scopes, and a light theme's
+/// language-specific selectors would outrank a dark theme's plain ones if both applied.
+#[test]
+fn a_dark_highlight_theme_is_written_into_the_same_stylesheet() {
+    let root = tmpdir("theme-dark");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_site(&src);
+    std::fs::write(
+        src.join("orgo.toml"),
+        "[highlight]\ntheme = \"InspiredGitHub\"\ntheme_dark = \"base16-ocean.dark\"\n",
+    )
+    .unwrap();
+    let out = root.join("out");
+    build(&src, &out);
+
+    let css = std::fs::read_to_string(out.join("syntax.css")).expect("syntax.css");
+    let light = css
+        .find("@media (prefers-color-scheme: light)")
+        .expect("the light theme is behind a scheme query");
+    let dark = css
+        .find("@media (prefers-color-scheme: dark)")
+        .expect("the dark theme is behind a scheme query");
+    assert!(light < dark, "light first, dark second: {css:.200}");
+    assert!(
+        css[..dark].contains(".comment") && css[dark..].contains("Base16 Ocean Dark"),
+        "each theme's rules sit inside its own query"
+    );
+    assert!(
+        !css[dark..].contains("@media (prefers-color-scheme: light)"),
+        "the queries are siblings, not nested"
+    );
+}
+
+/// The same mystery as an unknown `theme`, and it must name the key that is wrong —
+/// the two differ only in which scheme they colour.
+#[test]
+fn an_unknown_dark_highlight_theme_is_rejected_by_name() {
+    let root = tmpdir("theme-dark-bad");
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    write_site(&src);
+    std::fs::write(
+        src.join("orgo.toml"),
+        "[highlight]\ntheme_dark = \"nope\"\n",
+    )
+    .unwrap();
+
+    let err = build_site(&src, &root.join("out"), &BuildOptions::default())
+        .expect_err("unknown dark theme must fail");
+    let message = format!("{err:#}");
+    assert!(
+        message.contains("highlight.theme_dark") && message.contains("nope"),
+        "names the key and the bad theme: {message}"
+    );
+}
+
 // ---------------------------------------------------------------------------
 // Discovery
 // ---------------------------------------------------------------------------
