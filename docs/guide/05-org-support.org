@@ -167,6 +167,7 @@ broken.
 | =#+TEMPLATE:= | The layout this page renders through. |
 | =#+OPTIONS:= | Per-file export switches. |
 | =#+CAPTION:=, =#+ATTR_HTML:= | Attach to the image *directly* below them — a blank line in between attaches to nothing, as in org. A captioned image is numbered =Figure N:=. |
+| =#+TBLFM:= | Kept inert, and that matches org: the HTML exporter does not recalculate formulas either, so both emit the cells as written. Recalculate in Emacs (=C-c C-c=) to change them. |
 
 Every other =#+KEYWORD:= is available to templates as
 ={{ page.keywords.that_keyword }}=, so metadata orgo has never heard of still reaches
@@ -180,7 +181,6 @@ a build.
 | Construct | What happens |
 |-----------+--------------|
 | Babel execution, =:results= | The source block renders as code. A checked-in =#+RESULTS:= block is *dropped*. |
-| =#+TBLFM:= | Inert. The table renders with the values as written. |
 | =#+INCLUDE:= | Never expanded, and *reported*: the build prints =file:line: `#+INCLUDE: …` is not expanded=, so a page is never quietly missing content. =--strict= makes it a failure. |
 | LaTeX, MathJax | Survives as the literal text you typed. |
 | Macros ={{{name}}}=, radio targets | Literal text. |

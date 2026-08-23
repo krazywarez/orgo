@@ -258,7 +258,11 @@ impl Audit {
                         "CAPTION" | "NAME" | "ATTR_HTML" => {
                             self.count(Scope::In, "affiliated keyword", at)
                         }
-                        "TBLFM" => self.count(Scope::Out, "table formula (#+TBLFM:)", at),
+                        // Not a gap: org's HTML exporter does not recalculate `#+TBLFM:`
+                        // either, so the cells as written are what both exporters emit.
+                        // `fixtures/tblfm.org` holds the oracle to that (`tests/oracle.rs`).
+                        // Unlike `#+INCLUDE:`, nothing is lost by leaving it inert.
+                        "TBLFM" => self.count(Scope::In, "table formula (#+TBLFM:)", at),
                         "INCLUDE" => self.count(Scope::Out, "#+INCLUDE:", at),
                         "RESULTS" => self.count(Scope::Out, "babel results block", at),
                         "TODO" => self.count(Scope::Out, "#+TODO: keyword sequence", at),
