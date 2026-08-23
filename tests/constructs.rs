@@ -1,10 +1,10 @@
-//! Golden-file coverage of the v1 scope line (README §"v1 scope").
+//! Golden-file coverage of the scope line `docs/guide/05-org-support.org` draws.
 //!
 //! Two halves, and the second is the point:
 //!
-//! - **IN** — every construct the v1 scope claims gets an element-tree snapshot (parser
+//! - **IN** — every construct the guide claims gets an element-tree snapshot (parser
 //!   correctness) and a rendered-HTML snapshot (renderer correctness).
-//! - **OUT** — every construct the v1 scope explicitly excludes gets an assertion that it
+//! - **OUT** — every construct the guide explicitly excludes gets an assertion that it
 //!   *degrades predictably*: parsed and ignored, content preserved where that is the
 //!   honest fallback, never a crash and never a half-rendered artifact.
 //!
@@ -34,7 +34,7 @@ fn render_fixture(name: &str) -> String {
 }
 
 // ---------------------------------------------------------------------------
-// IN: the constructs v1 promises to handle
+// IN: the constructs the guide promises to handle
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -180,7 +180,7 @@ fn unknown_source_language_falls_back_to_plain_code() {
 }
 
 // ---------------------------------------------------------------------------
-// OUT: the constructs v1 explicitly excludes must degrade, not explode
+// OUT: the constructs the guide explicitly excludes must degrade, not explode
 // ---------------------------------------------------------------------------
 
 /// The whole OUT fixture parses and renders. This is the crash gate.
@@ -222,7 +222,7 @@ fn table_formulas_are_inert() {
     );
 }
 
-/// LaTeX, macros and radio targets have no v1 semantics, so they survive as the literal
+/// LaTeX, macros and radio targets have no orgo semantics, so they survive as the literal
 /// text the author typed — lossless, and obviously unhandled to a reader.
 #[test]
 fn latex_macros_and_radio_targets_stay_literal() {

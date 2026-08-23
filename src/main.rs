@@ -90,8 +90,8 @@ enum Command {
         /// Output directory to remove.
         output: Utf8PathBuf,
     },
-    /// Audit a corpus: report which org constructs it uses and how they land against
-    /// the v1 scope line. Reports names, counts and locations — never document text.
+    /// Audit a corpus: report which org constructs it uses and how each one lands.
+    /// Reports names, counts and locations — never document text.
     Audit {
         /// Source directory (or single `.org` file) to audit.
         input: Utf8PathBuf,

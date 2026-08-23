@@ -8,12 +8,13 @@
 //!    and its cost must be cache-skippable (spec §4.2). Emit CSS classes, not inline
 //!    styles, so themes live in the stylesheet (spec §3.2).
 //!
-//! Renders the v1 IN set: headings (always anchored, with TODO keyword, priority and
-//! tags), paragraphs, plain lists (unordered/ordered/description, nested, with
-//! checkboxes), tables, source blocks (syntect-highlighted), example/quote/center
-//! blocks, HTML export blocks, horizontal rules, images and captioned figures,
-//! footnotes, timestamps, and inline markup. Out-of-scope elements (generic drawers,
-//! comments, stray keywords, non-HTML export blocks) render to nothing.
+//! Renders the supported set (`docs/guide/05-org-support.org`): headings (always
+//! anchored, with TODO keyword, priority and tags), paragraphs, plain lists
+//! (unordered/ordered/description, nested, with checkboxes), tables, source blocks
+//! (syntect-highlighted), example/quote/center blocks, HTML export blocks, horizontal
+//! rules, images and captioned figures, footnotes, timestamps, and inline markup.
+//! Out-of-scope elements (generic drawers, comments, stray keywords, non-HTML export
+//! blocks) render to nothing.
 
 use std::collections::HashMap;
 use std::sync::OnceLock;
@@ -463,7 +464,7 @@ impl Renderer<'_> {
                 out.push_str("</div>\n");
             }
             // An `html` export block is verbatim output by definition; every other
-            // backend is out of scope and drops (README §OUT).
+            // backend is out of scope and drops (§"Not supported").
             Element::ExportBlock { backend, raw } => {
                 if backend.eq_ignore_ascii_case("html") {
                     out.push_str(raw);
