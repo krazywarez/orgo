@@ -816,3 +816,24 @@ fn audit_counts_table_formulas_as_in_scope() {
         "a #+TBLFM: table orgo renders exactly as Emacs does must not read as a gap:\n{line}"
     );
 }
+
+/// A block name with no dedicated handling is a special block, which org itself renders
+/// as a div carrying the name — `fixtures/blocks.org` holds `#+BEGIN_NOTE` and is in the
+/// Emacs oracle. So it is neither out of scope nor a `???` blind spot.
+#[test]
+fn audit_counts_special_blocks_as_in_scope() {
+    let report = audit_fixture("blocks.org");
+    let line = report
+        .lines()
+        .find(|l| l.contains("special block"))
+        .expect("the NOTE block is counted as a special block");
+    assert!(
+        line.starts_with("IN "),
+        "a block orgo renders exactly as Emacs does must not read as a gap:\n{line}"
+    );
+    let flagged: Vec<&str> = report.lines().filter(|l| l.starts_with("???")).collect();
+    assert!(
+        flagged.is_empty(),
+        "no block name is unrecognised — every one renders: {flagged:?}"
+    );
+}

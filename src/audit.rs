@@ -83,12 +83,6 @@ const KNOWN_KEYWORDS: &[&str] = &[
     // Leaving them out reported the corpus's most-used keyword as unrecognized.
     "SLUG", "DRAFT", "TEMPLATE",
 ];
-/// Blocks with dedicated handling. Any *other* name renders as a special block — a div
-/// with that name holding parsed org — so an unlisted block is a note about what a corpus
-/// contains rather than a construct that will be lost.
-const KNOWN_BLOCKS: &[&str] = &[
-    "SRC", "QUOTE", "EXAMPLE", "CENTER", "EXPORT", "VERSE", "COMMENT",
-];
 const KNOWN_DRAWERS: &[&str] = &["PROPERTIES", "LOGBOOK", "END"];
 /// Keyword names conventional enough to be worth flagging when they lead a heading.
 /// A custom sequence is only *real* if some `#+TODO:` declares it, which the census
@@ -107,7 +101,11 @@ impl Audit {
     pub fn is_known(kind: Census, name: &str) -> bool {
         let known = match kind {
             Census::Keyword => KNOWN_KEYWORDS,
-            Census::Block => KNOWN_BLOCKS,
+            // Every block name renders, and renders as org renders it: the names in
+            // `block_construct` through dedicated handling, every other name as a special
+            // block — a div carrying the name, holding parsed org, which is exactly what
+            // org's exporter emits. No block name is a blind spot.
+            Census::Block => return true,
             Census::Drawer => KNOWN_DRAWERS,
             Census::Scheme => KNOWN_SCHEMES,
         };
@@ -198,7 +196,7 @@ impl Audit {
             if let Some(rest) = trimmed.to_ascii_uppercase().strip_prefix("#+BEGIN_") {
                 let kind = rest.split_whitespace().next().unwrap_or("").to_string();
                 self.count_census(Census::Block, &kind, &at);
-                self.count(scope_of_block(&kind), block_construct(&kind), &at);
+                self.count(Scope::In, block_construct(&kind), &at);
                 if trimmed.to_ascii_uppercase().contains(":RESULTS") {
                     self.count(Scope::Out, "babel header args (:results)", &at);
                 }
@@ -440,14 +438,6 @@ fn is_drawer(trimmed: &str) -> bool {
         && t.len() > 2
 }
 
-fn scope_of_block(kind: &str) -> Scope {
-    if KNOWN_BLOCKS.iter().any(|k| k.eq_ignore_ascii_case(kind)) {
-        Scope::In
-    } else {
-        Scope::Out
-    }
-}
-
 fn block_construct(kind: &str) -> &'static str {
     match kind.to_ascii_uppercase().as_str() {
         "SRC" => "source block",
@@ -455,7 +445,9 @@ fn block_construct(kind: &str) -> &'static str {
         "EXAMPLE" => "example block",
         "CENTER" => "center block",
         "EXPORT" => "export block",
-        _ => "unmodelled block type",
+        "VERSE" => "verse block",
+        "COMMENT" => "comment block",
+        _ => "special block",
     }
 }
 

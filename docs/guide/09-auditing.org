@@ -26,26 +26,22 @@ IN   heading                              1148     176  blog/2018-11-28-aes-encr
 IN   verbatim                             1048     130  blog/2018-11-28-aes-encryption.org:79
 ...
 IN   table formula (#+TBLFM:)                4       1  blog/2024-08-11-org-mode-features.org:191
-OUT  unmodelled block type                   1       1  blog/2026-03-03-auditing-aws-s3.org:50
+IN   special block                           1       1  blog/2026-03-03-auditing-aws-s3.org:50
 
-coverage: 9001 in-scope use(s) (100.0%), 1 out-of-scope (0.0%)
+coverage: 9002 in-scope use(s) (100.0%), 0 out-of-scope (0.0%)
 
 KEYWORDS
    SLUG                                  180     180  blog/2018-11-28-aes-encryption.org:4
    TITLE                                 180     180  blog/2018-11-28-aes-encryption.org:2
 ...
-
-BLOCK TYPES
-   SRC                                   941     123  blog/2018-11-28-cpp-compiler.org:17
-   QUOTE                                 115      48  blog/2018-11-28-aes-encryption.org:21
-??? NOTE                                    1       1  blog/2026-03-03-auditing-aws-s3.org:50
 #+END_EXAMPLE
 
 - =IN= is supported; =OUT= is excluded by design and degrades as described in
   [[file:05-org-support.org][Org support]].
 - The *coverage* line is the number to look at first.
-- =???= marks a name orgo does not recognise at all — here =#+begin_note=, which one
-  post uses once. That is the blind-spot signal: not "known unsupported", but unknown.
+- =???= marks a name orgo does not recognise at all. That is the blind-spot signal —
+  not "known unsupported", but unknown — and this corpus has none. Block names never
+  carry it: an unrecognised one is still a special block, and still renders.
 
 Four censuses follow the construct table: every distinct =#+KEYWORD:=, block type,
 drawer name and link scheme in the corpus. A =???= in any of them is worth a look.
