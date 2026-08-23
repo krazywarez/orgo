@@ -186,7 +186,6 @@ a build.
 | Macros ={{{name}}}=, radio targets | Literal text. |
 | Drawers other than =PROPERTIES= | Captured and dropped, including =LOGBOOK=. |
 | Non-HTML export blocks | Dropped entirely. |
-| Entities =\alpha= | Literal text. |
 | =#+TODO:= sequences | Not read; the default keyword set is used. |
 | Planning lines, =: = fixed-width | Render as ordinary paragraphs. |
 

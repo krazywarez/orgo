@@ -629,6 +629,7 @@ fn every_divergence_from_emacs_is_deliberate() {
         "images.org",
         "elements.org",
         "tblfm.org",
+        "audit-entities.org",
     ];
     let mut offenders = Vec::new();
     for fixture in fixtures {
