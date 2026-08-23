@@ -769,3 +769,34 @@ fn footnote_links_and_section_are_labelled() {
         "each back-link says where it goes:\n{html}"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Audit: the entity check counts only what org would actually render
+// ---------------------------------------------------------------------------
+
+fn audit_fixture(name: &str) -> String {
+    let path = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures").join(name);
+    let audit = orgo::audit::audit(&path).expect("audit fixture");
+    orgo::audit::report(&audit)
+}
+
+/// `\Users` and `\API` are not names org knows, and an entity inside verbatim is shown
+/// rather than rendered. Counting either overstates what the corpus needs.
+#[test]
+fn audit_ignores_backslashes_that_are_not_entities() {
+    let report = audit_fixture("audit-nonentities.org");
+    assert!(
+        !report.contains("entity (\\name)"),
+        "a Windows path or a verbatim-quoted name was counted as an entity:\n{report}"
+    );
+}
+
+/// A bare entity outside verbatim still counts.
+#[test]
+fn audit_counts_real_entities() {
+    let report = audit_fixture("audit-entities.org");
+    assert!(
+        report.contains("entity (\\name)"),
+        "a real entity was not counted:\n{report}"
+    );
+}

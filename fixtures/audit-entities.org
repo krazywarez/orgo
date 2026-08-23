@@ -1,0 +1,3 @@
+#+TITLE: Real entities
+
+The angle \alpha is small, and the arrow \rarr points right.
