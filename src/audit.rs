@@ -345,7 +345,9 @@ impl Audit {
             self.count(Scope::Out, "LaTeX fragment", at);
         }
         if entity_ref(line) {
-            self.count(Scope::Out, "entity (\\name)", at);
+            // Rendered, and rendered as org renders it: `\alpha` becomes `&alpha;` in
+            // both exporters. `fixtures/audit-entities.org` holds the oracle to that.
+            self.count(Scope::In, "entity (\\name)", at);
         }
         for (marker, name) in [
             ('*', "bold"),

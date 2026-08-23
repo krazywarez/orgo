@@ -388,6 +388,7 @@ fn well_formed_fixtures_produce_no_diagnostics() {
         "timestamps.org",
         "images.org",
         "tblfm.org",
+        "audit-entities.org",
     ] {
         let document = parse_fixture(name);
         assert!(
@@ -792,13 +793,19 @@ fn audit_ignores_backslashes_that_are_not_entities() {
     );
 }
 
-/// A bare entity outside verbatim still counts.
+/// A bare entity outside verbatim still counts, and counts as supported: `\alpha`
+/// becomes `&alpha;` in orgo exactly as in Emacs, which the oracle checks on this same
+/// fixture. The 412 names come from org's own `org-entities`.
 #[test]
 fn audit_counts_real_entities() {
     let report = audit_fixture("audit-entities.org");
+    let line = report
+        .lines()
+        .find(|l| l.contains("entity (\\name)"))
+        .expect("a real entity is counted");
     assert!(
-        report.contains("entity (\\name)"),
-        "a real entity was not counted:\n{report}"
+        line.starts_with("IN "),
+        "an entity orgo renders exactly as Emacs does must not read as a gap:\n{line}"
     );
 }
 
