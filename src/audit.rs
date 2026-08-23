@@ -506,19 +506,51 @@ fn latex_inline(line: &str) -> bool {
     dollars >= 2 && line.contains("$\\")
 }
 
-/// A `\name` entity reference such as `\alpha`, excluding LaTeX environment commands.
+/// A `\name` entity reference such as `\alpha`.
+///
+/// Only names org knows count, matching [`crate::parser`]'s rule for rendering one: a
+/// Windows path (`C:\Users\me`) and a namespaced identifier (`Tumblr\API\Client`) are not
+/// entity references.
+///
+/// Verbatim and code spans are skipped: `=\alpha=` shows the name rather than rendering
+/// the character, so it is not a use of the feature.
 fn entity_ref(line: &str) -> bool {
-    for (i, c) in line.char_indices() {
-        if c != '\\' {
+    let line = without_literal_spans(line);
+    let chars: Vec<char> = line.chars().collect();
+    for (i, c) in chars.iter().enumerate() {
+        if *c != '\\' {
             continue;
         }
-        let rest = &line[i + 1..];
-        let name: String = rest.chars().take_while(|c| c.is_ascii_alphabetic()).collect();
-        if name.len() >= 3 && !matches!(name.as_str(), "begin" | "end") {
+        let name: String = chars[i + 1..].iter().take_while(|c| c.is_ascii_alphabetic()).collect();
+        if crate::entities::lookup(&name).is_some() {
             return true;
         }
     }
     false
+}
+
+/// Blank out `=verbatim=` and `~code~` spans. Deliberately looser than the parser's
+/// border rules — the audit measures prevalence, and erring toward blanking keeps it
+/// from overstating a gap.
+fn without_literal_spans(line: &str) -> String {
+    let mut out = String::with_capacity(line.len());
+    let mut open: Option<char> = None;
+    for c in line.chars() {
+        match open {
+            Some(marker) => {
+                out.push(' ');
+                if c == marker {
+                    open = None;
+                }
+            }
+            None if c == '=' || c == '~' => {
+                open = Some(c);
+                out.push(' ');
+            }
+            None => out.push(c),
+        }
+    }
+    out
 }
 
 /// A plausible `*bold*`-style emphasis pair: two markers on one line with non-space

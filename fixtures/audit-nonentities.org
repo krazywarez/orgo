@@ -1,0 +1,7 @@
+#+TITLE: Backslashes that are not entities
+
+Windows paths and namespaced identifiers are not org entities:
+=C:\Users\youruser\Downloads= and Tumblr\API\Client.
+
+Names shown inside verbatim or code are displayed, not rendered, so they are
+not a use of the feature either: =\alpha=, ~\rarr~, =20\deg=.
