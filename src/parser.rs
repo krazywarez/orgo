@@ -9,16 +9,19 @@
 //! PARSE is a pure function of a single file's bytes (spec §2.1): it never depends on
 //! another file, which is what makes content-hash caching sound.
 //!
-//! Scope is the v1 IN list (README §"v1 scope"): headings with nesting, TODO keywords,
-//! priorities, tags and property drawers; paragraphs; plain lists (unordered, ordered,
-//! description) with checkboxes and nesting; tables; source/example/quote/center/export
-//! blocks; footnotes; `#+` keywords; inline markup, links, timestamps; images with
-//! `#+CAPTION`/`#+ATTR_HTML`.
+//! Scope is `docs/guide/05-org-support.org` §Supported: headings with nesting, TODO
+//! keywords, priorities, tags and property drawers; paragraphs; plain lists (unordered,
+//! ordered, description) with checkboxes and nesting; tables; footnotes; `#+` keywords;
+//! source, example, quote, center and export blocks; inline markup, links, timestamps;
+//! images with `#+CAPTION`/`#+ATTR_HTML`.
 //!
-//! Out-of-scope constructs are parsed-and-ignored, never fatal: babel `:results` and
-//! `#+TBLFM:` are inert keywords, unknown block types keep their content verbatim as
-//! example blocks, generic drawers are captured and dropped at render, and LaTeX,
-//! macros and radio targets survive as literal text.
+//! A block name with no dedicated handling is a special block: a div carrying the name,
+//! holding parsed org, which is what org's exporter emits for it.
+//!
+//! Out-of-scope constructs are parsed-and-ignored, never fatal: babel `:results` is an
+//! inert keyword, generic drawers are captured and dropped at render, and LaTeX, macros
+//! and radio targets survive as literal text. `#+TBLFM:` is inert for the same reason
+//! org's exporter leaves it alone: it does not recalculate on export either.
 
 use camino::Utf8Path;
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
@@ -408,7 +411,7 @@ fn parse_elements(lines: &[&str], base: usize, diags: &mut Vec<Diagnostic>) -> V
         }
         if let Some((key, value)) = keyword_kv(line) {
             if key.eq_ignore_ascii_case("INCLUDE") {
-                // Never expanded (README §OUT). Expanding it means resolving paths,
+                // Never expanded (§"Not supported"). Expanding it means resolving paths,
                 // recursion and `:lines`/`:only-contents`; dropping it silently means a
                 // page missing content nobody was told about. Saying so is the honest
                 // middle, and `--strict` turns it into a failure.
@@ -422,7 +425,7 @@ fn parse_elements(lines: &[&str], base: usize, diags: &mut Vec<Diagnostic>) -> V
                 });
             }
             if key.eq_ignore_ascii_case("RESULTS") {
-                // Babel is never executed (README §OUT), so a checked-in `#+RESULTS:`
+                // Babel is never executed (§"Not supported"), so a checked-in `#+RESULTS:`
                 // block is output from someone else's Emacs session at some other time.
                 // Emitting it would put unverifiable content on the page dressed as
                 // real content, so the block it labels is dropped.
@@ -617,7 +620,7 @@ fn unescape_block_line(line: &str) -> String {
 
 /// `:NAME:` … `:END:` at block level. A PROPERTIES drawer directly under a heading is
 /// consumed by [`parse_section_body`]; anything reaching here is a generic drawer,
-/// which the renderer drops (README §OUT).
+/// which the renderer drops (§"Not supported").
 fn parse_drawer(
     lines: &[&str],
     start: usize,
@@ -1353,7 +1356,7 @@ fn try_timestamp(chars: &[char], i: usize) -> Option<(Object, usize)> {
 
 /// One bracketed stamp → `(start, same-day end, has_time, index past the bracket)`.
 /// Day names (`Mon`) and repeater/warning cookies (`+1w`, `-2d`) are recognized and
-/// discarded — they carry no export meaning (README §OUT: agenda semantics).
+/// discarded — they carry no export meaning (§"Not supported": agenda semantics).
 fn parse_stamp(
     chars: &[char],
     i: usize,

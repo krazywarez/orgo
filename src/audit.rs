@@ -1,9 +1,9 @@
 //! Corpus audit (spec §5, Phase 0): measure which org constructs a real corpus actually
-//! uses, and classify each against the v1 IN/OUT line.
+//! uses, and classify each against the supported/unsupported line.
 //!
-//! This exists because the v1 scope was, on the README's own admission, *recommended*
-//! rather than measured — a guess about which slice of org matters. A guess about a
-//! corpus is a hypothesis, and this is the experiment. It answers two questions:
+//! This exists because the scope was recommended rather than measured — a guess about
+//! which slice of org matters. A guess about a corpus is a hypothesis, and this is the
+//! experiment. It answers two questions:
 //!
 //! 1. **Coverage** — of the constructs this corpus uses, which do we handle? A construct
 //!    that is common here and out of scope is a scope bug, not a corpus quirk.
@@ -24,12 +24,13 @@ use anyhow::{Context, Result};
 use camino::{Utf8Path, Utf8PathBuf};
 use walkdir::WalkDir;
 
-/// Where a construct sits relative to the v1 scope line (README §"v1 scope").
+/// Where a construct sits relative to the supported set, which
+/// `docs/guide/05-org-support.org` defines.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Scope {
-    /// v1 handles this.
+    /// orgo handles this.
     In,
-    /// v1 deliberately excludes this; it degrades predictably.
+    /// orgo deliberately excludes this; it degrades predictably.
     Out,
 }
 

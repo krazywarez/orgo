@@ -2,7 +2,7 @@
 source: tests/constructs.rs
 expression: "render_fixture(\"outofscope.org\")"
 ---
-<p>Every construct here is on the README's explicit OUT list. The contract is not that we handle them — it is that they degrade predictably and never crash the build.</p>
+<p>Every construct here is on the explicit "Not supported" list in the org-support guide. The contract is not that we handle them — it is that they degrade predictably and never crash the build.</p>
 <h2 id="babel">Babel</h2>
 <pre><code class="language-sh highlight"><span class="source shell bash"><span class="meta function-call shell"><span class="support function echo shell">echo</span></span><span class="meta function-call arguments shell"> <span class="string quoted double shell"><span class="punctuation definition string begin shell">&quot;</span>the block renders; :results is never executed<span class="punctuation definition string end shell">&quot;</span></span></span></span></code></pre>
 <h2 id="table-formulas">Table formulas</h2>

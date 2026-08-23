@@ -1,8 +1,9 @@
 #+TITLE: Out of Scope
 #+INCLUDE: "other.org"
 
-Every construct here is on the README's explicit OUT list. The contract is not that we
-handle them — it is that they degrade predictably and never crash the build.
+Every construct here is on the explicit "Not supported" list in the org-support guide.
+The contract is not that we handle them — it is that they degrade predictably and never
+crash the build.
 
 * Babel
 
