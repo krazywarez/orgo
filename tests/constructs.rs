@@ -387,6 +387,7 @@ fn well_formed_fixtures_produce_no_diagnostics() {
         "blocks.org",
         "timestamps.org",
         "images.org",
+        "tblfm.org",
     ] {
         let document = parse_fixture(name);
         assert!(
@@ -798,5 +799,20 @@ fn audit_counts_real_entities() {
     assert!(
         report.contains("entity (\\name)"),
         "a real entity was not counted:\n{report}"
+    );
+}
+
+/// `#+TBLFM:` is in scope, not a gap: org's exporter does not recalculate it either, so
+/// the page orgo produces is the page Emacs produces. `fixtures/tblfm.org` is the oracle.
+#[test]
+fn audit_counts_table_formulas_as_in_scope() {
+    let report = audit_fixture("tblfm.org");
+    let line = report
+        .lines()
+        .find(|l| l.contains("table formula"))
+        .expect("the formula is counted at all");
+    assert!(
+        line.starts_with("IN "),
+        "a #+TBLFM: table orgo renders exactly as Emacs does must not read as a gap:\n{line}"
     );
 }
