@@ -19,6 +19,7 @@ pub mod render;
 pub mod resolve;
 pub mod serve;
 pub mod site;
+pub mod skeleton;
 pub mod template;
 pub mod theme;
 pub mod util;
