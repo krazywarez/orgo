@@ -1,0 +1,27 @@
+# gitbay CI. Each job becomes one build per push; the runner clones this
+# repository at the pushed commit and runs every step with `sh -c`, stopping at
+# the first failure. Repository secrets arrive as environment variables.
+#
+# The runner is Linux, and `runner next` claims the oldest pending build with no
+# platform targeting, so a second runner could not be aimed at macOS jobs. The
+# darwin tarballs are therefore built on a Mac by .githooks/pre-push at tag time
+# and uploaded to the same release; see RELEASING.org.
+jobs:
+  test:
+    steps:
+      - cargo test --locked
+      - cargo clippy --all-targets --locked -- -D warnings
+      - cargo run --locked -- build docs -o "/tmp/orgo-docs-$GITBAY_SHA" --strict
+      - rm -rf "/tmp/orgo-docs-$GITBAY_SHA"
+
+  # Publishes the documentation site by force-pushing the built output to the
+  # `pages` branch, which gitbay serves at https://orgo.krz.sh. A no-op off main.
+  pages:
+    steps:
+      - sh .gitbay/pages.sh
+
+  # The tag push is the release: binaries, the gitbay release, and crates.io.
+  release:
+    tags: "v*"
+    steps:
+      - sh .gitbay/release.sh

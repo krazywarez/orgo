@@ -1,0 +1,34 @@
+#!/bin/sh
+# Attach the macOS tarballs built by pre-push to the gitbay release.
+#
+# The release is created by the CI job the tag push triggers, so this waits for it
+# rather than assuming it is there. Run by hand as `.githooks/upload-macos <tag>`
+# if the detached run from the hook failed; the tarballs are already on disk and
+# uploading one twice replaces it rather than duplicating it.
+set -eu
+
+tag=${1:?usage: upload-macos <tag>}
+root=$(git rev-parse --show-toplevel)
+dist="$root/dist/macos/$tag"
+repo=$(git config --get remote.origin.url | sed 's#.*gitbay.org[:/]##; s#\.git$##')
+
+[ -d "$dist" ] || { echo "no build for $tag in $dist" >&2; exit 1; }
+
+# The release job builds two Linux targets before creating the release, so the
+# wait is minutes rather than seconds. Twenty minutes, then give up loudly.
+i=0
+until ssh git@gitbay.org release show "$repo" "$tag" >/dev/null 2>&1; do
+	i=$((i + 1))
+	if [ "$i" -gt 80 ]; then
+		echo "$(date -u +%FT%TZ) release $tag never appeared; rerun this script" >&2
+		exit 1
+	fi
+	sleep 15
+done
+
+for f in "$dist"/*.tar.gz "$dist"/*.sha256; do
+	[ -e "$f" ] || continue
+	ssh git@gitbay.org release asset add "$repo" "$tag" "$(basename "$f")" <"$f"
+	echo "$(date -u +%FT%TZ) attached $(basename "$f")"
+done
+echo "$(date -u +%FT%TZ) macOS assets attached to $tag"
