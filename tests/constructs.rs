@@ -844,3 +844,18 @@ fn audit_counts_special_blocks_as_in_scope() {
         "no block name is unrecognised — every one renders: {flagged:?}"
     );
 }
+
+/// A page that documents org syntax names constructs inside `=verbatim=`; the names are
+/// displayed, not rendered, so none of them is a use of the construct. Counting them
+/// reported orgo's own guide as using macros it does not support.
+#[test]
+fn audit_ignores_constructs_inside_verbatim() {
+    let report = audit_fixture("audit-verbatim-constructs.org");
+    for construct in ["macro call", "radio target", "internal target", "timestamp", "LaTeX fragment"]
+    {
+        assert!(
+            !report.contains(construct),
+            "{construct} was counted from a verbatim mention:\n{report}"
+        );
+    }
+}

@@ -330,21 +330,27 @@ impl Audit {
             rest = &after[end..];
         }
 
-        if has_timestamp(line) {
+        // The rest read a line that has had its `=verbatim=` and `~code~` spans blanked:
+        // a construct shown inside verbatim is displayed rather than rendered, so a page
+        // documenting org syntax is not a use of the syntax it names. Emphasis pairs
+        // below deliberately still see the raw line — `=` is one of the markers scanned.
+        let bare = without_literal_spans(line);
+
+        if has_timestamp(&bare) {
             self.count(Scope::In, "timestamp", at);
         }
-        if line.contains("{{{") {
+        if bare.contains("{{{") {
             self.count(Scope::Out, "macro call", at);
         }
-        if line.contains("<<<") {
+        if bare.contains("<<<") {
             self.count(Scope::Out, "radio target", at);
-        } else if line.contains("<<") && line.contains(">>") {
+        } else if bare.contains("<<") && bare.contains(">>") {
             self.count(Scope::Out, "internal target", at);
         }
-        if line.contains("\\begin{") || latex_inline(line) {
+        if bare.contains("\\begin{") || latex_inline(&bare) {
             self.count(Scope::Out, "LaTeX fragment", at);
         }
-        if entity_ref(line) {
+        if entity_ref(&bare) {
             // Rendered, and rendered as org renders it: `\alpha` becomes `&alpha;` in
             // both exporters. `fixtures/audit-entities.org` holds the oracle to that.
             self.count(Scope::In, "entity (\\name)", at);
@@ -510,11 +516,7 @@ fn latex_inline(line: &str) -> bool {
 /// Only names org knows count, matching [`crate::parser`]'s rule for rendering one: a
 /// Windows path (`C:\Users\me`) and a namespaced identifier (`Tumblr\API\Client`) are not
 /// entity references.
-///
-/// Verbatim and code spans are skipped: `=\alpha=` shows the name rather than rendering
-/// the character, so it is not a use of the feature.
 fn entity_ref(line: &str) -> bool {
-    let line = without_literal_spans(line);
     let chars: Vec<char> = line.chars().collect();
     for (i, c) in chars.iter().enumerate() {
         if *c != '\\' {

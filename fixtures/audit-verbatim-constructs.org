@@ -1,0 +1,4 @@
+#+TITLE: Verbatim mentions
+
+A doc explaining syntax, where every mention is inside verbatim:
+=${x^2}$=, ={{{name}}}=, =<<<radio>>>=, =[1/3]=, =CLOCK: [2024-01-01]=.
