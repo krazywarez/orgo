@@ -14,7 +14,7 @@ heading's TODO state and tags, `#+` keywords, ID links, captions on images. orgo
 of it, and its output is checked page by page against what Emacs' own exporter produces
 from the same file.
 
-**Documentation: <https://krazywarez.github.io/orgo/>** — that site is written in org and
+**Documentation: <https://orgo.krz.sh/>** — that site is written in org and
 built by orgo, so it doubles as the longest worked example available.
 
 ## Install
@@ -35,7 +35,7 @@ cargo install --path .
 ```
 
 Either way you get an `orgo` command on your `PATH`. Full notes, including how to run it
-without installing anything: <https://krazywarez.github.io/orgo/install.html>
+without installing anything: <https://orgo.krz.sh/install.html>
 
 ## Your First Site
 
@@ -76,15 +76,15 @@ Each of these is a few lines of config, and each has a page in the guide:
 
 | Add | Documented in |
 |---|---|
-| A blog index, newest first | [Collections](https://krazywarez.github.io/orgo/guide/03-collections.html) |
-| Tag pages, and an index of tags | [Collections](https://krazywarez.github.io/orgo/guide/03-collections.html) |
-| An RSS feed | [Collections](https://krazywarez.github.io/orgo/guide/03-collections.html) |
-| Numbered pages when a list gets long | [Collections](https://krazywarez.github.io/orgo/guide/03-collections.html) |
-| A built-in theme for a blog, a wiki or a doc site | [Configuration](https://krazywarez.github.io/orgo/guide/02-configuration.html) |
-| Your own design, in ordinary HTML templates | [Templates](https://krazywarez.github.io/orgo/guide/04-templates.html) |
-| Drafts that stay unpublished until you say so | [Authoring](https://krazywarez.github.io/orgo/guide/06-authoring.html) |
-| A table of contents on long posts | [Authoring](https://krazywarez.github.io/orgo/guide/06-authoring.html) |
-| Clean URLs that survive a renamed file | [Authoring](https://krazywarez.github.io/orgo/guide/06-authoring.html) |
+| A blog index, newest first | [Collections](https://orgo.krz.sh/guide/03-collections.html) |
+| Tag pages, and an index of tags | [Collections](https://orgo.krz.sh/guide/03-collections.html) |
+| An RSS feed | [Collections](https://orgo.krz.sh/guide/03-collections.html) |
+| Numbered pages when a list gets long | [Collections](https://orgo.krz.sh/guide/03-collections.html) |
+| A built-in theme for a blog, a wiki or a doc site | [Configuration](https://orgo.krz.sh/guide/02-configuration.html) |
+| Your own design, in ordinary HTML templates | [Templates](https://orgo.krz.sh/guide/04-templates.html) |
+| Drafts that stay unpublished until you say so | [Authoring](https://orgo.krz.sh/guide/06-authoring.html) |
+| A table of contents on long posts | [Authoring](https://orgo.krz.sh/guide/06-authoring.html) |
+| Clean URLs that survive a renamed file | [Authoring](https://orgo.krz.sh/guide/06-authoring.html) |
 
 Rebuilds only touch the pages that actually changed, so saving a post on a site with
 hundreds of them stays instant.
@@ -110,28 +110,28 @@ Read the numbers with three things in mind. The weblorg figures include Emacs st
 loading its packages, which you pay on every publish and cannot avoid. orgo emits 13 pages
 weblorg does not, one per tag, so it is doing slightly more work. And the two do not
 produce byte-identical output — the differences are deliberate and listed under
-[Org support](https://krazywarez.github.io/orgo/guide/05-org-support.html).
+[Org support](https://orgo.krz.sh/guide/05-org-support.html).
 
 Apple M2 Pro, 12 cores, macOS 26.6, Emacs 30.2, orgo built with `--release`.
 
 ## Docs
 
-<https://krazywarez.github.io/orgo/>
+<https://orgo.krz.sh/>
 
 | Page | What is in it |
 |---|---|
-| [Quick start](https://krazywarez.github.io/orgo/quickstart.html) | A working site in two commands, then your own writing, then your own design. |
-| [Install](https://krazywarez.github.io/orgo/install.html) | Getting the binary, and running it without installing anything. |
-| [Commands](https://krazywarez.github.io/orgo/guide/01-cli.html) | Every command and flag, and what each is for. |
-| [Configuration](https://krazywarez.github.io/orgo/guide/02-configuration.html) | Every setting in `orgo.toml`, what it changes, and what it costs. |
-| [Collections](https://krazywarez.github.io/orgo/guide/03-collections.html) | Blog indexes, tag pages, pagination and RSS feeds. |
-| [Templates](https://krazywarez.github.io/orgo/guide/04-templates.html) | Layouts, and every variable a template can use. |
-| [Org support](https://krazywarez.github.io/orgo/guide/05-org-support.html) | Which org syntax is handled, which is not, and how the rest degrades. |
-| [Authoring](https://krazywarez.github.io/orgo/guide/06-authoring.html) | URLs, drafts, excerpts, tables of contents. |
-| [Incremental builds](https://krazywarez.github.io/orgo/guide/07-incremental.html) | How it decides what to rebuild. |
-| [Watching and serving](https://krazywarez.github.io/orgo/guide/08-workflow.html) | The write-save-see loop. |
-| [Auditing](https://krazywarez.github.io/orgo/guide/09-auditing.html) | Reading a corpus before trusting a tool with it. |
-| [Deploying](https://krazywarez.github.io/orgo/guide/10-deploying.html) | Producing a production build, and putting it somewhere. |
+| [Quick start](https://orgo.krz.sh/quickstart.html) | A working site in two commands, then your own writing, then your own design. |
+| [Install](https://orgo.krz.sh/install.html) | Getting the binary, and running it without installing anything. |
+| [Commands](https://orgo.krz.sh/guide/01-cli.html) | Every command and flag, and what each is for. |
+| [Configuration](https://orgo.krz.sh/guide/02-configuration.html) | Every setting in `orgo.toml`, what it changes, and what it costs. |
+| [Collections](https://orgo.krz.sh/guide/03-collections.html) | Blog indexes, tag pages, pagination and RSS feeds. |
+| [Templates](https://orgo.krz.sh/guide/04-templates.html) | Layouts, and every variable a template can use. |
+| [Org support](https://orgo.krz.sh/guide/05-org-support.html) | Which org syntax is handled, which is not, and how the rest degrades. |
+| [Authoring](https://orgo.krz.sh/guide/06-authoring.html) | URLs, drafts, excerpts, tables of contents. |
+| [Incremental builds](https://orgo.krz.sh/guide/07-incremental.html) | How it decides what to rebuild. |
+| [Watching and serving](https://orgo.krz.sh/guide/08-workflow.html) | The write-save-see loop. |
+| [Auditing](https://orgo.krz.sh/guide/09-auditing.html) | Reading a corpus before trusting a tool with it. |
+| [Deploying](https://orgo.krz.sh/guide/10-deploying.html) | Producing a production build, and putting it somewhere. |
 
 ## Building
 

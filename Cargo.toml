@@ -9,7 +9,7 @@ readme = "README.md"
 keywords = ["org-mode", "static-site", "ssg", "emacs", "blog"]
 categories = ["command-line-utilities", "text-processing"]
 repository = "https://gitbay.org/krz/orgo"
-homepage = "https://krazywarez.github.io/orgo/"
+homepage = "https://orgo.krz.sh/"
 
 # The compiler floor. orgo's own code needs 1.82 (`Option::is_none_or`); the floor is
 # 1.88 because dependencies in Cargo.lock declare it — `plist` and `time`, both by way of

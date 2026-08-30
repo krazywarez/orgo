@@ -1332,7 +1332,10 @@ fn discover(
         };
         let rel = path.strip_prefix(src).unwrap_or(path);
         // The source root itself always passes; `filter_entry` prunes whole subtrees.
-        rel.as_str().is_empty() || !is_excluded(rel, &skip_dirs)
+        if rel.as_str().is_empty() {
+            return true;
+        }
+        !is_excluded(rel, &skip_dirs) && !is_build_output(e)
     }) {
         let entry = entry.with_context(|| format!("walking {src}"))?;
         if !entry.file_type().is_file() {
@@ -1479,9 +1482,6 @@ fn excluded_dirs(src: &Utf8Path, config: &Config, out: Option<&Utf8Path>) -> Vec
     dirs
 }
 
-/// Is this source-relative path excluded from discovery?
-///
-/// Dot-entries are skipped wholesale. That is the conventional rule for site generators,
 /// Is this path component a dot-entry that must not be published?
 ///
 /// Dot-directories are excluded because a source directory is very often a git repository,
@@ -1499,9 +1499,22 @@ fn is_hidden(component: &str) -> bool {
 /// The one dot-directory the web expects to be published.
 const WELL_KNOWN: &str = ".well-known";
 
-/// and the reason is safety rather than tidiness: a source directory is very often a git
-/// repository, and publishing `.git` — or `.env` — is a way to leak a project's entire
-/// history alongside its homepage.
+/// Is this directory a site orgo built earlier?
+///
+/// Every build writes `.orgo-cache.json` into its output directory, so a directory in the
+/// source carrying one is output rather than content someone wrote. `excluded_dirs` only
+/// covers an output directory nested in the source; without this, building into the
+/// source (`-o _site`) and then previewing elsewhere (`-o /tmp/preview`) copies the whole
+/// first site into the second, one asset at a time.
+fn is_build_output(entry: &walkdir::DirEntry) -> bool {
+    entry.file_type().is_dir() && entry.path().join(".orgo-cache.json").is_file()
+}
+
+/// Is this source-relative path excluded from discovery?
+///
+/// Dot-entries are skipped wholesale, and the reason is safety rather than tidiness: a
+/// source directory is very often a git repository, and publishing `.git` — or `.env` —
+/// is a way to leak a project's entire history alongside its homepage.
 fn is_excluded(rel: &Utf8Path, skip_dirs: &[Utf8PathBuf]) -> bool {
     if rel.components().any(|c| is_hidden(c.as_str())) {
         return true;

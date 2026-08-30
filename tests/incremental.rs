@@ -513,3 +513,32 @@ fn editing_one_template_rebuilds_only_the_pages_that_use_it() {
         r.rendered
     );
 }
+
+/// A previous build's output, left in the source, is not content. Building into the
+/// source and then previewing elsewhere used to copy the whole first site into the
+/// second — 2 assets became 21 on orgo's own documentation.
+#[test]
+fn a_previous_build_output_is_not_copied_as_assets() {
+    let src = tmpdir("prev-output-src");
+    write(&src, "index.org", "#+TITLE: Home\n\nHome.\n");
+    write(&src, "logo.svg", "<svg/>");
+
+    // Build into the source, as docs/guide/10-deploying.org does.
+    let nested = src.join("_site");
+    build_site(&src, &nested, &BuildOptions::default()).unwrap();
+    assert!(manifest_path(&nested).exists(), "the build wrote its cache manifest");
+
+    // Then preview elsewhere, as docs/guide/09-auditing.org does.
+    let preview = tmpdir("prev-output-preview");
+    let r = build_site(&src, &preview, &BuildOptions::default()).unwrap();
+
+    assert_eq!(
+        r.assets,
+        vec![Utf8PathBuf::from("logo.svg")],
+        "only the real asset is copied, not the earlier build's output"
+    );
+    assert!(
+        !preview.join("_site").exists(),
+        "the earlier site must not be nested inside the new one"
+    );
+}
