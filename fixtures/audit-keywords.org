@@ -1,0 +1,5 @@
+#+TITLE: Keyword census
+#+LEDE: A keyword the shipped docs template reads.
+#+PROJECT_STATUS: A keyword nothing reads by name.
+
+Body text.

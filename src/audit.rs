@@ -71,9 +71,9 @@ pub struct Audit {
     pub link_schemes: BTreeMap<String, Tally>,
 }
 
-/// Names the implementation understands, so the census can flag everything else. These
-/// are the *recognized* sets, not the supported ones: `INCLUDE` is recognized (it is
-/// deliberately inert) while an unlisted keyword is a genuine blind spot.
+/// Names the implementation reads by name, so the census can mark everything else. These
+/// are the *recognized* sets, not the supported ones: `INCLUDE` is recognized and
+/// deliberately inert.
 const KNOWN_KEYWORDS: &[&str] = &[
     "TITLE", "AUTHOR", "DATE", "EMAIL", "LANGUAGE", "OPTIONS", "FILETAGS", "DESCRIPTION",
     "KEYWORDS", "CAPTION", "NAME", "ATTR_HTML", "RESULTS", "TBLFM", "INCLUDE", "TODO",
@@ -97,20 +97,36 @@ const KNOWN_SCHEMES: &[&str] = &[
     "relative",
 ];
 
+/// The census markers. A name with dedicated handling carries none; `PASS_THROUGH` says
+/// nothing reads the name but it works anyway; `UNKNOWN` is the blind-spot signal.
+const HANDLED: &str = "";
+const PASS_THROUGH: &str = "\u{2014}";
+const UNKNOWN: &str = "???";
+
 impl Audit {
-    /// Is this name one the implementation recognizes?
-    pub fn is_known(kind: Census, name: &str) -> bool {
-        let known = match kind {
-            Census::Keyword => KNOWN_KEYWORDS,
+    /// How the report marks a census name: the recognized set to look the name up in,
+    /// and what an unlisted name means for that census.
+    pub fn marker(kind: Census, name: &str) -> &'static str {
+        let (known, unlisted) = match kind {
+            // An unlisted keyword is not a blind spot. Reaching templates as
+            // `page.keywords.<name>` is the designed behaviour, so every keyword name
+            // works; what the census reports is which ones have dedicated handling.
+            // `LEDE`, read by the shipped docs theme's template, was the case that made
+            // this concrete: `???` on it was a claim about orgo's source, not a gap.
+            Census::Keyword => (KNOWN_KEYWORDS, PASS_THROUGH),
             // Every block name renders, and renders as org renders it: the names in
             // `block_construct` through dedicated handling, every other name as a special
             // block — a div carrying the name, holding parsed org, which is exactly what
             // org's exporter emits. No block name is a blind spot.
-            Census::Block => return true,
-            Census::Drawer => KNOWN_DRAWERS,
-            Census::Scheme => KNOWN_SCHEMES,
+            Census::Block => return HANDLED,
+            Census::Drawer => (KNOWN_DRAWERS, UNKNOWN),
+            Census::Scheme => (KNOWN_SCHEMES, UNKNOWN),
         };
-        known.iter().any(|k| k.eq_ignore_ascii_case(name))
+        if known.iter().any(|k| k.eq_ignore_ascii_case(name)) {
+            HANDLED
+        } else {
+            unlisted
+        }
     }
 }
 
@@ -644,13 +660,9 @@ pub fn report(audit: &Audit) -> String {
         names.sort_by(|a, b| b.1.occurrences.cmp(&a.1.occurrences).then(a.0.cmp(b.0)));
         out.push_str(&format!("\n{title}\n"));
         for (name, tally) in names {
-            let flag = if Audit::is_known(kind, name) {
-                "   "
-            } else {
-                "??? "
-            };
             out.push_str(&format!(
-                "{flag}{:<32} {:>8} {:>7}  {}\n",
+                "{:<4}{:<32} {:>8} {:>7}  {}\n",
+                Audit::marker(kind, name),
                 name,
                 tally.occurrences,
                 tally.files,
@@ -658,6 +670,10 @@ pub fn report(audit: &Audit) -> String {
             ));
         }
     }
-    out.push_str("\n`???` marks a name the implementation does not recognize at all.\n");
+    out.push_str(
+        "\n`???` marks a name the implementation does not recognize at all.\n\
+         `\u{2014}` marks a keyword with no dedicated handling; it reaches templates \
+         as `page.keywords.<name>`.\n",
+    );
     out
 }

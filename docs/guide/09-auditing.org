@@ -31,8 +31,9 @@ IN   special block                           1       1  blog/2026-03-03-auditing
 coverage: 9002 in-scope use(s) (100.0%), 0 out-of-scope (0.0%)
 
 KEYWORDS
-   SLUG                                  180     180  blog/2018-11-28-aes-encryption.org:4
-   TITLE                                 180     180  blog/2018-11-28-aes-encryption.org:2
+    SLUG                                 180     180  blog/2018-11-28-aes-encryption.org:4
+    TITLE                                180     180  blog/2018-11-28-aes-encryption.org:2
+—   LEDE                                  14      14  blog/2018-11-28-aes-encryption.org:3
 ...
 #+END_EXAMPLE
 
@@ -41,7 +42,12 @@ KEYWORDS
 - The *coverage* line is the number to look at first.
 - =???= marks a name orgo does not recognise at all. That is the blind-spot signal —
   not "known unsupported", but unknown — and this corpus has none. Block names never
-  carry it: an unrecognised one is still a special block, and still renders.
+  carry it: an unrecognised one is still a special block, and still renders. Keyword
+  names never carry it either — see below.
+- =—= marks a keyword with no dedicated handling. It is not a gap: the keyword reaches
+  your layout as ={{ page.keywords.<name> }}=, which is the designed behaviour, so the
+  marker tells you which of your keywords orgo reads by name and which rely on that
+  pass-through.
 
 Four censuses follow the construct table: every distinct =#+KEYWORD:=, block type,
 drawer name and link scheme in the corpus. A =???= in any of them is worth a look.

@@ -859,3 +859,20 @@ fn audit_ignores_constructs_inside_verbatim() {
         );
     }
 }
+
+/// An unlisted keyword is not a blind spot: reaching templates as `page.keywords.<name>`
+/// is the designed behaviour, so it is marked as pass-through rather than `???`, which
+/// claims orgo does not recognise the name at all.
+#[test]
+fn audit_marks_unhandled_keywords_as_pass_through() {
+    let report = audit_fixture("audit-keywords.org");
+    for name in ["LEDE", "PROJECT_STATUS"] {
+        let line = report.lines().find(|l| l.contains(name)).expect("the keyword is censused");
+        assert!(
+            line.starts_with('\u{2014}'),
+            "a keyword that reaches templates must not read as a blind spot:\n{line}"
+        );
+    }
+    let flagged: Vec<&str> = report.lines().filter(|l| l.starts_with("???")).collect();
+    assert!(flagged.is_empty(), "no keyword name is unrecognised: {flagged:?}");
+}
