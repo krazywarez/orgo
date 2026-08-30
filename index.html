@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>orgo &middot; orgo</title>
+<meta name="description" content="An org-mode static site generator in Rust, where the org element tree is the document model.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="syntax.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site">
+<a class="site-title" href="index.html">orgo</a>
+<nav>
+<a href="install.html">Install</a>
+<a href="quickstart.html">Quick start</a>
+<a href="guide/index.html">Guide</a>
+</nav>
+</header>
+<main>
+<h1>orgo</h1>
+<p class="lede">Org is the source language, not an inconvenient input to be normalised into markdown.</p>
+<p>orgo turns a directory of <code class="verbatim">.org</code> files into a static website. It treats org as the <strong>source language</strong>: the org element tree — headings, drawers, blocks, links with their org-specific semantics — <em>is</em> the document model, and that tree is rendered straight to HTML. There is no markdown-shaped intermediate representation, because the point is to preserve what markdown cannot express.</p>
+<pre><code class="language-sh highlight"><span class="source shell bash"><span class="meta function-call shell"><span class="variable function shell">cargo</span></span><span class="meta function-call arguments shell"> run<span class="keyword operator end-of-options shell"> --</span></span><span class="meta function-call arguments shell"> init my-site</span>
+<span class="meta function-call shell"><span class="variable function shell">cargo</span></span><span class="meta function-call arguments shell"> run<span class="keyword operator end-of-options shell"> --</span></span><span class="meta function-call arguments shell"> serve my-site -o _site</span></span></code></pre>
+<p>Open <a href="http://127.0.0.1:3000">127.0.0.1:3000</a>, edit any <code class="verbatim">.org</code> file, and the browser reloads itself.</p>
+<h2 id="start-here">Start here</h2>
+<ul>
+<li><a href="install.html">Install</a> — get the binary built and on your PATH.</li>
+<li><a href="quickstart.html">Quick start</a> — a working site in two commands, then your own content.</li>
+<li><a href="guide/01-cli.html">The guide</a> — every command, setting, template variable and org construct.</li>
+</ul>
+<h2 id="what-you-get-with-no-configuration-at-all">What you get with no configuration at all</h2>
+<p>Point it at a directory of org files and you get a complete site: pages, navigation, syntax-highlighted code, and the stylesheet that colours it. Nothing about your files has to change, and no <code class="verbatim">orgo.toml</code> is required.</p>
+<pre><code class="language-sh highlight"><span class="source shell bash"><span class="meta function-call shell"><span class="variable function shell">orgo</span></span><span class="meta function-call arguments shell"> build <span class="meta group expansion tilde"><span class="variable language tilde shell">~</span></span>/notes<span class="variable parameter option shell"><span class="punctuation definition parameter shell"> -</span>o</span> _site</span></span></code></pre>
+<p>Configuration changes what you get. It is never what makes it work.</p>
+<h2 id="what-it-does-that-is-unusual">What it does that is unusual</h2>
+<h3 id="incremental-builds-are-the-architecture">Incremental builds are the architecture</h3>
+<p>Every page has a render key composed from its content, its resolved links, the site config and the templates. Editing one post re-renders that post, its section index, its tag pages, and the tag index whose counts changed — four pages, whatever the size of the site. A full build and an incremental build produce byte-identical output, and a test proves it.</p>
+<h3 id="it-is-measured-against-emacs">It is measured against Emacs</h3>
+<p><code class="verbatim">cargo test --test oracle</code> exports each test fixture with org's own HTML exporter through <code class="verbatim">emacs --batch</code> and records the disagreement. Heading structure, list nesting and source-block text match exactly. Everything that still differs is a deliberate choice, listed in <a href="guide/05-org-support.html">Org support</a>.</p>
+<h3 id="it-tells-you-what-your-corpus-actually-uses">It tells you what your corpus actually uses</h3>
+<pre><code class="language-sh highlight"><span class="source shell bash"><span class="meta function-call shell"><span class="variable function shell">orgo</span></span><span class="meta function-call arguments shell"> audit <span class="meta group expansion tilde"><span class="variable language tilde shell">~</span></span>/notes</span></span></code></pre>
+<p>The audit reports which org constructs appear in a corpus, how often, and whether each is supported — so you can find out before you trust a tool with your writing. It reports names, counts and <code class="verbatim">file:line</code> locations only, never document text, so auditing private notes stays safe to paste into an issue.</p>
+<h2 id="feature-summary">Feature summary</h2>
+<table>
+<thead>
+<tr><th>Area</th><th>What is there</th></tr>
+</thead>
+<tbody>
+<tr><td>Org syntax</td><td>headings with TODO/priority/tags, lists (nested, description, checkboxes), tables, source blocks, quote/center/example/export blocks, footnotes, timestamps, links, images with captions</td></tr>
+<tr><td>Output</td><td>syntax highlighting via syntect, table of contents, section numbers, heading anchors</td></tr>
+<tr><td>Structure</td><td><code class="verbatim">#+SLUG:</code> URLs, drafts, generated listing pages, tag pages and tag indexes, pagination, RSS feeds</td></tr>
+<tr><td>Templates</td><td>minijinja layouts with inheritance, rich page metadata, custom filters</td></tr>
+<tr><td>Workflow</td><td>incremental rebuilds, <code class="verbatim">watch</code> on filesystem events, <code class="verbatim">serve</code> with live reload</td></tr>
+<tr><td>Confidence</td><td>152 tests, an <code class="verbatim">emacs --batch</code> differential oracle, a corpus audit tool</td></tr>
+</tbody>
+</table>
+<h2 id="status">Status</h2>
+<p>This documentation site is itself an orgo site — the sources are in <code class="verbatim">docs/</code> and it is built with the command in <a href="quickstart.html">Quick start</a>. If a feature is described here, it is being used to render the page describing it.</p>
+</main>
+<footer class="site">
+Built with orgo &mdash; these docs are an orgo site.
+</footer>
+</body>
+</html>

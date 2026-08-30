@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Incremental builds &middot; orgo</title>
+<meta name="description" content="How the cache decides what to re-render, and why that shape is the architecture.">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../theme.css">
+<link rel="stylesheet" href="../syntax.css">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="site">
+<a class="site-title" href="../index.html">orgo</a>
+<nav>
+<a href="../install.html">Install</a>
+<a href="../quickstart.html">Quick start</a>
+<a href="index.html">Guide</a>
+</nav>
+</header>
+<main>
+<h1>Incremental builds</h1>
+<p class="lede">Editing one post rebuilds four pages, whatever the size of the site.</p>
+<nav class="toc" aria-label="On this page">
+<h2>On this page</h2>
+<ul>
+<li><a href="#what-you-observe">What you observe</a></li>
+<li><a href="#the-render-key">The render key</a>
+<ul>
+<li><a href="#template-scope">Template scope</a></li>
+</ul></li>
+<li><a href="#link-dependencies">Link dependencies</a></li>
+<li><a href="#global-chrome">Global chrome</a></li>
+<li><a href="#generated-pages">Generated pages</a></li>
+<li><a href="#byte-equivalence">Byte equivalence</a></li>
+<li><a href="#parallelism">Parallelism</a></li>
+<li><a href="#when-to-reach-for-no-cache">When to reach for --no-cache</a></li>
+</ul>
+</nav>
+<p>Incremental rebuilding is not an optimisation bolted on to orgo; it is the constraint the data model was built around. Parsing is a pure function of one file's bytes, link resolution reports the edges it used, and rendering is a pure function of a resolved document. Those properties are what make caching sound — and they are also what make the build parallel.</p>
+<p>You do not have to configure any of this. It is described here because knowing what invalidates what explains the behaviour you will see.</p>
+<h2 id="what-you-observe">What you observe</h2>
+<pre>$ orgo build content -o _site
+built 182 page(s) (182 rendered, 0 cached) ...
+
+$ orgo build content -o _site
+built 182 page(s) (0 rendered, 182 cached) ...
+
+$ vim content/blog/post.org &amp;&amp; orgo build content -o _site
+built 182 page(s) (4 rendered, 178 cached) ...</pre>
+<p>The four are the post itself, its section index, its tag page, and the tag index whose counts changed.</p>
+<h2 id="the-render-key">The render key</h2>
+<p>Every page has a key composed from four hashes:</p>
+<table>
+<thead>
+<tr><th>Component</th><th>Changes when</th></tr>
+</thead>
+<tbody>
+<tr><td>content</td><td>The source file's bytes change.</td></tr>
+<tr><td>resolved links</td><td>A link's target moves, is renamed, or disappears.</td></tr>
+<tr><td>config</td><td><code class="verbatim">orgo.toml</code> changes, or the shared chrome does.</td></tr>
+<tr><td>templates</td><td><strong>This page's</strong> layout changes, or something that layout extends or includes.</td></tr>
+</tbody>
+</table>
+<p>If a page's key matches the cached one and its output file still exists, the file on disk is already correct and is left untouched.</p>
+<h3 id="template-scope">Template scope</h3>
+<p>The template component covers the layout a page actually renders through, plus everything that layout pulls in — followed through <code class="verbatim">{% extends %}</code>, <code class="verbatim">{% include %}</code>, <code class="verbatim">{% import %}</code> and <code class="verbatim">{% from %}</code>. Editing <code class="verbatim">feed.xml</code> on a 196-page site re-renders one page; editing a <code class="verbatim">post.html</code> that only blog posts use re-renders the posts. <code class="verbatim">base.html</code> is extended by almost everything, so editing it still re-renders almost everything — which is correct, and is why the win shows up on the <strong>other</strong> edits.</p>
+<p>A template whose include is computed at render time — <code class="verbatim">{% include chooser %}</code> — cannot be followed, so it is treated as depending on every template. Over-invalidating costs time; under-invalidating publishes a stale page.</p>
+<p>The cache lives in <code class="verbatim">&lt;output&gt;/.orgo-cache.json</code> and is tagged with a format version. A version mismatch, a missing file or a corrupt file all fall back to a full rebuild — the cache is an optimisation, never a correctness dependency. There is a test for each of those three fallbacks.</p>
+<h2 id="link-dependencies">Link dependencies</h2>
+<p>Resolution records which targets each page consumed, which gives the build a dependency graph. That is what makes renaming a heading work:</p>
+<pre>a.org:  * Target Heading
+b.org:  Jump to [[*Target Heading][there]].</pre>
+<p>Rename the heading in <code class="verbatim">a.org</code> and <strong>both</strong> pages re-render — <code class="verbatim">b.org</code> because the URL it emits has changed. Without the graph, <code class="verbatim">b.html</code> would keep a link to an anchor that no longer exists. On a rebuild the graph is merged with the previous build's, so a target that was <strong>removed</strong> still pulls in the pages that linked to it.</p>
+<h2 id="global-chrome">Global chrome</h2>
+<p>The navigation appears on every page, so a change to it must re-render every page. The site-structure hash covers exactly the pages that can appear in the nav — which is why the default <code class="verbatim">nav.mode = "top-level"</code> matters for more than aesthetics:</p>
+<ul>
+<li>Retitling a <strong>top-level</strong> page changes the nav everywhere, and re-renders the site.</li>
+<li>Adding a <strong>nested</strong> page cannot change anyone's nav, and re-renders one page.</li>
+</ul>
+<p>Turning on <code class="verbatim">[templates] expose_page_list</code> widens that hash to every page, because then any template can read any page's metadata. That is the documented cost of building an index by hand instead of with a collection.</p>
+<h2 id="generated-pages">Generated pages</h2>
+<p>A listing page has no source file, so it is cached on the thing it actually depends on: the entries it lists — their URLs, titles, dates and tags.</p>
+<ul>
+<li>Adding a post re-renders the indexes that list it.</li>
+<li>Editing a post's <strong>body</strong> changes no listing metadata, so no index is touched.</li>
+<li>Retitling a post re-renders the listings that display the title.</li>
+</ul>
+<p>A tag page depends on its own posts and not on the other groups. That is why the group list is given to the tag <strong>index</strong> and not to every tag page: a page that could see every group would depend on every group, and one new post would re-render every tag page.</p>
+<h2 id="byte-equivalence">Byte equivalence</h2>
+<p>A full build (<code class="verbatim">--no-cache</code>) and an incremental rebuild produce <strong>byte-identical</strong> output. This is the property everything else rests on, and it is a test rather than an intention: the suite builds a site both ways and compares every emitted file.</p>
+<h2 id="parallelism">Parallelism</h2>
+<p>Parsing, resolution and rendering run across cores. Measured on a 1,790-page corpus, a full build went from 3.98s to 0.82s on 12 cores; the 179-page reference corpus builds in 0.07s.</p>
+<p>Parallelism is not observable in the result. Emitted bytes are unaffected, and the build <strong>report</strong> — the order of <code class="verbatim">rendered</code> and <code class="verbatim">skipped</code> — is assembled sequentially afterwards, so a build is reproducible run to run. There is a test for that ordering, because a non-deterministic report over a deterministic site would be a confusing thing to debug.</p>
+<h2 id="when-to-reach-for-no-cache">When to reach for –no-cache</h2>
+<p>Almost never. Config changes, template edits and cache-format upgrades all invalidate correctly on their own. It exists to answer "is the cache lying to me?" — and if it ever is, that is a bug worth reporting, with the two builds' output to compare.</p>
+<pre><code class="language-sh highlight"><span class="source shell bash"><span class="meta function-call shell"><span class="variable function shell">orgo</span></span><span class="meta function-call arguments shell"> build content<span class="variable parameter option shell"><span class="punctuation definition parameter shell"> -</span>o</span> _site<span class="variable parameter option shell"><span class="punctuation definition parameter shell"> --</span>no-cache</span></span></span></code></pre>
+</main>
+<footer class="site">
+Built with orgo &mdash; these docs are an orgo site.
+</footer>
+</body>
+</html>

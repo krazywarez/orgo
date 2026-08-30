@@ -1,0 +1,17 @@
+/* Documentation site styling: the `docs` built-in theme, adjusted rather than replaced.
+ *
+ * A plain asset, copied through the build untouched — which is also how any other CSS,
+ * image or font in a source directory reaches the output. It is linked after theme.css,
+ * which is what lets these definitions win.
+ *
+ * Only the code surface is changed. syntax.css colours tokens, never the surface under
+ * them, so a site pairing a dark `highlight.theme` with a theme has to say what colour
+ * code sits on — here, dark in both schemes, matching base16-ocean.dark. A site wanting
+ * blocks to follow prefers-color-scheme sets `highlight.theme_dark` and gives these
+ * three a dark query too. Everything else is the theme's. */
+
+:root {
+  --orgo-code-bg: #2b303b;
+  --orgo-code-fg: #c0c5ce;
+  --orgo-code-rule: #1f232b;
+}

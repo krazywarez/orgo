@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Watching and serving &middot; orgo</title>
+<meta name="description" content="The write-save-see loop, and what the development server does and does not do.">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../theme.css">
+<link rel="stylesheet" href="../syntax.css">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="site">
+<a class="site-title" href="../index.html">orgo</a>
+<nav>
+<a href="../install.html">Install</a>
+<a href="../quickstart.html">Quick start</a>
+<a href="index.html">Guide</a>
+</nav>
+</header>
+<main>
+<h1>Watching and serving</h1>
+<p class="lede">Filesystem events, debounced rebuilds, and a browser that reloads itself.</p>
+<nav class="toc" aria-label="On this page">
+<h2>On this page</h2>
+<ul>
+<li><a href="#serve">serve</a>
+<ul>
+<li><a href="#it-binds-loopback-deliberately">It binds loopback deliberately</a></li>
+<li><a href="#the-reload-script-never-reaches-disk">The reload script never reaches disk</a></li>
+<li><a href="#how-reload-works">How reload works</a></li>
+</ul></li>
+<li><a href="#watch">watch</a></li>
+<li><a href="#what-counts-as-a-change">What counts as a change</a></li>
+<li><a href="#debouncing">Debouncing</a></li>
+<li><a href="#rebuild-failures-do-not-stop-the-session">Rebuild failures do not stop the session</a></li>
+<li><a href="#where-native-watching-is-unavailable">Where native watching is unavailable</a></li>
+<li><a href="#serving-details">Serving details</a></li>
+<li><a href="#a-typical-session">A typical session</a></li>
+</ul>
+</nav>
+<h2 id="serve">serve</h2>
+<pre><code class="language-sh highlight"><span class="source shell bash"><span class="meta function-call shell"><span class="variable function shell">orgo</span></span><span class="meta function-call arguments shell"> serve content<span class="variable parameter option shell"><span class="punctuation definition parameter shell"> -</span>o</span> _site</span></span></code></pre>
+<p>Builds, watches, serves at <a href="http://127.0.0.1:3000">127.0.0.1:3000</a>, and reloads the browser when a rebuild lands. This is the command to leave running while you write.</p>
+<p>Add <code class="verbatim">--drafts</code> to see work in progress, <code class="verbatim">--port</code> to move it, and <code class="verbatim">--host 0.0.0.0</code> to reach it from another device.</p>
+<h3 id="it-binds-loopback-deliberately">It binds loopback deliberately</h3>
+<p>A development server serves unreviewed drafts off your laptop. Exposing that to whatever network you are on — a café, a conference, an office — should be something you ask for, so the default is <code class="verbatim">127.0.0.1</code> and <code class="verbatim">--host</code> is the way out.</p>
+<h3 id="the-reload-script-never-reaches-disk">The reload script never reaches disk</h3>
+<p>The script is injected into HTML <strong>responses</strong>, not into the built files. What you deploy is the site as built, with no development machinery in it. If you are curious, compare a served page with the file in your output directory.</p>
+<h3 id="how-reload-works">How reload works</h3>
+<p>The page carries the build generation it was rendered from, and asks the server "anything newer than N?". The server holds that request open until there is, then answers — so a reload is immediate rather than polled, but the mechanism is ordinary HTTP with no WebSocket.</p>
+<p>Baking the generation into the page closes a race: if a rebuild lands between a page being served and its first request going out, the server answers at once instead of the tab sitting on stale content until your <strong>next</strong> edit.</p>
+<p>A reload only follows a <strong>successful</strong> rebuild. Reloading onto an unchanged page because the build just failed tells you nothing — the error is already on your terminal.</p>
+<h2 id="watch">watch</h2>
+<pre><code class="language-sh highlight"><span class="source shell bash"><span class="meta function-call shell"><span class="variable function shell">orgo</span></span><span class="meta function-call arguments shell"> watch content<span class="variable parameter option shell"><span class="punctuation definition parameter shell"> -</span>o</span> _site</span></span></code></pre>
+<p>The same rebuilding without the server, for when something else already serves the output.</p>
+<h2 id="what-counts-as-a-change">What counts as a change</h2>
+<p>Rebuilds are driven by OS filesystem events, so nothing happens while nothing happens. The rule for what triggers one is deliberately <strong>not</strong> the rule the build uses to find content — the question is "would this change the site?", not "is this a page?".</p>
+<p><strong>Triggers a rebuild:</strong> any <code class="verbatim">.org</code> file, any asset, <code class="verbatim">orgo.toml</code>, and anything in the templates directory. The last two are skipped by the build when looking for content, but both change the output.</p>
+<p><strong>Does not:</strong></p>
+<ul>
+<li>The output directory. Without this the build's own writes would raise events that trigger a rebuild, forever.</li>
+<li>Dot-directories. <code class="verbatim">.git</code> churns on every command, and rebuilding a site because git wrote an index lock would make watching useless in a repository.</li>
+<li>Editor scratch files: <code class="verbatim">file.org~</code>, <code class="verbatim">#file.org#</code>, <code class="verbatim">.#file.org</code>, <code class="verbatim">*.swp</code>, <code class="verbatim">*.tmp</code>. Emacs' backup files matter here — they do not start with a dot, so they would otherwise look exactly like content.</li>
+</ul>
+<h2 id="debouncing">Debouncing</h2>
+<p>Saving a file is rarely one event: an editor writes a temp file, renames it over the original, and touches the directory. Events are collected for 120ms of quiet before a rebuild starts, so one save is one rebuild.</p>
+<h2 id="rebuild-failures-do-not-stop-the-session">Rebuild failures do not stop the session</h2>
+<p>A build that fails prints the error and keeps watching. The usual cause is a half-saved file, and the next keystroke fixes it. Nothing needs restarting.</p>
+<pre>blog/post.org changed: build failed: parsing blog/post.org: ...
+blog/post.org changed: 2 rendered, 180 cached</pre>
+<h2 id="where-native-watching-is-unavailable">Where native watching is unavailable</h2>
+<p>Some network and container filesystems have no event API. orgo falls back to polling every two seconds and says so, rather than failing:</p>
+<pre>note: native file watching unavailable (...); polling every 2s</pre>
+<h2 id="serving-details">Serving details</h2>
+<ul>
+<li><code class="verbatim">/</code> and any directory URL serve <code class="verbatim">index.html</code>.</li>
+<li>Content types are set by extension; unknown extensions are served as binary.</li>
+<li>Everything is sent <code class="verbatim">Cache-Control: no-store</code>, because a cached dev response makes an edit look like it did not land.</li>
+<li>URL resolution refuses to leave the output directory. <code class="verbatim">..</code>, percent-encoded <code class="verbatim">..</code>, backslashes, absolute paths and embedded NULs all resolve to nothing.</li>
+</ul>
+<h2 id="a-typical-session">A typical session</h2>
+<pre><code class="language-sh highlight"><span class="source shell bash"><span class="comment line number-sign shell"><span class="punctuation definition comment begin shell">#</span></span><span class="comment line number-sign shell"> One terminal, left running.</span><span class="comment line number-sign shell">
+</span><span class="meta function-call shell"><span class="variable function shell">orgo</span></span><span class="meta function-call arguments shell"> serve content<span class="variable parameter option shell"><span class="punctuation definition parameter shell"> -</span>o</span> _site<span class="variable parameter option shell"><span class="punctuation definition parameter shell"> --</span>drafts</span></span>
+
+<span class="comment line number-sign shell"><span class="punctuation definition comment begin shell">#</span></span><span class="comment line number-sign shell"> Write. The browser keeps up.</span><span class="comment line number-sign shell">
+</span>
+<span class="comment line number-sign shell"><span class="punctuation definition comment begin shell">#</span></span><span class="comment line number-sign shell"> Before publishing, check what a real build says.</span><span class="comment line number-sign shell">
+</span><span class="meta function-call shell"><span class="variable function shell">orgo</span></span><span class="meta function-call arguments shell"> build content<span class="variable parameter option shell"><span class="punctuation definition parameter shell"> -</span>o</span> _site<span class="variable parameter option shell"><span class="punctuation definition parameter shell"> --</span>strict</span></span></span></code></pre>
+</main>
+<footer class="site">
+Built with orgo &mdash; these docs are an orgo site.
+</footer>
+</body>
+</html>

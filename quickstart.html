@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quick start &middot; orgo</title>
+<meta name="description" content="A working site in two commands, then your own writing, then your own design.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="syntax.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site">
+<a class="site-title" href="index.html">orgo</a>
+<nav>
+<a href="install.html">Install</a>
+<a href="#">Quick start</a>
+<a href="guide/index.html">Guide</a>
+</nav>
+</header>
+<main>
+<h1>Quick start</h1>
+<p class="lede">Five minutes from nothing to a site that reloads as you type.</p>
+<nav class="toc" aria-label="On this page">
+<h2>On this page</h2>
+<ul>
+<li><a href="#two-commands">Two commands</a>
+<ul>
+<li><a href="#what-init-created">What init created</a></li>
+</ul></li>
+<li><a href="#adapting-it-to-org-files-you-already-have">Adapting it to org files you already have</a>
+<ul>
+<li><a href="#source-is-the-url-root">SOURCE is the URL root</a></li>
+<li><a href="#common-layouts">Common layouts</a></li>
+<li><a href="#output-can-live-inside-the-source">OUTPUT can live inside the source</a></li>
+<li><a href="#where-config-and-templates-go">Where config and templates go</a></li>
+<li><a href="#a-worked-example">A worked example</a></li>
+</ul></li>
+<li><a href="#write-a-page">Write a page</a>
+<ul>
+<li><a href="#control-the-url">Control the URL</a></li>
+<li><a href="#keep-something-unfinished-out-of-the-build">Keep something unfinished out of the build</a></li>
+</ul></li>
+<li><a href="#change-the-design">Change the design</a></li>
+<li><a href="#add-a-blog-index">Add a blog index</a></li>
+<li><a href="#build-for-real">Build for real</a></li>
+<li><a href="#next">Next</a></li>
+</ul>
+</nav>
+<h2 id="two-commands">Two commands</h2>
+<pre><code class="language-sh highlight"><span class="source shell bash"><span class="meta function-call shell"><span class="variable function shell">orgo</span></span><span class="meta function-call arguments shell"> init my-site</span>
+<span class="meta function-call shell"><span class="variable function shell">orgo</span></span><span class="meta function-call arguments shell"> serve my-site<span class="variable parameter option shell"><span class="punctuation definition parameter shell"> -</span>o</span> _site</span></span></code></pre>
+<p>Open <a href="http://127.0.0.1:3000">127.0.0.1:3000</a>. Edit <code class="verbatim">my-site/index.org</code> in your editor, save, and the page reloads on its own.</p>
+<p><code class="verbatim">init</code> writes only files that do not already exist, so running it inside a directory that already has content is safe and additive.</p>
+<h3 id="what-init-created">What init created</h3>
+<pre>my-site/
+  orgo.toml            every setting, commented — all at their defaults but `theme`
+  index.org               the home page
+  blog/first-post.org     a post, to show the collection working
+  templates/
+    base.html             the page layout — edit this
+    list.html             the blog index
+    tags.html             the tag index
+    feed.xml              an RSS feed</pre>
+<h2 id="adapting-it-to-org-files-you-already-have">Adapting it to org files you already have</h2>
+<p>You do not need <code class="verbatim">init</code>, a config file, or templates. Every command takes the same two paths:</p>
+<pre><code class="language-sh highlight"><span class="source shell bash"><span class="meta function-call shell"><span class="variable function shell">orgo</span></span><span class="meta function-call arguments shell"> serve <span class="keyword operator assignment redirection shell">&lt;</span>SOURCE<span class="keyword operator assignment redirection shell">&gt;</span> <span class="punctuation terminator file-descriptor shell">-</span>o <span class="keyword operator assignment redirection shell">&lt;</span>OUTPUT<span class="keyword operator assignment redirection shell">&gt;</span></span></span></code></pre>
+<h3 id="source-is-the-url-root">SOURCE is the URL root</h3>
+<p>This is the one thing worth getting right, and it is not "the project directory" — it is <strong>the directory whose contents should sit at the top of your site</strong>. A file at <code class="verbatim">SOURCE/blog/post.org</code> is published at <code class="verbatim">/blog/post.html</code>.</p>
+<p>So if your writing lives in a <code class="verbatim">content/</code> subdirectory, point at <code class="verbatim">content/</code>, not at the repository around it:</p>
+<pre><code class="language-sh highlight"><span class="source shell bash"><span class="meta function-call shell"><span class="support function cd shell">cd</span></span><span class="meta function-call arguments shell"> <span class="meta group expansion tilde"><span class="variable language tilde shell">~</span></span>/my-site</span>
+<span class="meta function-call shell"><span class="variable function shell">orgo</span></span><span class="meta function-call arguments shell"> serve content<span class="variable parameter option shell"><span class="punctuation definition parameter shell"> -</span>o</span> _site        <span class="comment line number-sign shell"><span class="punctuation definition comment begin shell">#</span></span><span class="comment line number-sign shell"> → /blog/post.html</span></span></span></code></pre>
+<p>Pointing one level too high still builds, which is what makes it worth saying out loud. It just builds the wrong site:</p>
+<pre><code class="language-sh highlight"><span class="source shell bash"><span class="meta function-call shell"><span class="variable function shell">orgo</span></span><span class="meta function-call arguments shell"> serve .<span class="variable parameter option shell"><span class="punctuation definition parameter shell"> -</span>o</span> _site              <span class="comment line number-sign shell"><span class="punctuation definition comment begin shell">#</span></span><span class="comment line number-sign shell"> → /content/blog/post.html</span></span></span></code></pre>
+<p>Every URL gains a <code class="verbatim">/content/</code> prefix, and every non-org file in the repository — <code class="verbatim">README.md</code>, build scripts, licence files — is copied into the output as a site asset. If you see either symptom, you picked the directory above the one you meant.</p>
+<h3 id="common-layouts">Common layouts</h3>
+<table>
+<thead>
+<tr><th>Your files</th><th>Command</th></tr>
+</thead>
+<tbody>
+<tr><td><code class="verbatim">~/notes/*.org</code></td><td><code class="verbatim">orgo serve ~/notes -o /tmp/notes-site</code></td></tr>
+<tr><td><code class="verbatim">my-site/content/**/*.org</code></td><td><code class="verbatim">cd my-site &amp;&amp; orgo serve content -o _site</code></td></tr>
+<tr><td><code class="verbatim">my-site/*.org</code> at the top level</td><td><code class="verbatim">cd my-site &amp;&amp; orgo serve . -o _site</code></td></tr>
+<tr><td>Org files scattered in a code repo</td><td>Do not. Copy or symlink the ones you publish into one directory.</td></tr>
+</tbody>
+</table>
+<h3 id="output-can-live-inside-the-source">OUTPUT can live inside the source</h3>
+<p><code class="verbatim">orgo serve . -o _site</code> is fine: the output directory is recognised and skipped, so the build never copies its own output back into itself. Nothing dot-prefixed is published either, so <code class="verbatim">.git</code> stays out of a site built from a repository root.</p>
+<h3 id="where-config-and-templates-go">Where config and templates go</h3>
+<p>Both live in the <strong>source</strong> directory — <code class="verbatim">SOURCE/orgo.toml</code> and <code class="verbatim">SOURCE/templates/</code> — and neither is published. If you would rather keep the config elsewhere, name it:</p>
+<pre><code class="language-sh highlight"><span class="source shell bash"><span class="meta function-call shell"><span class="variable function shell">orgo</span></span><span class="meta function-call arguments shell"> serve content<span class="variable parameter option shell"><span class="punctuation definition parameter shell"> -</span>o</span> _site<span class="variable parameter option shell"><span class="punctuation definition parameter shell"> --</span>config</span> config/orgo.toml</span></span></code></pre>
+<h3 id="a-worked-example">A worked example</h3>
+<p>A repository laid out as <code class="verbatim">content/</code> (org files), <code class="verbatim">theme/</code> (unrelated), <code class="verbatim">build.py</code>:</p>
+<pre><code class="language-sh highlight"><span class="source shell bash"><span class="meta function-call shell"><span class="support function cd shell">cd</span></span><span class="meta function-call arguments shell"> <span class="meta group expansion tilde"><span class="variable language tilde shell">~</span></span>/my-site</span>
+
+<span class="comment line number-sign shell"><span class="punctuation definition comment begin shell">#</span></span><span class="comment line number-sign shell"> What is actually in there, before trusting anything with it.</span><span class="comment line number-sign shell">
+</span><span class="meta function-call shell"><span class="variable function shell">orgo</span></span><span class="meta function-call arguments shell"> audit content</span>
+
+<span class="comment line number-sign shell"><span class="punctuation definition comment begin shell">#</span></span><span class="comment line number-sign shell"> Build it somewhere disposable and look.</span><span class="comment line number-sign shell">
+</span><span class="meta function-call shell"><span class="variable function shell">orgo</span></span><span class="meta function-call arguments shell"> serve content<span class="variable parameter option shell"><span class="punctuation definition parameter shell"> -</span>o</span> /tmp/preview</span>
+
+<span class="comment line number-sign shell"><span class="punctuation definition comment begin shell">#</span></span><span class="comment line number-sign shell"> Happy with it? Build for real, failing on broken links.</span><span class="comment line number-sign shell">
+</span><span class="meta function-call shell"><span class="variable function shell">orgo</span></span><span class="meta function-call arguments shell"> build content<span class="variable parameter option shell"><span class="punctuation definition parameter shell"> -</span>o</span> _site<span class="variable parameter option shell"><span class="punctuation definition parameter shell"> --</span>strict</span></span></span></code></pre>
+<p>The audit reports which org constructs appear, how often, and whether each is supported — names, counts and line numbers only, never your text. See <a href="guide/09-auditing.html">Auditing a corpus</a>.</p>
+<p>Nothing in your files has to change. With no config you get a complete site: a built-in layout, navigation across your top-level pages, and syntax highlighting.</p>
+<h2 id="write-a-page">Write a page</h2>
+<p>Any <code class="verbatim">.org</code> file under the source directory becomes a page at the matching path. <code class="verbatim">notes/rust/borrowing.org</code> becomes <code class="verbatim">notes/rust/borrowing.html</code>.</p>
+<pre><code class="language-org highlight"><span class="text org"><span class="keyword other keyword org">#+TITLE:</span><span class="string unquoted org"> Borrowing</span>
+<span class="keyword other keyword org">#+DATE:</span><span class="string unquoted org"> &lt;2026-02-02 Mon&gt;</span>
+<span class="keyword other keyword org">#+FILETAGS:</span><span class="string unquoted org"> :rust:notes:</span>
+<span class="keyword other keyword org">#+DESCRIPTION:</span><span class="string unquoted org"> How the borrow checker thinks about lifetimes.</span>
+
+An opening paragraph, which becomes the excerpt in listings when there is no
+description.
+
+<span class="markup heading org"><span class="punctuation definition heading org">*</span> A heading
+</span>
+Ordinary org: <span class="markup bold org">*bold*</span>, <span class="markup italic org">/italic/</span>, <span class="markup raw inline org">~code~</span>, <span class="punctuation definition link org">[[</span><span class="markup underline link org">https://orgmode.org</span><span class="punctuation definition link org">]</span><span class="punctuation definition link org">[</span><span class="string other link title org">links</span><span class="punctuation definition link org">]]</span>, and lists.
+
+<span class="markup raw block org"><span class="keyword control block begin org">#+BEGIN_SRC</span><span class="variable parameter org"> rust</span>
+fn main() {}
+<span class="keyword control block end org">#+END_SRC</span></span></span></code></pre>
+<p>The keywords are all optional. <code class="verbatim">#+TITLE:</code> names the page, <code class="verbatim">#+DATE:</code> orders it in listings, <code class="verbatim">#+FILETAGS:</code> groups it on tag pages, and <code class="verbatim">#+DESCRIPTION:</code> is its summary.</p>
+<h3 id="control-the-url">Control the URL</h3>
+<p>By default the filename decides the URL. <code class="verbatim">#+SLUG:</code> overrides it, which is how a date-prefixed filename becomes a clean address:</p>
+<pre><code class="language-org highlight"><span class="text org"><span class="keyword other keyword org">#+TITLE:</span><span class="string unquoted org"> Borrowing</span>
+<span class="keyword other keyword org">#+SLUG:</span><span class="string unquoted org"> borrowing-explained</span></span></code></pre>
+<p><code class="verbatim">2026-02-02-borrowing.org</code> now publishes as <code class="verbatim">borrowing-explained.html</code>.</p>
+<h3 id="keep-something-unfinished-out-of-the-build">Keep something unfinished out of the build</h3>
+<pre><code class="language-org highlight"><span class="text org"><span class="keyword other keyword org">#+DRAFT:</span><span class="string unquoted org"> t</span></span></code></pre>
+<p>The page is not written, and does not appear in listings or navigation. Preview it while you work with <code class="verbatim">--drafts</code>:</p>
+<pre><code class="language-sh highlight"><span class="source shell bash"><span class="meta function-call shell"><span class="variable function shell">orgo</span></span><span class="meta function-call arguments shell"> serve my-site<span class="variable parameter option shell"><span class="punctuation definition parameter shell"> -</span>o</span> _site<span class="variable parameter option shell"><span class="punctuation definition parameter shell"> --</span>drafts</span></span></span></code></pre>
+<h2 id="change-the-design">Change the design</h2>
+<p>Everything visual lives in <code class="verbatim">templates/base.html</code>. It is an ordinary <a href="https://docs.rs/minijinja">minijinja</a> (Jinja2) template, and replacing it replaces the whole layout:</p>
+<pre><code class="language-html highlight"><span class="text html basic"><span class="meta tag sgml html"><span class="punctuation definition tag html">&lt;!</span><span class="meta tag sgml doctype html"><span class="entity name tag doctype html">DOCTYPE</span> html</span><span class="punctuation definition tag html">&gt;</span></span>
+<span class="meta tag structure any html"><span class="punctuation definition tag begin html">&lt;</span><span class="entity name tag structure any html">html</span> <span class="meta attribute-with-value html"><span class="entity other attribute-name html">lang</span><span class="punctuation separator key-value html">=</span></span><span class="meta attribute-with-value html"><span class="string quoted double html"><span class="punctuation definition string begin html">&quot;</span>{{ site.language }}<span class="punctuation definition string end html">&quot;</span></span></span><span class="punctuation definition tag end html">&gt;</span></span>
+<span class="meta tag structure any html"><span class="punctuation definition tag begin html">&lt;</span><span class="entity name tag structure any html">head</span><span class="punctuation definition tag end html">&gt;</span></span>
+  <span class="meta tag inline any html"><span class="punctuation definition tag begin html">&lt;</span><span class="entity name tag inline any html">meta</span> <span class="meta attribute-with-value html"><span class="entity other attribute-name html">charset</span><span class="punctuation separator key-value html">=</span></span><span class="meta attribute-with-value html"><span class="string quoted double html"><span class="punctuation definition string begin html">&quot;</span>utf-8<span class="punctuation definition string end html">&quot;</span></span></span><span class="punctuation definition tag end html">&gt;</span></span>
+  <span class="meta tag inline any html"><span class="punctuation definition tag begin html">&lt;</span><span class="entity name tag inline any html">title</span><span class="punctuation definition tag end html">&gt;</span></span>{{ page.title }} — {{ site.title }}<span class="meta tag inline any html"><span class="punctuation definition tag begin html">&lt;/</span><span class="entity name tag inline any html">title</span><span class="punctuation definition tag end html">&gt;</span></span>
+  <span class="meta tag inline any html"><span class="punctuation definition tag begin html">&lt;</span><span class="entity name tag inline any html">link</span> <span class="meta attribute-with-value html"><span class="entity other attribute-name html">rel</span><span class="punctuation separator key-value html">=</span></span><span class="meta attribute-with-value html"><span class="string quoted double html"><span class="punctuation definition string begin html">&quot;</span>stylesheet<span class="punctuation definition string end html">&quot;</span></span></span> <span class="meta attribute-with-value html"><span class="entity other attribute-name html">href</span><span class="punctuation separator key-value html">=</span></span><span class="meta attribute-with-value html"><span class="string quoted double html"><span class="punctuation definition string begin html">&quot;</span>{{ root }}style.css<span class="punctuation definition string end html">&quot;</span></span></span><span class="punctuation definition tag end html">&gt;</span></span>
+<span class="meta tag structure any html"><span class="punctuation definition tag begin html">&lt;/</span><span class="entity name tag structure any html">head</span><span class="punctuation definition tag end html">&gt;</span></span>
+<span class="meta tag structure any html"><span class="punctuation definition tag begin html">&lt;</span><span class="entity name tag structure any html">body</span><span class="punctuation definition tag end html">&gt;</span></span>
+  <span class="meta tag block any html"><span class="punctuation definition tag begin html">&lt;</span><span class="entity name tag block any html">nav</span><span class="punctuation definition tag end html">&gt;</span></span>{% for item in nav %}<span class="meta tag inline a html"><span class="punctuation definition tag begin html">&lt;</span><span class="entity name tag inline a html">a</span> <span class="meta attribute-with-value html"><span class="entity other attribute-name html">href</span><span class="punctuation separator key-value html">=</span></span><span class="meta attribute-with-value html"><span class="string quoted double html"><span class="punctuation definition string begin html">&quot;</span>{{ item.url }}<span class="punctuation definition string end html">&quot;</span></span></span><span class="punctuation definition tag end html">&gt;</span></span>{{ item.title }}<span class="meta tag inline a html"><span class="punctuation definition tag begin html">&lt;/</span><span class="entity name tag inline a html">a</span><span class="punctuation definition tag end html">&gt;</span></span>{% endfor %}<span class="meta tag block any html"><span class="punctuation definition tag begin html">&lt;/</span><span class="entity name tag block any html">nav</span><span class="punctuation definition tag end html">&gt;</span></span>
+  <span class="meta tag block any html"><span class="punctuation definition tag begin html">&lt;</span><span class="entity name tag block any html">h1</span><span class="punctuation definition tag end html">&gt;</span></span>{{ page.title }}<span class="meta tag block any html"><span class="punctuation definition tag begin html">&lt;/</span><span class="entity name tag block any html">h1</span><span class="punctuation definition tag end html">&gt;</span></span>
+  {{ body | safe }}
+<span class="meta tag structure any html"><span class="punctuation definition tag begin html">&lt;/</span><span class="entity name tag structure any html">body</span><span class="punctuation definition tag end html">&gt;</span></span>
+<span class="meta tag structure any html"><span class="punctuation definition tag begin html">&lt;/</span><span class="entity name tag structure any html">html</span><span class="punctuation definition tag end html">&gt;</span></span></span></code></pre>
+<p><code class="verbatim">root</code> is the <code class="verbatim">../</code> prefix back to the site root, so the same template works at any depth. Any other file in the source directory — <code class="verbatim">style.css</code>, images, fonts — is copied to the output untouched.</p>
+<p>Editing a template rebuilds every page that uses it, so the browser reloads while you are still looking at it. The full list of variables is in <a href="guide/04-templates.html">Templates</a>.</p>
+<h2 id="add-a-blog-index">Add a blog index</h2>
+<p>Listing pages have no source file; they are declared in <code class="verbatim">orgo.toml</code>:</p>
+<pre><code class="language-toml highlight"><span class="source toml"><span class="punctuation definition table array toml">[[</span><span class="entity name section toml">collections</span><span class="punctuation definition table array toml">]]</span>
+<span class="variable other key toml">source</span> <span class="keyword operator assignment toml">=</span> <span class="string quoted double toml"><span class="punctuation definition string begin toml">&quot;</span>blog<span class="punctuation definition string end toml">&quot;</span></span>
+<span class="variable other key toml">output</span> <span class="keyword operator assignment toml">=</span> <span class="string quoted double toml"><span class="punctuation definition string begin toml">&quot;</span>blog/index.html<span class="punctuation definition string end toml">&quot;</span></span>
+<span class="variable other key toml">template</span> <span class="keyword operator assignment toml">=</span> <span class="string quoted double toml"><span class="punctuation definition string begin toml">&quot;</span>list.html<span class="punctuation definition string end toml">&quot;</span></span>
+<span class="variable other key toml">title</span> <span class="keyword operator assignment toml">=</span> <span class="string quoted double toml"><span class="punctuation definition string begin toml">&quot;</span>Blog<span class="punctuation definition string end toml">&quot;</span></span>
+<span class="variable other key toml">sort</span> <span class="keyword operator assignment toml">=</span> <span class="string quoted double toml"><span class="punctuation definition string begin toml">&quot;</span>date<span class="punctuation definition string end toml">&quot;</span></span>
+<span class="variable other key toml">order</span> <span class="keyword operator assignment toml">=</span> <span class="string quoted double toml"><span class="punctuation definition string begin toml">&quot;</span>desc<span class="punctuation definition string end toml">&quot;</span></span>
+<span class="variable other key toml">nav</span> <span class="keyword operator assignment toml">=</span> <span class="constant language toml">true</span></span></code></pre>
+<p>That is also how you get tag pages, pagination and an RSS feed — same mechanism, more settings. See <a href="guide/03-collections.html">Collections</a>.</p>
+<h2 id="build-for-real">Build for real</h2>
+<pre><code class="language-sh highlight"><span class="source shell bash"><span class="meta function-call shell"><span class="variable function shell">orgo</span></span><span class="meta function-call arguments shell"> build my-site<span class="variable parameter option shell"><span class="punctuation definition parameter shell"> -</span>o</span> _site<span class="variable parameter option shell"><span class="punctuation definition parameter shell"> --</span>strict</span></span></span></code></pre>
+<p><code class="verbatim">--strict</code> turns broken internal links and parse diagnostics into a non-zero exit, which is what you want in CI. Deployment is just copying <code class="verbatim">_site</code> somewhere; see <a href="guide/10-deploying.html">Deploying</a>.</p>
+<h2 id="next">Next</h2>
+<ul>
+<li><a href="guide/01-cli.html">Command reference</a> — every command and flag.</li>
+<li><a href="guide/02-configuration.html">Configuration</a> — every setting in <code class="verbatim">orgo.toml</code>.</li>
+<li><a href="guide/05-org-support.html">Org support</a> — exactly which org syntax is handled.</li>
+</ul>
+</main>
+<footer class="site">
+Built with orgo &mdash; these docs are an orgo site.
+</footer>
+</body>
+</html>

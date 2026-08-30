@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Auditing a corpus &middot; orgo</title>
+<meta name="description" content="Find out what a tool will make of your writing before you trust it with it.">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../theme.css">
+<link rel="stylesheet" href="../syntax.css">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="site">
+<a class="site-title" href="../index.html">orgo</a>
+<nav>
+<a href="../install.html">Install</a>
+<a href="../quickstart.html">Quick start</a>
+<a href="index.html">Guide</a>
+</nav>
+</header>
+<main>
+<h1>Auditing a corpus</h1>
+<p class="lede">Construct frequencies, unknown-name census, and no document text in the output.</p>
+<nav class="toc" aria-label="On this page">
+<h2>On this page</h2>
+<ul>
+<li><a href="#reading-the-output">Reading the output</a></li>
+<li><a href="#it-never-prints-your-writing">It never prints your writing</a></li>
+<li><a href="#why-it-is-a-separate-scanner">Why it is a separate scanner</a></li>
+<li><a href="#comparing-against-emacs">Comparing against Emacs</a></li>
+<li><a href="#using-the-audit-before-a-migration">Using the audit before a migration</a></li>
+</ul>
+</nav>
+<pre><code class="language-sh highlight"><span class="source shell bash"><span class="meta function-call shell"><span class="variable function shell">orgo</span></span><span class="meta function-call arguments shell"> audit <span class="meta group expansion tilde"><span class="variable language tilde shell">~</span></span>/notes</span></span></code></pre>
+<p>The audit answers two questions about a body of org files:</p>
+<ol>
+<li><strong>Coverage.</strong> Of the constructs this corpus uses, which are supported? A construct that is common here and unsupported is a problem with the tool's scope, not with your writing.</li>
+<li><strong>Blind spots.</strong> Which names appear that orgo has no opinion about at all? These are the dangerous ones — not "known unsupported" but unknown.</li>
+</ol>
+<h2 id="reading-the-output">Reading the output</h2>
+<pre>corpus: 180 file(s), 29742 line(s)
+
+CONSTRUCTS (by frequency)
+     construct                            uses   files  first seen
+IN   list item                            1309     111  blog/2018-11-28-aes-encryption.org:53
+IN   heading                              1148     176  blog/2018-11-28-aes-encryption.org:7
+IN   verbatim                             1048     130  blog/2018-11-28-aes-encryption.org:79
+...
+IN   table formula (#+TBLFM:)                4       1  blog/2024-08-11-org-mode-features.org:191
+IN   special block                           1       1  blog/2026-03-03-auditing-aws-s3.org:50
+
+coverage: 9002 in-scope use(s) (100.0%), 0 out-of-scope (0.0%)
+
+KEYWORDS
+    SLUG                                 180     180  blog/2018-11-28-aes-encryption.org:4
+    TITLE                                180     180  blog/2018-11-28-aes-encryption.org:2
+—   LEDE                                  14      14  blog/2018-11-28-aes-encryption.org:3
+...</pre>
+<ul>
+<li><code class="verbatim">IN</code> is supported; <code class="verbatim">OUT</code> is excluded by design and degrades as described in <a href="05-org-support.html">Org support</a>.</li>
+<li>The <strong>coverage</strong> line is the number to look at first.</li>
+<li><code class="verbatim">???</code> marks a name orgo does not recognise at all. That is the blind-spot signal — not "known unsupported", but unknown — and this corpus has none. Block names never carry it: an unrecognised one is still a special block, and still renders. Keyword names never carry it either — see below.</li>
+<li><code class="verbatim">—</code> marks a keyword with no dedicated handling. It is not a gap: the keyword reaches your layout as <code class="verbatim">{{ page.keywords.&lt;name&gt; }}</code>, which is the designed behaviour, so the marker tells you which of your keywords orgo reads by name and which rely on that pass-through.</li>
+</ul>
+<p>Four censuses follow the construct table: every distinct <code class="verbatim">#+KEYWORD:</code>, block type, drawer name and link scheme in the corpus. A <code class="verbatim">???</code> in any of them is worth a look.</p>
+<h2 id="it-never-prints-your-writing">It never prints your writing</h2>
+<p>Names, counts and <code class="verbatim">file:line</code> locations only. That is a deliberate constraint so that an audit of private notes — work notes, a journal — is safe to paste into an issue or share with someone helping you.</p>
+<h2 id="why-it-is-a-separate-scanner">Why it is a separate scanner</h2>
+<p>The audit deliberately does <strong>not</strong> reuse the parser. Auditing with the parser could only ever find constructs the parser already knows about, which is exactly the wrong instrument for the second question: it would report a blind spot as clean.</p>
+<h2 id="comparing-against-emacs">Comparing against Emacs</h2>
+<p>The second half of the same idea is a differential test suite. <code class="verbatim">cargo test --test oracle</code> exports each fixture with org's own HTML exporter through <code class="verbatim">emacs --batch</code>, reduces both outputs to a semantic skeleton, and <strong>snapshots the disagreement</strong>.</p>
+<pre><code class="language-sh highlight"><span class="source shell bash"><span class="meta function-call shell"><span class="variable function shell">cargo</span></span><span class="meta function-call arguments shell"> test<span class="variable parameter option shell"><span class="punctuation definition parameter shell"> --</span>test</span> oracle</span></span></code></pre>
+<p>Snapshotting rather than asserting agreement is deliberate: a checked-in divergence report gets reviewed and shows up in code review, where a permanently red test gets ignored. Three invariants <em>are</em> asserted outright — heading structure, list nesting and source-block text — and all three hold.</p>
+<p>The suite skips cleanly with no Emacs installed, so a machine without it still gets a green run; it simply measures one thing less.</p>
+<h2 id="using-the-audit-before-a-migration">Using the audit before a migration</h2>
+<pre><code class="language-sh highlight"><span class="source shell bash"><span class="comment line number-sign shell"><span class="punctuation definition comment begin shell">#</span></span><span class="comment line number-sign shell"> What is in there?</span><span class="comment line number-sign shell">
+</span><span class="meta function-call shell"><span class="variable function shell">orgo</span></span><span class="meta function-call arguments shell"> audit <span class="meta group expansion tilde"><span class="variable language tilde shell">~</span></span>/notes</span>
+
+<span class="comment line number-sign shell"><span class="punctuation definition comment begin shell">#</span></span><span class="comment line number-sign shell"> Build it and see what the builder itself complains about.</span><span class="comment line number-sign shell">
+</span><span class="meta function-call shell"><span class="variable function shell">orgo</span></span><span class="meta function-call arguments shell"> build <span class="meta group expansion tilde"><span class="variable language tilde shell">~</span></span>/notes<span class="variable parameter option shell"><span class="punctuation definition parameter shell"> -</span>o</span> /tmp/preview<span class="variable parameter option shell"><span class="punctuation definition parameter shell"> --</span>strict</span></span>
+
+<span class="comment line number-sign shell"><span class="punctuation definition comment begin shell">#</span></span><span class="comment line number-sign shell"> Look at the result.</span><span class="comment line number-sign shell">
+</span><span class="meta function-call shell"><span class="variable function shell">orgo</span></span><span class="meta function-call arguments shell"> serve <span class="meta group expansion tilde"><span class="variable language tilde shell">~</span></span>/notes<span class="variable parameter option shell"><span class="punctuation definition parameter shell"> -</span>o</span> /tmp/preview</span></span></code></pre>
+<p><code class="verbatim">--strict</code> surfaces broken internal links and malformed constructs as failures rather than warnings, which is the fastest way to find the handful of files that need attention before you commit to anything.</p>
+</main>
+<footer class="site">
+Built with orgo &mdash; these docs are an orgo site.
+</footer>
+</body>
+</html>
