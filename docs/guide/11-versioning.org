@@ -56,10 +56,10 @@ exists to serve the binary, and its types move as the tool does.
 
 * The compiler floor
 
-The MSRV is *1.88*, checked in CI on every change rather than assumed — which is how it
-came to be 1.88 rather than the 1.82 orgo's own code needs. The floor is set by
-dependencies, and a dependency raising its own is invisible until someone on an older
-compiler tries to build.
+The MSRV is *1.88*, measured rather than assumed — which is how it came to be 1.88
+rather than the 1.82 orgo's own code needs. The floor is set by dependencies, and a
+dependency raising its own is invisible until someone on an older compiler tries to
+build.
 
 Raising it is a minor version, never a patch.
 

@@ -21,7 +21,7 @@ That is the whole thing: cargo builds it and puts =orgo= in =~/.cargo/bin=.
 * From source
 
 #+BEGIN_SRC sh
-git clone https://github.com/krazywarez/orgo
+git clone https://gitbay.org/krz/orgo
 cd orgo
 cargo build --release
 #+END_SRC

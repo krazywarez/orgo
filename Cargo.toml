@@ -8,13 +8,12 @@ readme = "README.md"
 # crates.io caps a keyword at 20 characters, which "static-site-generator" is not.
 keywords = ["org-mode", "static-site", "ssg", "emacs", "blog"]
 categories = ["command-line-utilities", "text-processing"]
-repository = "https://github.com/krazywarez/orgo"
+repository = "https://gitbay.org/krz/orgo"
 homepage = "https://krazywarez.github.io/orgo/"
 
-# The compiler floor, checked in CI rather than assumed. orgo's own code needs 1.82
-# (`Option::is_none_or`); the floor is 1.88 because dependencies in Cargo.lock declare it
-# — `plist` and `time`, both by way of syntect. Raising this is a minor-version change,
-# never a patch.
+# The compiler floor. orgo's own code needs 1.82 (`Option::is_none_or`); the floor is
+# 1.88 because dependencies in Cargo.lock declare it — `plist` and `time`, both by way of
+# syntect. Raising this is a minor-version change, never a patch.
 rust-version = "1.88"
 
 # Published crates carry the source, the fixtures the tests need, and nothing else. The
