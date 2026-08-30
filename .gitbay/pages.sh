@@ -31,6 +31,6 @@ git -C "$work" -c user.name=gitbay-ci -c user.email=ci@orgo.krz.sh commit -q \
 	-m "Publish the documentation site
 
 Built from ${GITBAY_SHA} by \`orgo build docs -o _site --strict\`."
-git -C "$work" push -q --force "ssh://git@gitbay.org/${GITBAY_REPO}.git" HEAD:refs/heads/pages
+git -C "$work" push -q --force "$(git remote get-url origin)" HEAD:refs/heads/pages
 
 echo "published the site from ${GITBAY_SHA} to the pages branch"
