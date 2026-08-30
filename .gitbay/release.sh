@@ -20,8 +20,7 @@ repo="${GITBAY_REPO:?no repository in GITBAY_REPO}"
 # The tag is the source of truth for the version, checked rather than trusted: a
 # release tagged v0.18.0 whose binary reports 0.17.0 is the kind of thing nobody
 # notices for months.
-version=$(cargo metadata --no-deps --format-version 1 |
-	python3 -c 'import json,sys; print(json.load(sys.stdin)["packages"][0]["version"])')
+version=$(cargo pkgid | sed 's/.*[#@]//')
 if [ "$tag" != "v$version" ]; then
 	echo "tag $tag does not match Cargo.toml version $version" >&2
 	exit 1

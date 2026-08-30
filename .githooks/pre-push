@@ -26,8 +26,7 @@ while read -r _local_ref _local_sha remote_ref _remote_sha; do
 	esac
 	tag=${remote_ref#refs/tags/}
 
-	version=$(cargo metadata --no-deps --format-version 1 --manifest-path "$root/Cargo.toml" |
-		python3 -c 'import json,sys; print(json.load(sys.stdin)["packages"][0]["version"])')
+	version=$(cargo pkgid --manifest-path "$root/Cargo.toml" | sed 's/.*[#@]//')
 	if [ "$tag" != "v$version" ]; then
 		echo "pre-push: tag $tag does not match Cargo.toml version $version" >&2
 		exit 1
