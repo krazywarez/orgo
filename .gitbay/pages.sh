@@ -18,7 +18,7 @@ trap 'rm -rf "$tmp"' EXIT
 site="$tmp/site"
 work="$tmp/work"
 
-cargo run --release --locked -- build docs -o "$site" --strict
+cargo run --locked -- build docs -o "$site" --strict
 rm -f "$site/.orgo-cache.json"
 
 # An orphan history: the pages branch carries the built site and nothing else, so
