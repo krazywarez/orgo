@@ -3,30 +3,65 @@
 Read the content below for the release process.
 
 ** Where the repository lives
-=origin= is gitbay (=ssh://git@gitbay.org/krz/orgo.git=), which is where the issues and
-merge requests are. It push-mirrors to =https://github.com/krazywarez/orgo=, tags
-included.
+=origin= is gitbay (=ssh://git@gitbay.org/krz/orgo.git=), which is where the issues, merge
+requests, builds and releases are. It push-mirrors to
+=https://github.com/krazywarez/orgo=, tags included, but nothing in a release depends on
+that mirror any more — it is a copy, not a step.
 
-That mirror is what makes a release work. The automation is GitHub Actions and nothing
-triggers it directly: a tag pushed to gitbay reaches GitHub within a minute, and
-=.github/workflows/release.yml= runs there. =docs.yml= deploys the documentation site to
-Pages the same way, on a push to =main= that touches =docs/=, =src/=, =Cargo.toml= or
-=Cargo.lock=.
+** What runs where
+Three things happen automatically, and one of them happens on your Mac.
 
-Neither forge runs the tests. =ci.yml= is gone and there is no =.gitbay/ci.yml=, so the
-checks in step 2 are the only gate a release passes.
+| Trigger            | Where                     | What                                              |
+|--------------------+---------------------------+---------------------------------------------------|
+| Any branch push    | gitbay CI (=test= job)    | =cargo test=, clippy, and a =--strict= docs build |
+| A push to =main=   | gitbay CI (=pages= job)   | Publishes the site to the =pages= branch          |
+| A =v*= tag push    | Your Mac (=pre-push=)     | Builds and packages the two darwin tarballs       |
+| A =v*= tag push    | gitbay CI (=release= job) | Linux tarballs, the release, then crates.io       |
+
+The darwin binaries are the one part CI cannot do. The runner is Linux, and gitbay's
+=runner next= claims the oldest pending build with no platform targeting, so a second
+runner could not be aimed at macOS jobs. Building them in =pre-push= is the better place
+anyway: a build failure aborts the push, so a tag whose Mac binaries do not compile is
+never published.
+
+Uploading them has to wait, because =release asset add= needs a release and the release is
+created by the job the tag push triggers. =pre-push= hands that to a detached
+=.githooks/upload-macos=, which waits for the release and then attaches the tarballs. Its
+log and the tarballs stay in =dist/macos/<tag>/=.
 
 ** Before the first publish
-Nothing to install and no token to store. The release workflow mints a short-lived
-crates.io token with OIDC, configured on crates.io against the GitHub repository, the
-=release.yml= workflow file and the =crates-io= environment that job runs in.
+Once per clone:
 
-=repository= in =Cargo.toml= points at gitbay; =homepage= points at the documentation
-site on Pages.
+#+begin_src sh
+git config core.hooksPath .githooks
+#+end_src
+
+Once on the Mac that cuts releases — Homebrew's =rust= cannot add targets, so the
+toolchain has to be rustup:
+
+#+begin_src sh
+brew install rustup && rustup default stable
+rustup target add x86_64-apple-darwin
+#+end_src
+
+Once on the VPS runner: a Rust toolchain with =x86_64-unknown-linux-musl= added and
+=musl-gcc= installed, and an SSH key registered on gitbay that can push to the repository
+(the =pages= job) and run =release create= (the =release= job).
+
+Once on the repository — the crates.io token, which is the one credential this setup
+stores:
+
+#+begin_src sh
+gitbay repo secret set krz/orgo CARGO_REGISTRY_TOKEN
+#+end_src
+
+=repository= in =Cargo.toml= points at gitbay; =homepage= points at
+[[https://orgo.krz.sh]], the documentation site the =pages= job publishes.
 
 ** Every release
 1. Bump the version in =Cargo.toml=, and build once so =Cargo.lock= follows.
-2. Test and package the release.
+2. Test and package the release. CI runs the first two on every push, but a release is
+   worth checking before you tag rather than after.
 
    #+begin_src sh
    cargo test
@@ -37,49 +72,56 @@ site on Pages.
 
 3. Build a site you know with =--no-cache= and diff the output against the previous
    version's.
-4. Commit, tag, push.
+4. Commit and push. The =test= and =pages= jobs run.
 
    #+begin_src sh
-   git commit -am "0.18: <what changed>"
-   git tag -a v0.18.0 -m "0.18.0"
-   git push && git push --tags
+   git commit -am "0.24: <what changed>"
+   git push
    #+end_src
 
-5. The tag push is the release, by way of the mirror. It builds binaries for macOS
-   (arm64 and x86_64) and Linux (gnu and musl), opens a /draft/ GitHub release with them
-   attached, and runs =cargo publish --locked= — there is nothing to publish by hand, and
-   running =cargo publish= locally now only fails on a version crates.io already has. The
-   build checks the tag against =Cargo.toml= rather than trusting the two to match.
-
-   =gh= talks to the mirror, so it is how you watch the run:
+5. Write the release notes, then tag with them. The =release= job uses the tag's own
+   annotation as the release notes, so the notes are written at the moment you decide to
+   cut the release rather than afterwards.
 
    #+begin_src sh
-   gh run list -R krazywarez/orgo --limit 3
+   $EDITOR notes.md
+   git tag -a v0.24.0 -F notes.md
+   git push --tags
+   #+end_src
+
+   The push blocks while your Mac builds both darwin targets. If either fails, the push
+   is refused and nothing is tagged.
+
+6. The tag push is the release. It checks the tag against =Cargo.toml= rather than
+   trusting the two to match, builds the gnu and musl tarballs, creates the release with
+   your notes, attaches the tarballs, and runs =cargo publish --locked=. The macOS
+   tarballs arrive a few minutes later from the detached uploader.
+
+   #+begin_src sh
+   gitbay build list krz/orgo
+   gitbay release show krz/orgo v0.24.0
    #+end_src
 
    Publishing is the one step that cannot be undone: a version can be yanked but never
-   replaced. The publish job runs in the =crates-io= environment so it can be held —
-   add a required reviewer to that environment in the GitHub repository settings and a
-   tag push waits for a human before it reaches crates.io.
+   replaced. It runs last, after the release exists and the binaries are attached, so a
+   failure earlier in the job costs you a tag rather than a version number.
 
-   A release that fails halfway is re-run from the Actions tab: the workflow takes the
-   tag to build as an input, so it does not need a second tag.
-
-6. Write the release notes and publish the draft GitHub release.
-7. Release on gitbay, which has no automation of its own. Same notes, same binaries.
+7. If the macOS upload did not land — check =dist/macos/v0.24.0/upload.log= — rerun it.
+   The tarballs are already built, and uploading one twice replaces it.
 
    #+begin_src sh
-   gitbay release create v0.18.0 --title 0.18.0 --file - < notes.md
-   gh release download v0.18.0 -R krazywarez/orgo -D dist
-   for f in dist/*; do gitbay release asset add v0.18.0 "$(basename "$f")" < "$f"; done
+   .githooks/upload-macos v0.24.0
    #+end_src
 
 ** If a release goes wrong
 Yank rather than delete, and ship a fix as a new version:
 
 #+begin_src sh
-cargo yank --version 0.18.0
+cargo yank --version 0.24.0
 #+end_src
 
 Yanking stops new dependents from selecting it; anyone who already has it keeps working.
-Then release =0.18.1= with the fix.
+Then release =0.24.1= with the fix.
+
+A build that failed halfway is re-run with =gitbay build trigger=, which does not need a
+second tag.

@@ -1,0 +1,53 @@
+#!/bin/sh
+# Build the macOS binaries when a version tag is pushed.
+#
+# gitbay's runner is Linux and has no platform targeting, so the darwin tarballs
+# cannot be built in CI. They are built here instead, on the Mac doing the push,
+# and this is the better place for the gate: a build failure aborts the push, so
+# a tag whose Mac binaries do not compile is never published. GitHub Actions
+# found that out only after the tag was already public.
+#
+# Uploading has to wait: `release asset add` needs the release, and the release is
+# created by the CI job this push triggers. So the upload is handed to a detached
+# helper that waits for the release to appear. Its log, and the tarballs, stay in
+# dist/macos/<tag>/ — rerun .githooks/upload-macos <tag> if it fails.
+#
+# Wired up with: git config core.hooksPath .githooks
+set -eu
+
+root=$(git rev-parse --show-toplevel)
+targets="aarch64-apple-darwin x86_64-apple-darwin"
+
+# stdin: <local ref> <local sha> <remote ref> <remote sha>, one line per ref.
+while read -r _local_ref _local_sha remote_ref _remote_sha; do
+	case "$remote_ref" in
+	refs/tags/v*) ;;
+	*) continue ;;
+	esac
+	tag=${remote_ref#refs/tags/}
+
+	version=$(cargo pkgid --manifest-path "$root/Cargo.toml" | sed 's/.*[#@]//')
+	if [ "$tag" != "v$version" ]; then
+		echo "pre-push: tag $tag does not match Cargo.toml version $version" >&2
+		exit 1
+	fi
+
+	dist="$root/dist/macos/$tag"
+	rm -rf "$dist"
+	mkdir -p "$dist"
+
+	for target in $targets; do
+		echo "pre-push: building $target"
+		(cd "$root" && cargo build --release --locked --target "$target")
+		staging="orgo-$tag-$target"
+		rm -rf "$root/$staging"
+		mkdir "$root/$staging"
+		cp "$root/target/$target/release/orgo" "$root/README.md" "$root/LICENSE" "$root/$staging/"
+		(cd "$root" && tar czf "$dist/$staging.tar.gz" "$staging")
+		rm -rf "$root/$staging"
+		(cd "$dist" && shasum -a 256 "$staging.tar.gz" >"$staging.tar.gz.sha256")
+	done
+
+	echo "pre-push: built $tag for $targets; upload waits for the release"
+	nohup "$root/.githooks/upload-macos" "$tag" >>"$dist/upload.log" 2>&1 &
+done
