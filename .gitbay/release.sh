@@ -57,6 +57,10 @@ for f in "$dist"/*; do
 	echo "attached $(basename "$f")"
 done
 
+# bot-ssh.sh writes the bot's key and ssh config into the workspace, which leaves
+# the tree dirty, and `cargo publish` refuses that. Nothing below here uses ssh.
+rm -f .bot_key .known_hosts .ssh_config
+
 # --locked publishes exactly the dependency versions the tests ran against,
 # rather than whatever resolves at publish time.
 cargo publish --locked
