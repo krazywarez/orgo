@@ -9,7 +9,7 @@
 //! `--no-cache` forces a full rebuild; the cache is never a correctness dependency, so a
 //! full rebuild and an incremental rebuild produce byte-identical output.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fs;
 
 use anyhow::{Context, Result};
@@ -111,8 +111,8 @@ struct PagePrep {
     title: String,
     content_hash: ContentHash,
     resolved: crate::resolve::ResolvedDoc,
-    used: HashSet<TargetId>,
-    defines: HashSet<TargetId>,
+    used: BTreeSet<TargetId>,
+    defines: BTreeSet<TargetId>,
     broken: Vec<TargetId>,
     diagnostics: Vec<Diagnostic>,
     nav: Vec<NavItem>,
@@ -752,9 +752,9 @@ fn prepare_pages(
         .par_iter()
         .map(|doc| {
         let out = resolve(doc, &symbols);
-        let used: HashSet<TargetId> = out.used_targets.iter().cloned().collect();
+        let used: BTreeSet<TargetId> = out.used_targets.iter().cloned().collect();
         let broken: Vec<TargetId> = out.broken.iter().map(|b| b.target.clone()).collect();
-        let defines: HashSet<TargetId> = document_targets(doc).into_iter().collect();
+        let defines: BTreeSet<TargetId> = document_targets(doc).into_iter().collect();
 
         let output = output_path(&doc.source_path, &doc.keywords);
 

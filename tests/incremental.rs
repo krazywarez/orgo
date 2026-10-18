@@ -542,3 +542,51 @@ fn a_previous_build_output_is_not_copied_as_assets() {
         "the earlier site must not be nested inside the new one"
     );
 }
+
+/// The cache manifest is a file in the output tree, so it is covered by the same
+/// reproducibility rule as the pages: two builds of the same input write the same bytes.
+/// Serializing the per-file records and the dependency graph out of unordered maps put
+/// them in iteration order, which varies run to run.
+#[test]
+fn cache_manifest_is_byte_identical_across_builds() {
+    let root = tmpdir("manifest-stable");
+    let src = root.join("src");
+    std::fs::create_dir_all(src.join("deep")).unwrap();
+
+    // Enough cross-linked pages, across two directories, that an unordered map comes out
+    // in a different order run to run.
+    for i in 0..24 {
+        let body = format!(
+            "#+TITLE: Page {i}\n#+SLUG: page-{i}\n\n\
+             See [[#anchor-{next}][the next page]].\n\n\
+             * Heading {i}\n:PROPERTIES:\n:CUSTOM_ID: anchor-{i}\n:END:\n",
+            next = (i + 1) % 24
+        );
+        let dir = if i % 3 == 0 { src.join("deep") } else { src.clone() };
+        std::fs::write(dir.join(format!("p{i}.org")), body).unwrap();
+    }
+
+    let build = |out: &Utf8PathBuf| {
+        build_site(
+            &src,
+            out,
+            &BuildOptions {
+                no_cache: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        std::fs::read(manifest_path(out)).unwrap()
+    };
+
+    let first = build(&root.join("first"));
+    for _ in 0..3 {
+        let again = build(&tmpdir("manifest-stable-again").join("out"));
+        // `assert!` rather than `assert_eq!`: a mismatch would otherwise dump both
+        // manifests as byte vectors.
+        assert!(
+            first == again,
+            "the cache manifest must be byte-identical across builds"
+        );
+    }
+}

@@ -17,7 +17,7 @@
 //! invalidates pages that *link into* a changed file's targets, so a renamed/removed
 //! heading invalidates the pages that link to it, not just the file that owns it.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use camino::{Utf8Path, Utf8PathBuf};
 use serde::{Deserialize, Serialize};
@@ -101,8 +101,8 @@ pub fn template_hash(sources: &[(String, String)]) -> Hash {
 /// `uses`: page → targets it resolved a link to (the invalidation-critical edges).
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct DepGraph {
-    pub defines: HashMap<Utf8PathBuf, HashSet<TargetId>>,
-    pub uses: HashMap<Utf8PathBuf, HashSet<TargetId>>,
+    pub defines: BTreeMap<Utf8PathBuf, BTreeSet<TargetId>>,
+    pub uses: BTreeMap<Utf8PathBuf, BTreeSet<TargetId>>,
 }
 
 impl DepGraph {
@@ -129,7 +129,7 @@ impl DepGraph {
 /// hash and therefore the page's `render_key`. Deterministic: targets are sorted.
 pub fn resolved_links_hash(
     from: &Utf8Path,
-    used: &HashSet<TargetId>,
+    used: &BTreeSet<TargetId>,
     symbols: &SymbolTable,
 ) -> Hash {
     let mut pairs: Vec<(String, String)> = used
@@ -187,12 +187,13 @@ pub struct PageRecord {
 
 /// The on-disk cache manifest (spec §4.5). Serialized as JSON (human-diffable; the
 /// cache is an optimization, never a correctness dependency — a `--no-cache`/`clean`
-/// run always produces byte-identical output).
+/// run always produces byte-identical output). Ordered maps throughout, so the manifest
+/// is itself byte-reproducible rather than written in map iteration order.
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Manifest {
     pub format_version: u32,
     pub config_hash: Option<Hash>,
-    pub pages: HashMap<Utf8PathBuf, PageRecord>,
+    pub pages: BTreeMap<Utf8PathBuf, PageRecord>,
     pub graph: DepGraph,
 }
 

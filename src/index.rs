@@ -13,7 +13,7 @@ use crate::util::{heading_anchor, output_path, plain_text};
 ///
 /// `Serialize`/`Deserialize` so the dependency graph (defines/uses edges) round-trips
 /// through the on-disk cache manifest (spec §4.5).
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum TargetId {
     Id(String),
     CustomId(String),
