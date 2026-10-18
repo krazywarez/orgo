@@ -2,6 +2,7 @@
 source: tests/oracle.rs
 expression: report
 ---
+oracle: emacs 31.1, org 9.8.7
 agreement: 30/53 skeleton lines (56.6%)
 deliberate: 29 line(s) — footnote-anchor-naming ×3, footnote-section-shape ×6, semantic-emphasis ×2
 unexplained: 0 line(s)

@@ -31,6 +31,19 @@ const IGNORED: &[&str] = &["div", "span"];
 /// cosmetic (`org-ul`); `href` and `src` are the content.
 const KEPT_ATTRS: &[&str] = &["href", "src"];
 
+/// The named references this reduction understands. HTML5 decodes a legacy set of them
+/// without the closing semicolon, and org relies on that: `ox-html` 9.8 writes the
+/// heading tag prefix as `&nbsp;&nbsp;&nbsp`. No name here is a prefix of another, so the
+/// longest match is the only match.
+const NAMED: &[(&str, char)] = &[
+    ("amp", '&'),
+    ("lt", '<'),
+    ("gt", '>'),
+    ("quot", '"'),
+    ("apos", '\''),
+    ("nbsp", '\u{a0}'),
+];
+
 /// HTML void elements, which never emit a close event.
 const VOID: &[&str] = &[
     "br", "hr", "img", "input", "meta", "link", "col", "area", "base", "source", "wbr",
@@ -151,39 +164,46 @@ pub fn decode_entities(s: &str) -> String {
     while let Some(amp) = rest.find('&') {
         out.push_str(&rest[..amp]);
         let tail = &rest[amp..];
-        let Some(semi) = tail.find(';').filter(|s| *s <= 12) else {
-            out.push('&');
-            rest = &tail[1..];
-            continue;
-        };
-        let entity = &tail[1..semi];
-        let decoded = match entity {
-            "amp" => Some('&'),
-            "lt" => Some('<'),
-            "gt" => Some('>'),
-            "quot" => Some('"'),
-            "apos" => Some('\''),
-            "nbsp" => Some(' '),
-            _ => entity
-                .strip_prefix('#')
-                .and_then(|n| match n.strip_prefix(['x', 'X']) {
-                    Some(hex) => u32::from_str_radix(hex, 16).ok(),
-                    None => n.parse::<u32>().ok(),
-                })
-                .and_then(char::from_u32),
-        };
-        match decoded {
-            // A non-breaking space is a space for comparison purposes.
-            Some('\u{a0}') => out.push(' '),
-            Some(c) => out.push(c),
+        match entity_at(tail) {
+            Some((c, len)) => {
+                // A non-breaking space is a space for comparison purposes.
+                out.push(if c == '\u{a0}' { ' ' } else { c });
+                rest = &tail[len..];
+            }
             None => {
                 out.push('&');
                 rest = &tail[1..];
-                continue;
             }
         }
-        rest = &tail[semi + 1..];
     }
     out.push_str(rest);
     out
+}
+
+/// The reference at the start of `tail`, which begins with `&`: the character it denotes
+/// and the bytes it occupies. The semicolon is optional for [`NAMED`], so `&nbsptag1`
+/// reads as a non-breaking space followed by `tag1`, the same way a browser reads it.
+fn entity_at(tail: &str) -> Option<(char, usize)> {
+    if let Some(semi) = tail.find(';').filter(|s| *s <= 12) {
+        if let Some(c) = named(&tail[1..semi]).or_else(|| numeric(&tail[1..semi])) {
+            return Some((c, semi + 1));
+        }
+    }
+    NAMED
+        .iter()
+        .find(|(name, _)| tail[1..].starts_with(name))
+        .map(|(name, c)| (*c, 1 + name.len()))
+}
+
+fn named(name: &str) -> Option<char> {
+    NAMED.iter().find(|(n, _)| *n == name).map(|(_, c)| *c)
+}
+
+fn numeric(name: &str) -> Option<char> {
+    name.strip_prefix('#')
+        .and_then(|n| match n.strip_prefix(['x', 'X']) {
+            Some(hex) => u32::from_str_radix(hex, 16).ok(),
+            None => n.parse::<u32>().ok(),
+        })
+        .and_then(char::from_u32)
 }

@@ -2,8 +2,9 @@
 source: tests/oracle.rs
 expression: report
 ---
-agreement: 67/77 skeleton lines (87.0%)
-deliberate: 11 line(s) — pre-code ×6, semantic-emphasis ×4, verse-trailing-break ×1
+oracle: emacs 31.1, org 9.8.7
+agreement: 73/78 skeleton lines (93.6%)
+deliberate: 5 line(s) — semantic-emphasis ×4, verse-trailing-break ×1
 unexplained: 0 line(s)
 (- orgo, + emacs, ~ a difference we mean to have)
 
@@ -44,14 +45,14 @@ unexplained: 0 line(s)
   "Source"
   </h2>
   <pre>
-~ pre-code (1 line(s))
+  <code>
   "def greet(name): return f\"hello {name}\""
-~ pre-code (1 line(s))
+  </code>
   </pre>
   <pre>
-~ pre-code (1 line(s))
+  <code>
   "plain block, no language"
-~ pre-code (1 line(s))
+  </code>
   </pre>
   <h2>
   "Nested"
@@ -61,9 +62,9 @@ unexplained: 0 line(s)
   "A quote containing a source block:"
   </p>
   <pre>
-~ pre-code (1 line(s))
+  <code>
   "echo hi"
-~ pre-code (1 line(s))
+  </code>
   </pre>
   </blockquote>
   <h2>

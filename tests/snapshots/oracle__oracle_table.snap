@@ -2,6 +2,7 @@
 source: tests/oracle.rs
 expression: report
 ---
+oracle: emacs 31.1, org 9.8.7
 agreement: 30/34 skeleton lines (88.2%)
 deliberate: 4 line(s) — no-colgroup ×1
 unexplained: 0 line(s)

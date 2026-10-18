@@ -2,8 +2,9 @@
 source: tests/oracle.rs
 expression: report
 ---
-agreement: 64/82 skeleton lines (78.0%)
-deliberate: 26 line(s) — footnote-anchor-naming ×1, footnote-section-shape ×2, id-link-resolution ×1, no-colgroup ×1, pre-code ×2
+oracle: emacs 31.1, org 9.8.7
+agreement: 66/82 skeleton lines (80.5%)
+deliberate: 24 line(s) — footnote-anchor-naming ×1, footnote-section-shape ×2, id-link-resolution ×1, no-colgroup ×1
 unexplained: 0 line(s)
 (- orgo, + emacs, ~ a difference we mean to have)
 
@@ -11,9 +12,9 @@ unexplained: 0 line(s)
   "Code and tables"
   </h2>
   <pre>
-~ pre-code (1 line(s))
+  <code>
   "fn main() { println!(\"hello\"); }"
-~ pre-code (1 line(s))
+  </code>
   </pre>
   <table>
 ~ no-colgroup (4 line(s))

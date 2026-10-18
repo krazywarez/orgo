@@ -45,6 +45,27 @@ fn emacs_available() -> bool {
         .unwrap_or(false)
 }
 
+/// Emacs and org, as the `+` side of every report below. The ground truth moves: org
+/// 9.8 began wrapping source blocks in `<pre><code>`, which orgo already did, so three
+/// of these snapshots gained several points without orgo changing. Recorded so that
+/// shows in the diff as what it is rather than reading as a regression.
+fn oracle_version() -> &'static str {
+    static VERSION: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    VERSION.get_or_init(|| {
+        let output = Command::new("emacs")
+            .args([
+                "-Q",
+                "--batch",
+                "--eval",
+                "(progn (require 'org) \
+                 (princ (format \"emacs %s, org %s\" emacs-version (org-version))))",
+            ])
+            .output()
+            .expect("run emacs");
+        String::from_utf8_lossy(&output.stdout).trim().to_string()
+    })
+}
+
 /// Export a fixture with org's own HTML exporter.
 fn org_export(fixture: &str) -> String {
     let root = manifest_dir();
@@ -105,6 +126,22 @@ fn text_of(line: &str) -> Option<&str> {
     line.strip_prefix('"')?.strip_suffix('"')
 }
 
+/// The one text run a hunk consists of, if that is all it is.
+fn one_text(lines: &[String]) -> Option<&str> {
+    match lines {
+        [line] => text_of(line),
+        _ => None,
+    }
+}
+
+/// `TODO [#A] Write the parser` → `TODO Write the parser`.
+fn without_priority(text: &str) -> Option<String> {
+    let open = text.find("[#")?;
+    let close = open + text[open..].find(']')?;
+    let joined = format!("{}{}", &text[..open], text[close + 1..].trim_start());
+    Some(joined.trim().to_string())
+}
+
 /// Does this text run contain an org timestamp, `<2024-01-15 Mon>` or `[2024-01-15]`?
 fn has_timestamp(line: &str) -> bool {
     let t = match text_of(line) {
@@ -120,11 +157,28 @@ const DELIBERATE: &[Deliberate] = &[
     Deliberate {
         name: "semantic-time",
         matches: |ours, theirs| {
-            !ours.is_empty()
+            // Both sides are allowed to carry text, so without the `any` guards this
+            // rule matches *any* hunk of differing prose and files it under a rendering
+            // choice nobody made. That is how org 9.8's malformed `&nbsp` in the heading
+            // tag prefix arrived here labelled `semantic-time`.
+            ours.iter().any(|l| is_tag(l, &["time"]))
                 && ours
                     .iter()
                     .all(|l| is_tag(l, &["time"]) || text_of(l).is_some())
+                && theirs.iter().any(|l| has_timestamp(l))
                 && theirs.iter().all(|l| has_timestamp(l) || text_of(l).is_some())
+        },
+        in_notes_only: false,
+    },
+    // The priority cookie stays in the heading: the author wrote it, and a reader
+    // skimming a task list wants to see it. Org drops it, because
+    // `org-export-with-priority` defaults to nil. Heading decoration is a policy
+    // difference, not a structural one.
+    Deliberate {
+        name: "heading-priority-cookie",
+        matches: |ours, theirs| match (one_text(ours), one_text(theirs)) {
+            (Some(ours), Some(theirs)) => without_priority(ours).as_deref() == Some(theirs),
+            _ => false,
         },
         in_notes_only: false,
     },
@@ -150,8 +204,10 @@ const DELIBERATE: &[Deliberate] = &[
         },
         in_notes_only: false,
     },
-    // `<pre><code>` instead of a bare `<pre>`: the nested element is what every syntax
-    // highlighter and every reader's stylesheet expects.
+    // `<pre><code>`: the nested element is what every syntax highlighter and every
+    // reader's stylesheet expects. Org 9.8 emits it too, so this no longer fires — kept
+    // because org 9.7 and earlier write a bare `<pre>`, and the oracle is whatever Emacs
+    // is on the machine.
     Deliberate {
         name: "pre-code",
         matches: |ours, theirs| {
@@ -407,7 +463,11 @@ fn compare(fixture: &str) -> Option<String> {
     }
     let ours = skeleton(&our_export(fixture));
     let theirs = skeleton(&org_export(fixture));
-    Some(divergence(&ours, &theirs))
+    Some(format!(
+        "oracle: {}\n{}",
+        oracle_version(),
+        divergence(&ours, &theirs)
+    ))
 }
 
 macro_rules! oracle_test {
@@ -479,6 +539,22 @@ fn every_divergence_from_emacs_is_deliberate() {
 // ---------------------------------------------------------------------------
 // Invariants that must hold against the oracle, not merely be snapshotted
 // ---------------------------------------------------------------------------
+
+/// org 9.8 writes the heading tag prefix as `&nbsp;&nbsp;&nbsp` — the last reference
+/// unterminated. HTML5 decodes the legacy named set without the semicolon, so a browser
+/// reads that as three non-breaking spaces; the skeleton has to as well, or a heading
+/// carrying tags reads as `A Subheading &nbsptag1 tag2` and the whole report shifts.
+/// Asserted here rather than left to the snapshots because it must hold whichever Emacs
+/// is installed, including none.
+#[test]
+fn unterminated_named_references_decode_like_a_browser() {
+    assert_eq!(
+        decode_entities("A Subheading&nbsp;&nbsp;&nbsptag1&nbsp;tag2"),
+        "A Subheading   tag1 tag2"
+    );
+    assert_eq!(decode_entities("a &amp b"), "a & b");
+    assert_eq!(decode_entities("Q&A"), "Q&A");
+}
 
 /// How many headings a document has and at what depth is the shape of the document.
 /// Getting it wrong reorganizes someone's writing, so it is asserted rather than

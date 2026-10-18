@@ -2,13 +2,14 @@
 source: tests/oracle.rs
 expression: report
 ---
+oracle: emacs 31.1, org 9.8.7
 agreement: 28/30 skeleton lines (93.3%)
-deliberate: 2 line(s) — semantic-time ×2
+deliberate: 2 line(s) — heading-priority-cookie ×2
 unexplained: 0 line(s)
 (- orgo, + emacs, ~ a difference we mean to have)
 
   <h2>
-~ semantic-time (1 line(s))
+~ heading-priority-cookie (1 line(s))
   </h2>
   <p>
   "A heading carrying a keyword, a priority, tags and a property drawer."
@@ -20,7 +21,7 @@ unexplained: 0 line(s)
   "Sub-headings nest by star count."
   </p>
   <h3>
-~ semantic-time (1 line(s))
+~ heading-priority-cookie (1 line(s))
   </h3>
   <p>
   "A priority cookie can stand alone."

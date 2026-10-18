@@ -2,8 +2,9 @@
 source: tests/oracle.rs
 expression: report
 ---
-agreement: 51/58 skeleton lines (87.9%)
-deliberate: 7 line(s) — list-per-bullet-type ×2, pre-code ×2, semantic-emphasis ×2
+oracle: emacs 31.1, org 9.8.7
+agreement: 53/58 skeleton lines (91.4%)
+deliberate: 5 line(s) — list-per-bullet-type ×2, semantic-emphasis ×2
 unexplained: 0 line(s)
 (- orgo, + emacs, ~ a difference we mean to have)
 
@@ -60,7 +61,7 @@ unexplained: 0 line(s)
   "."
   </p>
   <pre>
-~ pre-code (1 line(s))
+  <code>
   "fn main() { println!(\"hello\"); }"
-~ pre-code (1 line(s))
+  </code>
   </pre>
