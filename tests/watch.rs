@@ -6,6 +6,7 @@
 //! guarantee testable without waiting on a filesystem.
 
 use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use camino::{Utf8Path, Utf8PathBuf};
@@ -129,11 +130,50 @@ fn absolute_event_paths_are_reduced_to_a_sorted_unique_set() {
 }
 
 // ---------------------------------------------------------------------------
+// Event kinds
+// ---------------------------------------------------------------------------
+
+/// A read is not a change. inotify reports opens, and a build reads every source file, so
+/// an access forwarded as a change makes each rebuild trigger the next.
+#[test]
+fn access_events_do_not_count_as_changes() {
+    use notify::event::{AccessKind, AccessMode, CreateKind, DataChange, ModifyKind, RemoveKind};
+    use notify::EventKind;
+    use orgo::watch::is_change;
+
+    for read in [
+        AccessKind::Any,
+        AccessKind::Read,
+        AccessKind::Open(AccessMode::Any),
+        AccessKind::Open(AccessMode::Read),
+        AccessKind::Close(AccessMode::Read),
+    ] {
+        assert!(
+            !is_change(&EventKind::Access(read)),
+            "{read:?} is a read, not a change"
+        );
+    }
+
+    assert!(
+        is_change(&EventKind::Access(AccessKind::Close(AccessMode::Write))),
+        "closing a file that was written to is a change"
+    );
+    assert!(is_change(&EventKind::Create(CreateKind::File)));
+    assert!(is_change(&EventKind::Modify(ModifyKind::Data(DataChange::Any))));
+    assert!(is_change(&EventKind::Remove(RemoveKind::File)));
+    assert!(
+        is_change(&EventKind::Any),
+        "FSEvents and the Windows backend report unclassified changes this way"
+    );
+}
+
+// ---------------------------------------------------------------------------
 // End to end
 // ---------------------------------------------------------------------------
 
-/// Drive the real watcher against a real edit. Timing-dependent by nature, so it polls
-/// for the expected result with a generous ceiling rather than sleeping a fixed amount.
+/// Drive the real watcher against a real edit, then hold still. Timing-dependent by
+/// nature, so it polls for the expected result with a generous ceiling rather than
+/// sleeping a fixed amount.
 #[test]
 fn watching_rebuilds_the_site_when_a_source_file_changes() {
     let root = tmpdir("watchrun");
@@ -147,9 +187,14 @@ fn watching_rebuilds_the_site_when_a_source_file_changes() {
         .unwrap()
         .contains("First version."));
 
-    let (src_t, out_t) = (src.clone(), out.clone());
+    // Count rebuilds rather than reading an output file's mtime: a quiet watcher is
+    // "no more rebuilds", and that is what the counter says directly.
+    let rebuilds = Arc::new(AtomicU32::new(0));
+    let (src_t, out_t, counter) = (src.clone(), out.clone(), Arc::clone(&rebuilds));
     let handle = std::thread::spawn(move || {
-        let _ = orgo::watch::run(&src_t, &out_t, &BuildOptions::default());
+        let _ = orgo::watch::run_with(&src_t, &out_t, &BuildOptions::default(), |_| {
+            counter.fetch_add(1, Ordering::Relaxed);
+        });
     });
 
     // The edit is repeated rather than made once after a fixed head start. The watcher
@@ -160,43 +205,40 @@ fn watching_rebuilds_the_site_when_a_source_file_changes() {
     // defect worth failing a build over. (Found by the first CI run on Linux, where a
     // 300ms head start was not enough and macOS had never noticed.)
     let deadline = Instant::now() + Duration::from_secs(30);
-    let mut rebuilt = false;
     let mut wrote_at: Option<Instant> = None;
-    while Instant::now() < deadline {
+    while rebuilds.load(Ordering::Relaxed) == 0 && Instant::now() < deadline {
         if wrote_at.is_none_or(|t| t.elapsed() >= Duration::from_millis(400)) {
             std::fs::write(src.join("index.org"), "#+TITLE: Home\n\nSecond version.\n").unwrap();
             wrote_at = Some(Instant::now());
         }
-        if std::fs::read_to_string(out.join("index.html"))
-            .map(|h| h.contains("Second version."))
-            .unwrap_or(false)
-        {
-            rebuilt = true;
-            break;
-        }
         std::thread::sleep(Duration::from_millis(50));
     }
-    assert!(rebuilt, "an edit should trigger a rebuild within 30s");
+    assert!(
+        rebuilds.load(Ordering::Relaxed) > 0,
+        "an edit should trigger a rebuild within 30s"
+    );
+    assert!(std::fs::read_to_string(out.join("index.html"))
+        .unwrap()
+        .contains("Second version."));
 
-    // The output lives inside the source, so the rebuild's own writes raised events. If
-    // those are not filtered out, watch spins forever.
+    // Nothing is editing the tree now, so nothing more should be built. Two of the
+    // rebuild's own side effects would otherwise feed back in as changes:
     //
-    // The file to watch for that is `syntax.css`, not `index.html`. The incremental
-    // build leaves an unchanged page alone, so `index.html` holds still even *during* a
-    // runaway loop — an assertion on it passes whether or not the filter works, which is
-    // exactly what it did before this comment existed. `syntax.css` is rewritten on
-    // every build, so its mtime is a direct record of how many builds have run.
-    // Long enough for the rebuild from the last repeated write to have landed before the
-    // first reading, or this measures that instead of a feedback loop.
-    let stylesheet = out.join("syntax.css");
+    // 1. Its writes. The output lives inside the source, so they raise events —
+    //    [`ChangeFilter`] drops them.
+    // 2. Its reads. A build reads every source file, and inotify reports opens, so a
+    //    watcher that treats an access as a change rebuilds at full speed. Reported
+    //    against `orgo serve`, where every rebuild reloads the browser.
+    //
+    // The first sleep lets the rebuild from the last repeated write land, or this
+    // measures that instead of a feedback loop.
     std::thread::sleep(Duration::from_millis(1500));
-    let first = std::fs::metadata(&stylesheet).unwrap().modified().unwrap();
-    std::thread::sleep(Duration::from_millis(1200));
-    let second = std::fs::metadata(&stylesheet).unwrap().modified().unwrap();
+    let settled = rebuilds.load(Ordering::Relaxed);
+    std::thread::sleep(Duration::from_millis(1500));
     assert_eq!(
-        first, second,
-        "the build's own writes must not feed back in as changes — watch is rebuilding \
-         in a loop"
+        settled,
+        rebuilds.load(Ordering::Relaxed),
+        "a quiet tree must produce no rebuilds — watch is rebuilding in a loop"
     );
 
     drop(handle); // the watcher thread ends with the process

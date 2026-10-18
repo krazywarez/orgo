@@ -4,14 +4,17 @@
 //! compare mtimes. Native events cost nothing while nothing happens, and arrive in
 //! milliseconds when something does.
 //!
-//! Two things matter more than the watching itself:
+//! Three things matter more than the watching itself:
 //!
 //! 1. **Not watching our own output.** `orgo watch . -o _site` puts the output inside
 //!    the source. Rebuilding writes files, writing files raises events, and events
 //!    trigger a rebuild — a loop that never stops and never idles. [`ChangeFilter`] is
 //!    what prevents it, and it is a pure function precisely so it can be tested without
 //!    a filesystem.
-//! 2. **Debouncing.** Saving a file in an editor is rarely one event: editors write a
+//! 2. **Not treating a read as a change.** A build reads every source file, and inotify
+//!    reports opens. [`is_change`] is what keeps that from closing the same loop by a
+//!    different route.
+//! 3. **Debouncing.** Saving a file in an editor is rarely one event: editors write a
 //!    temp file, rename it over the original, and touch the directory. Rebuilding per
 //!    event would rebuild several times per save.
 
@@ -20,7 +23,8 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use camino::{Utf8Path, Utf8PathBuf};
-use notify::{Config as NotifyConfig, RecursiveMode, Watcher};
+use notify::event::{AccessKind, AccessMode};
+use notify::{Config as NotifyConfig, EventKind, RecursiveMode, Watcher};
 
 use crate::site::{build_site, BuildOptions};
 
@@ -256,12 +260,34 @@ fn summarize(changed: &[Utf8PathBuf]) -> String {
     }
 }
 
+/// Does this event report a change to the tree, rather than someone reading it?
+///
+/// inotify's watch mask includes `IN_OPEN`, so reading a file raises an event on it — and
+/// a build reads every source file. Forwarding those makes each rebuild the trigger for
+/// the next, at whatever rate the machine can build. macOS and Windows report no access
+/// events, which is why this only showed up on Linux.
+///
+/// `Access(Close(Write))` is the exception: it follows a write, not a read, and the only
+/// files a build writes are its own output, which [`ChangeFilter`] already drops.
+/// Everything that is not an access is kept, the backends' catch-all `Any` included —
+/// FSEvents and the Windows backend both report changes they cannot classify that way, so
+/// an allow-list of `Create`/`Modify`/`Remove` would drop real edits.
+pub fn is_change(kind: &EventKind) -> bool {
+    match kind {
+        EventKind::Access(access) => matches!(access, AccessKind::Close(AccessMode::Write)),
+        _ => true,
+    }
+}
+
 /// The platform's native watcher, falling back to polling where that is unavailable —
 /// some network and container filesystems have no event API, and `watch` failing outright
 /// there would be worse than being slow.
 fn make_watcher(tx: mpsc::Sender<Vec<Utf8PathBuf>>) -> Result<Box<dyn Watcher>> {
     let handler = move |result: notify::Result<notify::Event>| {
         if let Ok(event) = result {
+            if !is_change(&event.kind) {
+                return;
+            }
             let paths: Vec<Utf8PathBuf> = event
                 .paths
                 .into_iter()
