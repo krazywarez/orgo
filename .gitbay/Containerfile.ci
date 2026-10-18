@@ -11,6 +11,10 @@
 # Tagged, not :latest, so a change here is a deliberate bump in ci.yml.
 FROM docker.io/library/rust:1-trixie
 
+# gitbay-runner-prune.service skips images carrying this label. A localhost/
+# image cannot be pulled back, so pruning it fails every job that names it.
+LABEL org.gitbay.keep=true
+
 # The rust image installs the minimal profile: clippy for the test job, the
 # musl target and its linker for release.sh's second tarball, openssh-client
 # for the pushes. git and ca-certificates are already present.
