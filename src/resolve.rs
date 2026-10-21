@@ -106,6 +106,7 @@ impl Cx<'_> {
                 }
             }
             Element::Table(table) => {
+                self.objects(&mut table.caption);
                 for row in &mut table.rows {
                     if let TableRow::Cells(cells) = row {
                         for cell in cells {
@@ -114,8 +115,10 @@ impl Cx<'_> {
                     }
                 }
             }
+            Element::Figure { caption, .. } => self.objects(caption),
             Element::QuoteBlock(inner)
             | Element::CenterBlock(inner)
+            | Element::SpecialBlock { content: inner, .. }
             | Element::Drawer { content: inner, .. }
             | Element::FootnoteDefinition { content: inner, .. } => {
                 for e in inner {

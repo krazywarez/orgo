@@ -205,3 +205,39 @@ fn colliding_slugs_are_a_build_error() {
     );
     std::fs::remove_dir_all(&dir).unwrap();
 }
+
+/// Links nested in a block are resolved and checked like links in a paragraph.
+#[test]
+fn links_inside_blocks_resolve_and_are_checked() {
+    let dir = std::env::temp_dir().join(format!("orgo-blocks-{}", std::process::id()));
+    let dir = Utf8PathBuf::from_path_buf(dir).expect("utf-8 temp dir");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("target.org"), "#+TITLE: T\n#+SLUG: slugged\n").unwrap();
+    std::fs::write(
+        dir.join("index.org"),
+        "#+TITLE: I\n\n\
+         #+begin_seealso\n[[file:target.org][special]]\n#+end_seealso\n\n\
+         #+begin_quote\n[[file:target.org][quote]]\n#+end_quote\n\n\
+         #+begin_center\n[[file:target.org][center]]\n#+end_center\n\n\
+         #+CAPTION: [[file:target.org][figure]]\n[[file:pic.png]]\n\n\
+         #+CAPTION: [[file:target.org][table]]\n| a |\n\n\
+         #+begin_note\n[[file:missing.org][gone]]\n#+end_note\n",
+    )
+    .unwrap();
+
+    let (pages, broken) = render_site(&dir).expect("build site");
+    let index = &page(&pages, "index.org").html;
+    for label in ["special", "quote", "center", "figure", "table"] {
+        assert!(
+            index.contains(&format!("href=\"slugged.html\">{label}</a>")),
+            "{label} link must resolve to the slugged page:\n{index}"
+        );
+    }
+    assert_eq!(
+        broken.iter().map(|(_, t)| t.clone()).collect::<Vec<_>>(),
+        vec![TargetId::File("missing.org".into())],
+        "a broken link inside a special block must be reported"
+    );
+    std::fs::remove_dir_all(&dir).unwrap();
+}
