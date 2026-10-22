@@ -1,0 +1,43 @@
+config_version = "0"
+
+exclude_patterns = [
+  "**/vendor/**",
+  "**/node_modules/**",
+  "**/testdata/**",
+  "**/dist/**",
+  "**/.build/**",
+  "**/build/**",
+  "**/*.min.*",
+  "**/generated/**",
+  ".claude/**",
+  "**/Pods/**",
+]
+
+test_patterns = [
+  "**/test/**",
+  "**/tests/**",
+  "**/Tests/**",
+  "**/*_test.*",
+  "**/test_*.*",
+  "**/*.test.*",
+  "**/*Tests.swift",
+  "e2e/**",
+]
+
+[[source]]
+name = "default"
+default = true
+
+[[plugin]]
+name = "osv-scanner"
+
+[[plugin]]
+name = "trufflehog"
+
+# Both are unmaintained-crate notices, not vulnerabilities. syntect 5.3.0, the
+# latest release, needs bincode for its bundled syntax dump and yaml-rust for
+# .sublime-syntax files.
+[[triage]]
+match.plugins = ["osv-scanner"]
+match.rules = ["osv-scanner:RUSTSEC-2025-0141", "osv-scanner:RUSTSEC-2024-0320"]
+set.ignored = true
