@@ -63,45 +63,45 @@ pub fn skeleton(html: &str) -> Vec<String> {
             i += 1;
             continue;
         }
-
-        // Comments and doctypes carry nothing.
-        if chars[i..].starts_with(&['<', '!']) {
-            i += match find_from(&chars, i, ">") {
-                Some(end) => end - i + 1,
-                None => break,
-            };
-            continue;
-        }
         let Some(end) = find_from(&chars, i, ">") else {
             break;
         };
+        // Comments and doctypes carry nothing.
+        let is_markup_declaration = chars[i..].starts_with(&['<', '!']);
         let raw: String = chars[i + 1..end].iter().collect();
         i = end + 1;
-
-        let raw = raw.trim().trim_end_matches('/').trim().to_string();
+        if is_markup_declaration {
+            continue;
+        }
         // Text is flushed only when a tag is actually *emitted*. Text either side of an
         // ignored tag therefore merges into one run, which is what makes a highlighted
         // source block compare as the one string of code it is, rather than as a
         // token-by-token sequence that has to line up exactly.
-        if let Some(name) = raw.strip_prefix('/') {
-            let name = name.trim().to_ascii_lowercase();
-            if !IGNORED.contains(&name.as_str()) && !VOID.contains(&name.as_str()) {
-                flush_text(&mut text, &mut out);
-                out.push(format!("</{name}>"));
-            }
-            continue;
+        if let Some(event) = tag_event(&raw) {
+            flush_text(&mut text, &mut out);
+            out.push(event);
         }
-        let mut parts = raw.splitn(2, char::is_whitespace);
-        let name = parts.next().unwrap_or("").to_ascii_lowercase();
-        if name.is_empty() || IGNORED.contains(&name.as_str()) {
-            continue;
-        }
-        let attrs = kept_attributes(parts.next().unwrap_or(""));
-        flush_text(&mut text, &mut out);
-        out.push(format!("<{name}{attrs}>"));
     }
     flush_text(&mut text, &mut out);
     out
+}
+
+/// The skeleton line for one tag, given the text between its `<` and `>`, or `None`
+/// for a tag the skeleton drops.
+fn tag_event(raw: &str) -> Option<String> {
+    let raw = raw.trim().trim_end_matches('/').trim();
+    if let Some(name) = raw.strip_prefix('/') {
+        let name = name.trim().to_ascii_lowercase();
+        let dropped = IGNORED.contains(&name.as_str()) || VOID.contains(&name.as_str());
+        return (!dropped).then(|| format!("</{name}>"));
+    }
+    let mut parts = raw.splitn(2, char::is_whitespace);
+    let name = parts.next().unwrap_or("").to_ascii_lowercase();
+    if name.is_empty() || IGNORED.contains(&name.as_str()) {
+        return None;
+    }
+    let attrs = kept_attributes(parts.next().unwrap_or(""));
+    Some(format!("<{name}{attrs}>"))
 }
 
 fn flush_text(text: &mut String, out: &mut Vec<String>) {
@@ -207,3 +207,4 @@ fn numeric(name: &str) -> Option<char> {
         })
         .and_then(char::from_u32)
 }
+

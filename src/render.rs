@@ -450,18 +450,10 @@ impl Renderer<'_> {
                 out.push_str(&format!("<pre>{}</pre>\n", escape_html(code)));
             }
             Element::QuoteBlock(inner) => {
-                out.push_str("<blockquote>\n");
-                for el in inner {
-                    self.render_element(el, out);
-                }
-                out.push_str("</blockquote>\n");
+                self.render_wrapped("<blockquote>\n", inner, "</blockquote>\n", out);
             }
             Element::CenterBlock(inner) => {
-                out.push_str("<div class=\"center\">\n");
-                for el in inner {
-                    self.render_element(el, out);
-                }
-                out.push_str("</div>\n");
+                self.render_wrapped("<div class=\"center\">\n", inner, "</div>\n", out);
             }
             // An `html` export block is verbatim output by definition; every other
             // backend is out of scope and drops (§"Not supported").
@@ -475,37 +467,12 @@ impl Renderer<'_> {
                 link,
                 caption,
                 attrs,
-            } => {
-                out.push_str("<figure>");
-                out.push_str(&image_tag(link, attrs, &plain_text(caption)));
-                if !caption.is_empty() {
-                    self.figures += 1;
-                    out.push_str(&format!(
-                        "<figcaption><span class=\"figure-number\">Figure {}: </span>",
-                        self.figures
-                    ));
-                    self.render_objects(caption, out);
-                    out.push_str("</figcaption>");
-                }
-                out.push_str("</figure>\n");
-            }
+            } => self.render_figure(link, caption, attrs, out),
             Element::SpecialBlock { name, content } => {
-                out.push_str(&format!("<div class=\"{}\">\n", escape_attr(name)));
-                for child in content {
-                    self.render_element(child, out);
-                }
-                out.push_str("</div>\n");
+                let open = format!("<div class=\"{}\">\n", escape_attr(name));
+                self.render_wrapped(&open, content, "</div>\n", out);
             }
-            Element::VerseBlock(lines) => {
-                out.push_str("<p class=\"verse\">\n");
-                for (i, line) in lines.iter().enumerate() {
-                    if i > 0 {
-                        out.push_str("<br>\n");
-                    }
-                    self.render_objects(&crate::parser::inline(line), out);
-                }
-                out.push_str("\n</p>\n");
-            }
+            Element::VerseBlock(lines) => self.render_verse(lines, out),
             Element::HorizontalRule => out.push_str("<hr>\n"),
             // Definitions are emitted in the footnotes section, not inline.
             Element::FootnoteDefinition { .. } => {}
@@ -515,19 +482,49 @@ impl Renderer<'_> {
         }
     }
 
+    fn render_wrapped(&mut self, open: &str, inner: &[Element], close: &str, out: &mut String) {
+        out.push_str(open);
+        for el in inner {
+            self.render_element(el, out);
+        }
+        out.push_str(close);
+    }
+
+    fn render_figure(
+        &mut self,
+        link: &Link,
+        caption: &[Object],
+        attrs: &str,
+        out: &mut String,
+    ) {
+        out.push_str("<figure>");
+        out.push_str(&image_tag(link, attrs, &plain_text(caption)));
+        if !caption.is_empty() {
+            self.figures += 1;
+            out.push_str(&format!(
+                "<figcaption><span class=\"figure-number\">Figure {}: </span>",
+                self.figures
+            ));
+            self.render_objects(caption, out);
+            out.push_str("</figcaption>");
+        }
+        out.push_str("</figure>\n");
+    }
+
+    fn render_verse(&mut self, lines: &[String], out: &mut String) {
+        out.push_str("<p class=\"verse\">\n");
+        for (i, line) in lines.iter().enumerate() {
+            if i > 0 {
+                out.push_str("<br>\n");
+            }
+            self.render_objects(&crate::parser::inline(line), out);
+        }
+        out.push_str("\n</p>\n");
+    }
+
     fn render_list(&mut self, list: &crate::model::List, out: &mut String) {
         if list.kind == ListKind::Description {
-            out.push_str("<dl>\n");
-            for item in &list.items {
-                out.push_str("<dt>");
-                if let Some(term) = &item.term {
-                    self.render_objects(term, out);
-                }
-                out.push_str("</dt>\n<dd>");
-                self.render_item_content(&item.content, out);
-                out.push_str("</dd>\n");
-            }
-            out.push_str("</dl>\n");
+            self.render_description_list(list, out);
             return;
         }
         let tag = if list.kind == ListKind::Ordered {
@@ -537,34 +534,52 @@ impl Renderer<'_> {
         };
         out.push_str(&format!("<{}>\n", tag));
         for item in &list.items {
-            // Org writes a checkbox as literal text, which keeps the third state — `[-]`,
-            // partially done — that a disabled <input> cannot express. The state goes on
-            // the item, where it can style the whole line.
-            let class = item.checkbox.as_ref().map(|cb| match cb {
-                Checkbox::On => "on",
-                Checkbox::Off => "off",
-                Checkbox::Trans => "trans",
-            });
-            out.push_str("<li");
-            if let Some(class) = class {
-                out.push_str(&format!(" class=\"{class}\""));
-            }
-            // `[@4]` restarts the numbering, and HTML says so with `value`.
-            if let Some(n) = item.counter {
-                out.push_str(&format!(" value=\"{n}\""));
-            }
-            out.push('>');
-            if let Some(cb) = &item.checkbox {
-                out.push_str(match cb {
-                    Checkbox::On => "<code>[X]</code> ",
-                    Checkbox::Off => "<code>[&nbsp;]</code> ",
-                    Checkbox::Trans => "<code>[-]</code> ",
-                });
-            }
-            self.render_item_content(&item.content, out);
-            out.push_str("</li>\n");
+            self.render_list_item(item, out);
         }
         out.push_str(&format!("</{}>\n", tag));
+    }
+
+    fn render_description_list(&mut self, list: &crate::model::List, out: &mut String) {
+        out.push_str("<dl>\n");
+        for item in &list.items {
+            out.push_str("<dt>");
+            if let Some(term) = &item.term {
+                self.render_objects(term, out);
+            }
+            out.push_str("</dt>\n<dd>");
+            self.render_item_content(&item.content, out);
+            out.push_str("</dd>\n");
+        }
+        out.push_str("</dl>\n");
+    }
+
+    fn render_list_item(&mut self, item: &crate::model::ListItem, out: &mut String) {
+        // Org writes a checkbox as literal text, which keeps the third state — `[-]`,
+        // partially done — that a disabled <input> cannot express. The state goes on
+        // the item, where it can style the whole line.
+        let class = item.checkbox.as_ref().map(|cb| match cb {
+            Checkbox::On => "on",
+            Checkbox::Off => "off",
+            Checkbox::Trans => "trans",
+        });
+        out.push_str("<li");
+        if let Some(class) = class {
+            out.push_str(&format!(" class=\"{class}\""));
+        }
+        // `[@4]` restarts the numbering, and HTML says so with `value`.
+        if let Some(n) = item.counter {
+            out.push_str(&format!(" value=\"{n}\""));
+        }
+        out.push('>');
+        if let Some(cb) = &item.checkbox {
+            out.push_str(match cb {
+                Checkbox::On => "<code>[X]</code> ",
+                Checkbox::Off => "<code>[&nbsp;]</code> ",
+                Checkbox::Trans => "<code>[-]</code> ",
+            });
+        }
+        self.render_item_content(&item.content, out);
+        out.push_str("</li>\n");
     }
 
     /// A single-paragraph item renders its text bare — `<li>text<ul>…` rather than
@@ -598,56 +613,48 @@ impl Renderer<'_> {
             .position(|r| matches!(r, TableRow::Rule));
         out.push_str("<table>\n");
         if !table.caption.is_empty() {
-            self.tables += 1;
-            out.push_str(&format!(
-                "<caption><span class=\"table-number\">Table {}: </span>",
-                self.tables
-            ));
-            let caption = table.caption.clone();
-            self.render_objects(&caption, out);
-            out.push_str("</caption>\n");
+            self.render_table_caption(&table.caption, out);
         }
-        let mut wrote_body = false;
-        let mut in_body = rule_at.is_none();
-        for (idx, row) in table.rows.iter().enumerate() {
-            match row {
-                TableRow::Rule => {
-                    if Some(idx) == rule_at {
-                        in_body = true;
-                    }
-                    continue;
-                }
-                TableRow::Cells(cells) => {
-                    let (open, cell_tag) = if in_body {
-                        if !wrote_body {
-                            wrote_body = true;
-                            ("<tbody>\n<tr>", "td")
-                        } else {
-                            ("<tr>", "td")
-                        }
-                    } else {
-                        ("<thead>\n<tr>", "th")
-                    };
-                    out.push_str(open);
-                    for cell in cells {
-                        out.push_str(&format!("<{}>", cell_tag));
-                        self.render_objects(cell, out);
-                        out.push_str(&format!("</{}>", cell_tag));
-                    }
-                    out.push_str("</tr>\n");
-                    // Close the header band right after its last row.
-                    if !in_body
-                        && rule_at.map(|r| idx + 1 == r).unwrap_or(false)
-                    {
-                        out.push_str("</thead>\n");
-                    }
-                }
-            }
-        }
-        if wrote_body {
-            out.push_str("</tbody>\n");
-        }
+        let (head, body) = match rule_at {
+            Some(r) => (&table.rows[..r], &table.rows[r + 1..]),
+            None => (&table.rows[..0], &table.rows[..]),
+        };
+        self.render_band("thead", "th", head, out);
+        self.render_band("tbody", "td", body, out);
         out.push_str("</table>\n");
+    }
+
+    fn render_table_caption(&mut self, caption: &[Object], out: &mut String) {
+        self.tables += 1;
+        out.push_str(&format!(
+            "<caption><span class=\"table-number\">Table {}: </span>",
+            self.tables
+        ));
+        self.render_objects(caption, out);
+        out.push_str("</caption>\n");
+    }
+
+    /// One `<thead>` or `<tbody>` of `rows`, skipping rule rows. Nothing at all when
+    /// there are no cell rows.
+    fn render_band(&mut self, band: &str, cell_tag: &str, rows: &[TableRow], out: &mut String) {
+        let mut opened = false;
+        for row in rows {
+            let TableRow::Cells(cells) = row else { continue };
+            if !opened {
+                out.push_str(&format!("<{band}>\n"));
+                opened = true;
+            }
+            out.push_str("<tr>");
+            for cell in cells {
+                out.push_str(&format!("<{}>", cell_tag));
+                self.render_objects(cell, out);
+                out.push_str(&format!("</{}>", cell_tag));
+            }
+            out.push_str("</tr>\n");
+        }
+        if opened {
+            out.push_str(&format!("</{band}>\n"));
+        }
     }
 
     /// Plain text as HTML: escaped, then org's export-time text conversions.
@@ -806,56 +813,72 @@ fn image_tag(link: &Link, attrs: &str, alt: &str) -> String {
 /// the next `:key` token and may be double-quoted to include spaces. A malformed spec
 /// contributes nothing rather than emitting broken markup.
 fn attr_html(spec: &str) -> Vec<(String, String)> {
-    let mut out = Vec::new();
-    let mut key: Option<&str> = None;
-    let mut value = String::new();
-    let mut quoted: Option<String> = None;
-
-    let flush = |out: &mut Vec<(String, String)>, key: &mut Option<&str>, value: &mut String| {
-        if let Some(k) = key.take() {
-            out.push((k.to_string(), value.trim().to_string()));
-        }
-        value.clear();
-    };
-
+    let mut parser = AttrParser::default();
     for token in spec.split_whitespace() {
+        parser.token(token);
+    }
+    parser.finish()
+}
+
+/// [`attr_html`]'s state between tokens.
+#[derive(Default)]
+struct AttrParser<'a> {
+    out: Vec<(String, String)>,
+    key: Option<&'a str>,
+    value: String,
+    /// A double-quoted value still waiting for its closing quote.
+    quoted: Option<String>,
+}
+
+impl<'a> AttrParser<'a> {
+    fn token(&mut self, token: &'a str) {
         // Inside a quoted value, everything up to the closing quote is literal.
-        if let Some(buf) = &mut quoted {
+        if let Some(buf) = &mut self.quoted {
             buf.push(' ');
             buf.push_str(token.trim_end_matches('"'));
             if token.ends_with('"') {
-                value = quoted.take().expect("quoted value in progress");
+                self.value = self.quoted.take().expect("quoted value in progress");
             }
-            continue;
+            return;
         }
         if let Some(k) = token.strip_prefix(':') {
-            flush(&mut out, &mut key, &mut value);
+            self.flush();
             if !k.is_empty() {
-                key = Some(k);
+                self.key = Some(k);
             }
-            continue;
+            return;
         }
-        if key.is_none() {
-            continue;
+        if self.key.is_none() {
+            return;
         }
         if let Some(rest) = token.strip_prefix('"') {
             if let Some(inner) = rest.strip_suffix('"') {
-                value = inner.to_string();
+                self.value = inner.to_string();
             } else {
-                quoted = Some(rest.to_string());
+                self.quoted = Some(rest.to_string());
             }
-            continue;
+            return;
         }
-        if !value.is_empty() {
-            value.push(' ');
+        if !self.value.is_empty() {
+            self.value.push(' ');
         }
-        value.push_str(token);
+        self.value.push_str(token);
     }
-    if let Some(buf) = quoted {
-        value = buf;
+
+    fn flush(&mut self) {
+        if let Some(k) = self.key.take() {
+            self.out.push((k.to_string(), self.value.trim().to_string()));
+        }
+        self.value.clear();
     }
-    flush(&mut out, &mut key, &mut value);
-    out
+
+    fn finish(mut self) -> Vec<(String, String)> {
+        if let Some(buf) = self.quoted.take() {
+            self.value = buf;
+        }
+        self.flush();
+        self.out
+    }
 }
 
 /// `<time>` markup for a timestamp. A range emits both endpoints; a same-day range
@@ -1159,3 +1182,4 @@ fn escape_attr(s: &str) -> String {
     out = out.replace('"', "&quot;");
     out
 }
+

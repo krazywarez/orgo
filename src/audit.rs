@@ -24,6 +24,8 @@ use anyhow::{Context, Result};
 use camino::{Utf8Path, Utf8PathBuf};
 use walkdir::WalkDir;
 
+use crate::util::is_iso_date_shape;
+
 /// Where a construct sits relative to the supported set, which
 /// `docs/guide/05-org-support.org` defines.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -179,7 +181,31 @@ pub fn audit(root: &Utf8Path) -> Result<Audit> {
 
 impl Audit {
     fn scan_file(&mut self, path: &Utf8Path, source: &str) {
-        // Reset the per-file flags so each construct counts this file at most once.
+        self.start_file();
+        let mut in_block = false;
+        for (idx, line) in source.lines().enumerate() {
+            self.lines += 1;
+            let at = format!("{path}:{}", idx + 1);
+            let trimmed = line.trim_start();
+
+            // Inside a block only the terminator matters — a `*` in a source block is
+            // not a heading, and counting it as one would corrupt the audit.
+            if in_block {
+                in_block = !trimmed.to_ascii_uppercase().starts_with("#+END_");
+                continue;
+            }
+            if let Some(rest) = trimmed.to_ascii_uppercase().strip_prefix("#+BEGIN_") {
+                self.scan_block_begin(rest, &at);
+                in_block = true;
+                continue;
+            }
+
+            self.scan_line(line, trimmed, &at);
+        }
+    }
+
+    /// Reset the per-file flags so each construct counts this file at most once.
+    fn start_file(&mut self) {
         for tally in self.constructs.values_mut() {
             tally.seen_in_current_file = false;
         }
@@ -193,63 +219,21 @@ impl Audit {
                 tally.seen_in_current_file = false;
             }
         }
+    }
 
-        let mut in_block: Option<String> = None;
-        for (idx, line) in source.lines().enumerate() {
-            self.lines += 1;
-            let at = format!("{path}:{}", idx + 1);
-            let trimmed = line.trim_start();
-
-            // Inside a verbatim block only the terminator matters — a `*` in a source
-            // block is not a heading, and counting it as one would corrupt the audit.
-            if let Some(kind) = &in_block {
-                if trimmed.to_ascii_uppercase().starts_with("#+END_") {
-                    in_block = None;
-                } else if kind.eq_ignore_ascii_case("SRC") || kind.eq_ignore_ascii_case("EXAMPLE") {
-                    continue;
-                }
-                continue;
-            }
-            if let Some(rest) = trimmed.to_ascii_uppercase().strip_prefix("#+BEGIN_") {
-                let kind = rest.split_whitespace().next().unwrap_or("").to_string();
-                self.count_census(Census::Block, &kind, &at);
-                self.count(Scope::In, block_construct(&kind), &at);
-                if trimmed.to_ascii_uppercase().contains(":RESULTS") {
-                    self.count(Scope::Out, "babel header args (:results)", &at);
-                }
-                in_block = Some(kind);
-                continue;
-            }
-
-            self.scan_line(line, trimmed, &at);
+    /// `rest` is an uppercased `#+BEGIN_` line after that prefix.
+    fn scan_block_begin(&mut self, rest: &str, at: &str) {
+        let kind = rest.split_whitespace().next().unwrap_or("");
+        self.count_census(Census::Block, kind, at);
+        self.count(Scope::In, block_construct(kind), at);
+        if rest.contains(":RESULTS") {
+            self.count(Scope::Out, "babel header args (:results)", at);
         }
     }
 
     fn scan_line(&mut self, line: &str, trimmed: &str, at: &str) {
-        // --- headings and their metadata ---
         if let Some(stars) = heading_stars(line) {
-            self.count(Scope::In, "heading", at);
-            let rest = line[stars..].trim();
-            let word = rest.split_whitespace().next().unwrap_or("");
-            if word == "TODO" || word == "DONE" {
-                self.count(Scope::In, "TODO keyword (default set)", at);
-            } else if CONVENTIONAL_TODO_KEYWORDS.contains(&word) {
-                // Only conventional keyword names count. "Any all-caps first word" is
-                // the tempting rule and it is wrong: it reads `* CSS Variables` as the
-                // keyword `CSS`, which on this corpus produced 23 false positives and
-                // zero true ones. An audit that overstates a gap is worse than no audit,
-                // because it argues for work nobody needs.
-                self.count(Scope::Out, "TODO keyword (custom sequence)", at);
-            }
-            if rest.contains("[#") {
-                self.count(Scope::In, "priority cookie", at);
-            }
-            if rest.trim_end().ends_with(':') && rest.trim_end().matches(':').count() >= 2 {
-                self.count(Scope::In, "heading tags", at);
-            }
-            if rest.contains("[/") || rest.contains("[%") {
-                self.count(Scope::Out, "statistics cookie", at);
-            }
+            self.scan_heading(line[stars..].trim(), at);
             return;
         }
 
@@ -265,60 +249,19 @@ impl Audit {
 
         // --- keywords and drawers ---
         if let Some(rest) = trimmed.strip_prefix("#+") {
-            if let Some(colon) = rest.find(':') {
-                let key = rest[..colon].trim().to_ascii_uppercase();
-                if !key.is_empty() && !key.contains(char::is_whitespace) {
-                    self.count_census(Census::Keyword, &key, at);
-                    match key.as_str() {
-                        "CAPTION" | "NAME" | "ATTR_HTML" => {
-                            self.count(Scope::In, "affiliated keyword", at)
-                        }
-                        // Not a gap: org's HTML exporter does not recalculate `#+TBLFM:`
-                        // either, so the cells as written are what both exporters emit.
-                        // `fixtures/tblfm.org` holds the oracle to that (`tests/oracle.rs`).
-                        // Unlike `#+INCLUDE:`, nothing is lost by leaving it inert.
-                        "TBLFM" => self.count(Scope::In, "table formula (#+TBLFM:)", at),
-                        "INCLUDE" => self.count(Scope::Out, "#+INCLUDE:", at),
-                        "RESULTS" => self.count(Scope::Out, "babel results block", at),
-                        "TODO" => self.count(Scope::Out, "#+TODO: keyword sequence", at),
-                        "MACRO" => self.count(Scope::Out, "macro definition", at),
-                        _ => self.count(Scope::In, "#+ keyword", at),
-                    }
-                }
-            }
+            self.scan_keyword(rest, at);
         } else if is_drawer(trimmed) {
-            let name = trimmed[1..trimmed.len() - 1].to_ascii_uppercase();
-            if name != "END" {
-                self.count_census(Census::Drawer, &name, at);
-                match name.as_str() {
-                    "PROPERTIES" => self.count(Scope::In, "property drawer", at),
-                    _ => self.count(Scope::Out, "non-PROPERTIES drawer", at),
-                }
-            }
+            self.scan_drawer(&trimmed[1..trimmed.len() - 1].to_ascii_uppercase(), at);
         }
 
         // --- lists, tables, rules ---
         if let Some(bullet) = list_bullet(trimmed) {
-            self.count(Scope::In, "list item", at);
-            if bullet == Bullet::Ordered {
-                self.count(Scope::In, "ordered list", at);
-            }
-            let indent = line.len() - trimmed.len();
-            if indent > 0 {
-                self.count(Scope::In, "nested list item", at);
-            }
-            if trimmed.contains(" :: ") {
-                self.count(Scope::In, "description list", at);
-            }
-            let after = trimmed.trim_start_matches(['-', '+', '*', ' ']);
-            if after.starts_with("[ ]") || after.starts_with("[X]") || after.starts_with("[-]") {
-                self.count(Scope::In, "checkbox", at);
-            }
+            self.scan_list_item(bullet, line.len() - trimmed.len(), trimmed, at);
         }
         if trimmed.starts_with('|') {
             self.count(Scope::In, "table row", at);
         }
-        if trimmed.starts_with(':') && !is_drawer(trimmed) && trimmed.starts_with(": ") {
+        if trimmed.starts_with(": ") {
             self.count(Scope::Out, "fixed-width line", at);
         }
 
@@ -331,6 +274,83 @@ impl Audit {
 
         // --- inline objects ---
         self.scan_inline(line, at);
+    }
+
+    /// `rest` is a heading line after its stars, trimmed.
+    fn scan_heading(&mut self, rest: &str, at: &str) {
+        self.count(Scope::In, "heading", at);
+        let word = rest.split_whitespace().next().unwrap_or("");
+        if word == "TODO" || word == "DONE" {
+            self.count(Scope::In, "TODO keyword (default set)", at);
+        } else if CONVENTIONAL_TODO_KEYWORDS.contains(&word) {
+            // Only conventional keyword names count. "Any all-caps first word" is
+            // the tempting rule and it is wrong: it reads `* CSS Variables` as the
+            // keyword `CSS`, which on this corpus produced 23 false positives and
+            // zero true ones. An audit that overstates a gap is worse than no audit,
+            // because it argues for work nobody needs.
+            self.count(Scope::Out, "TODO keyword (custom sequence)", at);
+        }
+        if rest.contains("[#") {
+            self.count(Scope::In, "priority cookie", at);
+        }
+        if rest.trim_end().ends_with(':') && rest.trim_end().matches(':').count() >= 2 {
+            self.count(Scope::In, "heading tags", at);
+        }
+        if rest.contains("[/") || rest.contains("[%") {
+            self.count(Scope::Out, "statistics cookie", at);
+        }
+    }
+
+    /// `rest` is a `#+` line after that prefix.
+    fn scan_keyword(&mut self, rest: &str, at: &str) {
+        let Some(colon) = rest.find(':') else { return };
+        let key = rest[..colon].trim().to_ascii_uppercase();
+        if key.is_empty() || key.contains(char::is_whitespace) {
+            return;
+        }
+        self.count_census(Census::Keyword, &key, at);
+        match key.as_str() {
+            "CAPTION" | "NAME" | "ATTR_HTML" => self.count(Scope::In, "affiliated keyword", at),
+            // Not a gap: org's HTML exporter does not recalculate `#+TBLFM:`
+            // either, so the cells as written are what both exporters emit.
+            // `fixtures/tblfm.org` holds the oracle to that (`tests/oracle.rs`).
+            // Unlike `#+INCLUDE:`, nothing is lost by leaving it inert.
+            "TBLFM" => self.count(Scope::In, "table formula (#+TBLFM:)", at),
+            "INCLUDE" => self.count(Scope::Out, "#+INCLUDE:", at),
+            "RESULTS" => self.count(Scope::Out, "babel results block", at),
+            "TODO" => self.count(Scope::Out, "#+TODO: keyword sequence", at),
+            "MACRO" => self.count(Scope::Out, "macro definition", at),
+            _ => self.count(Scope::In, "#+ keyword", at),
+        }
+    }
+
+    /// `name` is a drawer line's name, uppercased.
+    fn scan_drawer(&mut self, name: &str, at: &str) {
+        if name == "END" {
+            return;
+        }
+        self.count_census(Census::Drawer, name, at);
+        match name {
+            "PROPERTIES" => self.count(Scope::In, "property drawer", at),
+            _ => self.count(Scope::Out, "non-PROPERTIES drawer", at),
+        }
+    }
+
+    fn scan_list_item(&mut self, bullet: Bullet, indent: usize, trimmed: &str, at: &str) {
+        self.count(Scope::In, "list item", at);
+        if bullet == Bullet::Ordered {
+            self.count(Scope::In, "ordered list", at);
+        }
+        if indent > 0 {
+            self.count(Scope::In, "nested list item", at);
+        }
+        if trimmed.contains(" :: ") {
+            self.count(Scope::In, "description list", at);
+        }
+        let after = trimmed.trim_start_matches(['-', '+', '*', ' ']);
+        if ["[ ]", "[X]", "[-]"].iter().any(|cb| after.starts_with(cb)) {
+            self.count(Scope::In, "checkbox", at);
+        }
     }
 
     fn scan_inline(&mut self, line: &str, at: &str) {
@@ -460,7 +480,6 @@ fn is_drawer(trimmed: &str) -> bool {
         && t[1..t.len() - 1]
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
-        && t.len() > 2
 }
 
 fn block_construct(kind: &str) -> &'static str {
@@ -504,14 +523,7 @@ fn has_timestamp(line: &str) -> bool {
         if c != '<' && c != '[' {
             continue;
         }
-        let rest = &bytes[i + 1..];
-        if rest.len() >= 10
-            && rest[..4].iter().all(u8::is_ascii_digit)
-            && rest[4] == b'-'
-            && rest[5..7].iter().all(u8::is_ascii_digit)
-            && rest[7] == b'-'
-            && rest[8..10].iter().all(u8::is_ascii_digit)
-        {
+        if bytes[i + 1..].get(..10).is_some_and(is_iso_date_shape) {
             return true;
         }
     }

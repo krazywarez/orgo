@@ -145,6 +145,17 @@ struct Listing {
     entry_hashes: Vec<ContentHash>,
 }
 
+/// One listing before pagination: everything [`push_paginated`] needs besides the
+/// collection it came from.
+struct ListingPage {
+    output: Utf8PathBuf,
+    title: String,
+    entries: Vec<PageContext>,
+    entry_hashes: Vec<ContentHash>,
+    group: Option<GroupContext>,
+    groups: Vec<GroupContext>,
+}
+
 /// Split one listing's entries across numbered pages, appending each as its own
 /// [`Listing`].
 ///
@@ -152,17 +163,15 @@ struct Listing {
 /// changes — only pages 2..N are named by `paginate_output`. An empty listing still
 /// emits page 1, because a section that exists but has nothing in it should be a page
 /// saying so rather than a 404.
-#[allow(clippy::too_many_arguments)]
-fn push_paginated(
-    listings: &mut Vec<Listing>,
-    collection: &config::Collection,
-    output: Utf8PathBuf,
-    title: String,
-    entries: Vec<PageContext>,
-    entry_hashes: Vec<ContentHash>,
-    group: Option<GroupContext>,
-    groups: Vec<GroupContext>,
-) {
+fn push_paginated(listings: &mut Vec<Listing>, collection: &config::Collection, page: ListingPage) {
+    let ListingPage {
+        output,
+        title,
+        entries,
+        entry_hashes,
+        group,
+        groups,
+    } = page;
     let per_page = collection.paginate;
     if per_page == 0 {
         listings.push(Listing {
@@ -234,6 +243,138 @@ fn push_paginated(
     }
 }
 
+/// The pages a collection lists, in its configured order.
+fn collection_entries(collection: &config::Collection, preps: &[PagePrep]) -> Vec<PageContext> {
+    let mut entries: Vec<PageContext> = preps
+        .iter()
+        .filter(|p| {
+            collection.source.as_str().is_empty() || p.source.starts_with(&collection.source)
+        })
+        .map(|p| p.context.clone())
+        .collect();
+
+    // Sort ascending first, then reverse for `desc`, so the two orders are exact
+    // mirrors of one another rather than two separately-written comparisons.
+    match collection.sort {
+        SortKey::Title => entries.sort_by(|a, b| a.title.cmp(&b.title)),
+        SortKey::Path => entries.sort_by(|a, b| a.url.cmp(&b.url)),
+        SortKey::Date => entries.sort_by(compare_dates),
+    }
+    if collection.order == SortOrder::Desc {
+        entries.reverse();
+    }
+    entries
+}
+
+/// Ascending date order. Undated pages sort last in the final order regardless of
+/// direction: a draft with no date should not lead an archive.
+fn compare_dates(a: &PageContext, b: &PageContext) -> std::cmp::Ordering {
+    // Date *and* time: org records when a note was written, and two notes
+    // from the same day have an order that the day alone cannot express.
+    let key = |p: &PageContext| {
+        p.date_iso.as_ref().map(|d| {
+            let time = p
+                .date
+                .as_deref()
+                .and_then(iso_time)
+                .unwrap_or_else(|| "00:00:00".to_string());
+            format!("{d}T{time}")
+        })
+    };
+    match (key(a), key(b)) {
+        (Some(x), Some(y)) => x.cmp(&y).then_with(|| a.url.cmp(&b.url)),
+        (Some(_), None) => std::cmp::Ordering::Greater,
+        (None, Some(_)) => std::cmp::Ordering::Less,
+        (None, None) => a.url.cmp(&b.url),
+    }
+}
+
+/// Each distinct `group_by` term, sorted, with its members in `entries` order.
+fn group_members(
+    entries: &[PageContext],
+    group_by: &str,
+) -> (Vec<String>, HashMap<String, Vec<PageContext>>) {
+    let mut terms: Vec<String> = Vec::new();
+    let mut members: HashMap<String, Vec<PageContext>> = HashMap::new();
+    for entry in entries {
+        for term in group_terms(entry, group_by) {
+            if !members.contains_key(&term) {
+                terms.push(term.clone());
+            }
+            members.entry(term).or_default().push(entry.clone());
+        }
+    }
+    // Terms are discovered in page order, which is arbitrary from a reader's point of
+    // view; sort so a tag index reads alphabetically and hashes deterministically.
+    terms.sort();
+    (terms, members)
+}
+
+/// One [`GroupContext`] per term, rejecting terms that cannot name a page.
+fn group_contexts(
+    collection: &config::Collection,
+    terms: &[String],
+    members: &HashMap<String, Vec<PageContext>>,
+) -> Result<Vec<GroupContext>> {
+    let mut groups: Vec<GroupContext> = Vec::new();
+    let mut slugs: HashMap<String, String> = HashMap::new();
+    for term in terms {
+        let slug = slugify(term);
+        if slug.is_empty() {
+            anyhow::bail!(
+                "the {} value {term:?} has no URL-safe form; it cannot name a page",
+                collection.group_by
+            );
+        }
+        // `C++` and `C  ++` both slugify to `c`, and one would silently overwrite the
+        // other's page.
+        if let Some(other) = slugs.insert(slug.clone(), term.clone()) {
+            anyhow::bail!(
+                "the {} values {other:?} and {term:?} both become {slug:?} in a URL; \
+                 rename one so their pages do not collide",
+                collection.group_by
+            );
+        }
+        groups.push(GroupContext {
+            name: term.clone(),
+            slug: slug.clone(),
+            url: if collection.output.as_str().is_empty() {
+                String::new()
+            } else {
+                collection
+                    .output
+                    .as_str()
+                    .replace(config::GROUP_PLACEHOLDER, &slug)
+            }
+            .to_string(),
+            count: members.get(term).map(Vec::len).unwrap_or(0),
+        });
+    }
+    Ok(groups)
+}
+
+/// Reject generated pages that would overwrite a real page or one another.
+fn check_listing_outputs(listings: &[Listing], preps: &[PagePrep]) -> Result<()> {
+    // A generated page writing over a real page would silently replace it. Group pages
+    // make this easy to hit by accident, since their paths come from content.
+    for listing in listings {
+        if let Some(clash) = preps.iter().find(|p| p.output == listing.output) {
+            anyhow::bail!(
+                "collection output {} collides with the page built from {}",
+                listing.output,
+                clash.source
+            );
+        }
+    }
+    let mut claimed: HashMap<&Utf8PathBuf, ()> = HashMap::new();
+    for listing in listings {
+        if claimed.insert(&listing.output, ()).is_some() {
+            anyhow::bail!("two generated pages both write to {}", listing.output);
+        }
+    }
+    Ok(())
+}
+
 /// Build the listing pages a config asks for, each with its entries sorted.
 fn build_listings(config: &Config, preps: &[PagePrep]) -> Result<Vec<Listing>> {
     let mut listings = Vec::new();
@@ -248,111 +389,29 @@ fn build_listings(config: &Config, preps: &[PagePrep]) -> Result<Vec<Listing>> {
             .collect()
     };
     for collection in &config.collections {
-        let mut entries: Vec<PageContext> = preps
-            .iter()
-            .filter(|p| {
-                collection.source.as_str().is_empty() || p.source.starts_with(&collection.source)
-            })
-            .map(|p| p.context.clone())
-            .collect();
-
-        // Sort ascending first, then reverse for `desc`, so the two orders are exact
-        // mirrors of one another rather than two separately-written comparisons.
-        match collection.sort {
-            SortKey::Title => entries.sort_by(|a, b| a.title.cmp(&b.title)),
-            SortKey::Path => entries.sort_by(|a, b| a.url.cmp(&b.url)),
-            // Undated pages sort last in the final order regardless of direction: a
-            // draft with no date should not lead an archive.
-            SortKey::Date => entries.sort_by(|a, b| {
-                // Date *and* time: org records when a note was written, and two notes
-                // from the same day have an order that the day alone cannot express.
-                let key = |p: &PageContext| {
-                    p.date_iso.as_ref().map(|d| {
-                        let time = p
-                            .date
-                            .as_deref()
-                            .and_then(iso_time)
-                            .unwrap_or_else(|| "00:00:00".to_string());
-                        format!("{d}T{time}")
-                    })
-                };
-                match (key(a), key(b)) {
-                    (Some(x), Some(y)) => x.cmp(&y).then_with(|| a.url.cmp(&b.url)),
-                    (Some(_), None) => std::cmp::Ordering::Greater,
-                    (None, Some(_)) => std::cmp::Ordering::Less,
-                    (None, None) => a.url.cmp(&b.url),
-                }
-            }),
-        }
-        if collection.order == SortOrder::Desc {
-            entries.reverse();
-        }
+        let entries = collection_entries(collection, preps);
 
         if collection.group_by.is_empty() {
             let entry_hashes = hashes_of(&entries);
             push_paginated(
                 &mut listings,
                 collection,
-                collection.output.clone(),
-                collection.title.clone(),
-                entries,
-                entry_hashes,
-                None,
-                Vec::new(),
+                ListingPage {
+                    output: collection.output.clone(),
+                    title: collection.title.clone(),
+                    entries,
+                    entry_hashes,
+                    group: None,
+                    groups: Vec::new(),
+                },
             );
             continue;
         }
 
         // Grouped: one page per distinct term. `entries` is already sorted, and grouping
         // preserves that order within each group.
-        let mut terms: Vec<String> = Vec::new();
-        let mut members: HashMap<String, Vec<PageContext>> = HashMap::new();
-        for entry in &entries {
-            for term in group_terms(entry, &collection.group_by) {
-                if !members.contains_key(&term) {
-                    terms.push(term.clone());
-                }
-                members.entry(term).or_default().push(entry.clone());
-            }
-        }
-        // Terms are discovered in page order, which is arbitrary from a reader's point of
-        // view; sort so a tag index reads alphabetically and hashes deterministically.
-        terms.sort();
-
-        let mut groups: Vec<GroupContext> = Vec::new();
-        let mut slugs: HashMap<String, String> = HashMap::new();
-        for term in &terms {
-            let slug = slugify(term);
-            if slug.is_empty() {
-                anyhow::bail!(
-                    "the {} value {term:?} has no URL-safe form; it cannot name a page",
-                    collection.group_by
-                );
-            }
-            // `C++` and `C  ++` both slugify to `c`, and one would silently overwrite the
-            // other's page.
-            if let Some(other) = slugs.insert(slug.clone(), term.clone()) {
-                anyhow::bail!(
-                    "the {} values {other:?} and {term:?} both become {slug:?} in a URL; \
-                     rename one so their pages do not collide",
-                    collection.group_by
-                );
-            }
-            groups.push(GroupContext {
-                name: term.clone(),
-                slug: slug.clone(),
-                url: if collection.output.as_str().is_empty() {
-                    String::new()
-                } else {
-                    collection
-                        .output
-                        .as_str()
-                        .replace(config::GROUP_PLACEHOLDER, &slug)
-                }
-                .to_string(),
-                count: members.get(term).map(Vec::len).unwrap_or(0),
-            });
-        }
+        let (terms, members) = group_members(&entries, &collection.group_by);
+        let groups = group_contexts(collection, &terms, &members)?;
 
         if !collection.output.as_str().is_empty() {
             for group in &groups {
@@ -361,19 +420,21 @@ fn build_listings(config: &Config, preps: &[PagePrep]) -> Result<Vec<Listing>> {
                 push_paginated(
                     &mut listings,
                     collection,
-                    Utf8PathBuf::from(&group.url),
-                    collection
-                        .title
-                        .replace(config::GROUP_PLACEHOLDER, &group.name),
-                    members_of,
-                    entry_hashes,
-                    Some(group.clone()),
-                    // Deliberately not the whole group list. A page that can see every
-                    // group depends on every group, so one new post would re-render every
-                    // tag page — cost that scales with tag count, to support a tag cloud
-                    // nobody has asked for. A tag page depends on its own posts, and the
-                    // group index is where the group list belongs.
-                    Vec::new(),
+                    ListingPage {
+                        output: Utf8PathBuf::from(&group.url),
+                        title: collection
+                            .title
+                            .replace(config::GROUP_PLACEHOLDER, &group.name),
+                        entries: members_of,
+                        entry_hashes,
+                        group: Some(group.clone()),
+                        // Deliberately not the whole group list. A page that can see every
+                        // group depends on every group, so one new post would re-render every
+                        // tag page — cost that scales with tag count, to support a tag cloud
+                        // nobody has asked for. A tag page depends on its own posts, and the
+                        // group index is where the group list belongs.
+                        groups: Vec::new(),
+                    },
                 );
             }
         }
@@ -393,23 +454,7 @@ fn build_listings(config: &Config, preps: &[PagePrep]) -> Result<Vec<Listing>> {
         }
     }
 
-    // A generated page writing over a real page would silently replace it. Group pages
-    // make this easy to hit by accident, since their paths come from content.
-    for listing in &listings {
-        if let Some(clash) = preps.iter().find(|p| p.output == listing.output) {
-            anyhow::bail!(
-                "collection output {} collides with the page built from {}",
-                listing.output,
-                clash.source
-            );
-        }
-    }
-    let mut claimed: HashMap<&Utf8PathBuf, ()> = HashMap::new();
-    for listing in &listings {
-        if claimed.insert(&listing.output, ()).is_some() {
-            anyhow::bail!("two generated pages both write to {}", listing.output);
-        }
-    }
+    check_listing_outputs(&listings, preps)?;
     Ok(listings)
 }
 
@@ -820,6 +865,14 @@ pub fn render_site(src: &Utf8Path) -> Result<(Vec<BuiltPage>, BrokenLinks)> {
     check_page_templates(&templater, &preps)?;
     let site = site_context(&config);
     let listing = page_listing(&config, &preps);
+    let renderer = PageRenderer {
+        templater: &templater,
+        highlighter: &highlighter,
+        site: &site,
+        pages: listing.as_deref(),
+        config: &config,
+        preps: &preps,
+    };
 
     let mut pages = Vec::new();
     let mut broken = Vec::new();
@@ -827,7 +880,7 @@ pub fn render_site(src: &Utf8Path) -> Result<(Vec<BuiltPage>, BrokenLinks)> {
         for t in &p.broken {
             broken.push((p.source.clone(), t.clone()));
         }
-        let html = render_page(&templater, &highlighter, &site, listing.as_deref(), &config, p)?;
+        let html = renderer.render_page(p)?;
         pages.push(BuiltPage {
             source: p.source.clone(),
             output: p.output.clone(),
@@ -868,29 +921,64 @@ fn page_listing(config: &Config, preps: &[PagePrep]) -> Option<Vec<PageContext>>
         .then(|| preps.iter().map(|p| p.context.clone()).collect())
 }
 
-/// RENDER + TEMPLATE one prepared page into its final HTML string.
-#[allow(clippy::too_many_arguments)]
-fn render_page(
-    templater: &Templater,
-    highlighter: &SyntectHighlighter,
-    site: &SiteContext,
-    pages: Option<&[PageContext]>,
-    config: &Config,
-    p: &PagePrep,
-) -> Result<String> {
-    let opts = render_options(config);
-    let Html(fragment) = render_with(&p.resolved, highlighter, &opts);
-    // Relative to the *output* path, since `#+SLUG:` can move a page between depths.
-    let root = relative_root(&p.output);
-    let stylesheet = format!("{root}{SYNTAX_STYLESHEET}");
-    let theme = theme_href(config, &root);
-    let mut ctx = RenderContext::new(site, &p.context, &p.nav, &stylesheet, &root);
-    ctx.body = &fragment;
-    ctx.theme = &theme;
-    ctx.pages = pages;
-    templater
-        .render(&p.template, &ctx)
-        .with_context(|| format!("templating {} through {}", p.source, p.template))
+/// What every page render in one build shares.
+struct PageRenderer<'a> {
+    templater: &'a Templater,
+    highlighter: &'a SyntectHighlighter,
+    site: &'a SiteContext,
+    /// The `pages` list templates see (see [`page_listing`]).
+    pages: Option<&'a [PageContext]>,
+    config: &'a Config,
+    preps: &'a [PagePrep],
+}
+
+impl PageRenderer<'_> {
+    /// RENDER + TEMPLATE one prepared page into its final HTML string.
+    fn render_page(&self, p: &PagePrep) -> Result<String> {
+        let opts = render_options(self.config);
+        let Html(fragment) = render_with(&p.resolved, self.highlighter, &opts);
+        // Relative to the *output* path, since `#+SLUG:` can move a page between depths.
+        let root = relative_root(&p.output);
+        let stylesheet = format!("{root}{SYNTAX_STYLESHEET}");
+        let theme = theme_href(self.config, &root);
+        let mut ctx = RenderContext::new(self.site, &p.context, &p.nav, &stylesheet, &root);
+        ctx.body = &fragment;
+        ctx.theme = &theme;
+        ctx.pages = self.pages;
+        self.templater
+            .render(&p.template, &ctx)
+            .with_context(|| format!("templating {} through {}", p.source, p.template))
+    }
+
+    /// TEMPLATE one generated listing page into its final HTML string.
+    fn render_listing(&self, listing: &Listing) -> Result<String> {
+        let root = relative_root(&listing.output);
+        let stylesheet = format!("{root}{SYNTAX_STYLESHEET}");
+        let nav = listing_nav(self.preps, &listing.output);
+        let page_ctx = listing_context(listing);
+        // Bodies are rendered here rather than when the listing was built, so a
+        // cached feed costs nothing. This is the only place a page is rendered twice.
+        let with_content = listing.include_content.then(|| {
+            entries_with_content(&listing.entries, self.preps, self.highlighter, self.config)
+        });
+        let theme = theme_href(self.config, &root);
+        let mut ctx = RenderContext::new(self.site, &page_ctx, &nav, &stylesheet, &root);
+        ctx.theme = &theme;
+        ctx.pages = Some(with_content.as_deref().unwrap_or(&listing.entries));
+        ctx.group = listing.group.as_ref();
+        ctx.groups = &listing.groups;
+        ctx.paginator = listing.paginator.as_ref();
+        self.templater
+            .render(&listing.template, &ctx)
+            .with_context(|| {
+                format!(
+                    "rendering collection {} with template {} (available: {})",
+                    listing.output,
+                    listing.template,
+                    self.templater.names().join(", ")
+                )
+            })
+    }
 }
 
 /// Site-root-relative name of the generated syntax stylesheet. Every page links to it.
@@ -958,13 +1046,7 @@ fn escape_xml(s: &str) -> String {
 /// `render_key` changed or that link into a changed file's targets; reuses the on-disk
 /// output of everything else; persists an updated cache manifest.
 pub fn build_site(src: &Utf8Path, out: &Utf8Path, opts: &BuildOptions) -> Result<SiteReport> {
-    let mut cfg = match &opts.config_path {
-        Some(path) => Config::load_file(path)?,
-        None => Config::load(src)?,
-    };
-    cfg.validate()?;
-    // The flag turns drafts on; it never turns off a config that asked for them.
-    cfg.build.drafts |= opts.drafts;
+    let cfg = build_config(src, opts)?;
 
     // Create the output directory up front so it can be recognised and excluded when it
     // lives inside the source tree.
@@ -977,59 +1059,13 @@ pub fn build_site(src: &Utf8Path, out: &Utf8Path, opts: &BuildOptions) -> Result
     check_page_templates(&templater, &preps)?;
     let syntax_css = render::syntax_stylesheet(&cfg.highlight)?;
 
-    // The global hash classes (spec §4.1): a change in any invalidates the site. The
-    // config hash is combined with a site-structure hash covering the global chrome each
-    // page carries, so a change to that chrome re-renders the pages showing it.
-    //
-    // Which pages belong in that hash depends on what a template can *see*. Normally it
-    // is the nav only — a nested page cannot change another page's nav, so adding a blog
-    // post should render one page, not the site. But `expose_page_list` hands every
-    // template every page's metadata, and then any page's output really can depend on
-    // any other page, so the hash has to widen to match. Keyed on output paths, since a
-    // `#+SLUG:` change moves a page's URL without moving its source.
-    let all_pages: Vec<(Utf8PathBuf, Utf8PathBuf, String)> = preps
-        .iter()
-        .map(|p| (p.source.clone(), p.output.clone(), p.title.clone()))
-        .collect();
-    let structure_hash = if cfg.templates.expose_page_list {
-        let entries: Vec<(String, String)> = all_pages
-            .iter()
-            .map(|(_, out, title)| (out.to_string(), title.clone()))
-            .collect();
-        site_structure_hash(&entries)
-    } else {
-        // The same selection the nav itself is built from, so the two can never drift.
-        // Hashed in order, because the nav's order is itself part of every page.
-        let entries: Vec<(String, String)> = nav_selection(&cfg, &nav_candidates(&cfg, &all_pages))
-            .into_iter()
-            .map(|c| (c.output.to_string(), c.title.clone()))
-            .collect();
-        site_structure_hash_ordered(&entries)
-    };
-    let cfg_hash = combine(config_hash(&cfg), structure_hash);
+    let cfg_hash = combine(config_hash(&cfg), structure_hash(&cfg, &preps));
     // Per template rather than per site: a page's render key covers the layout it uses
     // and that layout's own includes, so editing `feed.xml` re-renders the feed.
     let tmpl_hash_for = |name: &str| template_hash(&templater.sources_for(name));
 
-    // Compose each page's render key and record its dependency edges.
-    let mut new_graph = DepGraph::default();
-    let mut new_records: Vec<(Utf8PathBuf, PageRecord, Hash)> = Vec::new();
     let listings = build_listings(&cfg, &preps)?;
-    for p in &preps {
-        let rlh = resolved_links_hash(&p.source, &p.used, &symbols);
-        let key = render_key(p.content_hash, rlh, cfg_hash, tmpl_hash_for(&p.template));
-        new_graph.defines.insert(p.source.clone(), p.defines.clone());
-        new_graph.uses.insert(p.source.clone(), p.used.clone());
-        new_records.push((
-            p.source.clone(),
-            PageRecord {
-                content_hash: p.content_hash,
-                render_key: key,
-                output_path: p.output.clone(),
-            },
-            key,
-        ));
-    }
+    let mut keys = page_keys(&preps, &symbols, cfg_hash, &tmpl_hash_for);
 
     // Load the prior manifest (unless bypassed). Absent/corrupt/version-mismatch ⇒ None
     // ⇒ full rebuild (spec §4.5).
@@ -1039,77 +1075,23 @@ pub fn build_site(src: &Utf8Path, out: &Utf8Path, opts: &BuildOptions) -> Result
         incremental::load_manifest(out)
     };
 
-    let rebuild: HashSet<Utf8PathBuf> = compute_rebuild_set(
-        &preps,
-        &new_records,
-        &new_graph,
-        cfg_hash,
-        out,
-        prior.as_ref(),
-    );
-
-    // Delete outputs for pages that existed last build but are gone now (spec §4.3 step 1:
-    // removed files). Their targets are already in the merged graph, so their linkers were
-    // invalidated above.
+    let rebuild = compute_rebuild_set(&preps, &keys, cfg_hash, out, prior.as_ref());
     if let Some(prior) = &prior {
-        // Keyed by source path for real pages and by output path for generated listings,
-        // which is also how each records itself in the manifest. Listings have to be in
-        // this set or the cleanup would delete the file it just decided to keep — and a
-        // removed collection genuinely should have its output deleted.
-        let mut current: HashSet<&Utf8PathBuf> = preps.iter().map(|p| &p.source).collect();
-        current.extend(listings.iter().map(|l| &l.output));
-        for (key, rec) in &prior.pages {
-            if !current.contains(key) {
-                let dest = out.join(&rec.output_path);
-                let _ = fs::remove_file(&dest);
-            }
-        }
+        remove_deleted_outputs(prior, &preps, &listings, out);
     }
 
     let highlighter = SyntectHighlighter::with_syntaxes(Some(&src.join(&cfg.highlight.syntaxes_dir)));
     let site = site_context(&cfg);
     let listing = page_listing(&cfg, &preps);
-    let mut report = SiteReport::default();
-
-    // RENDER + TEMPLATE + EMIT, in parallel. This is where a build's time actually goes
-    // (syntect highlighting and templating dominate), and each page writes only its own
-    // file, so the pages are independent.
-    //
-    // The parallel pass returns whether each page was written; the report is assembled
-    // sequentially afterwards from `preps` order. Pushing to the report from inside the
-    // parallel pass would make `rendered`/`skipped` ordering depend on thread scheduling,
-    // which would be a non-deterministic build report over a deterministic build.
-    let written: Vec<bool> = preps
-        .par_iter()
-        .map(|p| {
-            if !rebuild.contains(&p.source) {
-                // Skip: the on-disk output is already correct (spec §4.1). Leave it alone.
-                return Ok(false);
-            }
-            let dest = out.join(&p.output);
-            if let Some(parent) = dest.parent() {
-                fs::create_dir_all(parent).with_context(|| format!("creating {parent}"))?;
-            }
-            let html = render_page(&templater, &highlighter, &site, listing.as_deref(), &cfg, p)?;
-            fs::write(&dest, &html).with_context(|| format!("writing {dest}"))?;
-            Ok(true)
-        })
-        .collect::<Result<Vec<_>>>()?;
-
-    for (p, was_written) in preps.iter().zip(&written) {
-        for t in &p.broken {
-            report.broken.push((p.source.clone(), t.clone()));
-        }
-        for d in &p.diagnostics {
-            report.diagnostics.push((p.source.clone(), d.clone()));
-        }
-        report.pages.push(p.output.clone());
-        if *was_written {
-            report.rendered.push(p.output.clone());
-        } else {
-            report.skipped.push(p.output.clone());
-        }
-    }
+    let renderer = PageRenderer {
+        templater: &templater,
+        highlighter: &highlighter,
+        site: &site,
+        pages: listing.as_deref(),
+        config: &cfg,
+        preps: &preps,
+    };
+    let mut report = emit_pages(&renderer, &rebuild, out)?;
 
     // Generated listing pages (spec §2.1 EMIT). A listing has no source file, so it is
     // cached on the one thing it actually depends on: the entries it lists. Adding a post
@@ -1131,40 +1113,13 @@ pub fn build_site(src: &Utf8Path, out: &Utf8Path, opts: &BuildOptions) -> Result
         if cached && dest.exists() {
             report.skipped.push(listing.output.clone());
         } else {
-            if let Some(parent) = dest.parent() {
-                fs::create_dir_all(parent).with_context(|| format!("creating {parent}"))?;
-            }
-            let root = relative_root(&listing.output);
-            let stylesheet = format!("{root}{SYNTAX_STYLESHEET}");
-            let nav = listing_nav(&preps, &listing.output);
-            let page_ctx = listing_context(listing);
-            // Bodies are rendered here rather than when the listing was built, so a
-            // cached feed costs nothing. This is the only place a page is rendered twice.
-            let with_content = listing
-                .include_content
-                .then(|| entries_with_content(&listing.entries, &preps, &highlighter, &cfg));
-            let theme = theme_href(&cfg, &root);
-            let mut ctx = RenderContext::new(&site, &page_ctx, &nav, &stylesheet, &root);
-            ctx.theme = &theme;
-            ctx.pages = Some(with_content.as_deref().unwrap_or(&listing.entries));
-            ctx.group = listing.group.as_ref();
-            ctx.groups = &listing.groups;
-            ctx.paginator = listing.paginator.as_ref();
-            let html = templater
-                .render(&listing.template, &ctx)
-                .with_context(|| {
-                    format!(
-                        "rendering collection {} with template {} (available: {})",
-                        listing.output,
-                        listing.template,
-                        templater.names().join(", ")
-                    )
-                })?;
+            create_parent(&dest)?;
+            let html = renderer.render_listing(listing)?;
             fs::write(&dest, &html).with_context(|| format!("writing {dest}"))?;
             report.rendered.push(listing.output.clone());
         }
 
-        new_records.push((
+        keys.records.push((
             listing.output.clone(),
             PageRecord {
                 content_hash: key,
@@ -1175,9 +1130,197 @@ pub fn build_site(src: &Utf8Path, out: &Utf8Path, opts: &BuildOptions) -> Result
         ));
     }
 
+    write_site_files(&cfg, &preps, &syntax_css, &report.pages, out)?;
+    copy_assets(&assets, out, &mut report)?;
+
+    // Persist the manifest for the next build.
+    let manifest = Manifest {
+        format_version: CACHE_FORMAT_VERSION,
+        config_hash: Some(cfg_hash),
+        pages: keys
+            .records
+            .into_iter()
+            .map(|(src_path, rec, _)| (src_path, rec))
+            .collect(),
+        graph: keys.graph,
+    };
+    incremental::save_manifest(out, &manifest)
+        .with_context(|| format!("writing cache manifest under {out}"))?;
+
+    report_warnings(&report, opts.strict)?;
+    Ok(report)
+}
+
+/// The config a build runs with: `--config` or the source directory's, validated, with
+/// `--drafts` applied.
+fn build_config(src: &Utf8Path, opts: &BuildOptions) -> Result<Config> {
+    let mut cfg = match &opts.config_path {
+        Some(path) => Config::load_file(path)?,
+        None => Config::load(src)?,
+    };
+    cfg.validate()?;
+    // The flag turns drafts on; it never turns off a config that asked for them.
+    cfg.build.drafts |= opts.drafts;
+    Ok(cfg)
+}
+
+/// The site-structure half of the global hash class (spec §4.1): a change in any
+/// invalidates the site. It covers the global chrome each page carries, so a change to
+/// that chrome re-renders the pages showing it.
+///
+/// Which pages belong in that hash depends on what a template can *see*. Normally it
+/// is the nav only — a nested page cannot change another page's nav, so adding a blog
+/// post should render one page, not the site. But `expose_page_list` hands every
+/// template every page's metadata, and then any page's output really can depend on
+/// any other page, so the hash has to widen to match. Keyed on output paths, since a
+/// `#+SLUG:` change moves a page's URL without moving its source.
+fn structure_hash(cfg: &Config, preps: &[PagePrep]) -> Hash {
+    let all_pages: Vec<(Utf8PathBuf, Utf8PathBuf, String)> = preps
+        .iter()
+        .map(|p| (p.source.clone(), p.output.clone(), p.title.clone()))
+        .collect();
+    if cfg.templates.expose_page_list {
+        let entries: Vec<(String, String)> = all_pages
+            .iter()
+            .map(|(_, out, title)| (out.to_string(), title.clone()))
+            .collect();
+        site_structure_hash(&entries)
+    } else {
+        // The same selection the nav itself is built from, so the two can never drift.
+        // Hashed in order, because the nav's order is itself part of every page.
+        let entries: Vec<(String, String)> = nav_selection(cfg, &nav_candidates(cfg, &all_pages))
+            .into_iter()
+            .map(|c| (c.output.to_string(), c.title.clone()))
+            .collect();
+        site_structure_hash_ordered(&entries)
+    }
+}
+
+/// Each page's composed render key and dependency edges.
+struct PageKeys {
+    graph: DepGraph,
+    /// `(key, record, render key)`, where the key is a page's source path or a
+    /// listing's output path.
+    records: Vec<(Utf8PathBuf, PageRecord, Hash)>,
+}
+
+fn page_keys(
+    preps: &[PagePrep],
+    symbols: &SymbolTable,
+    cfg_hash: Hash,
+    tmpl_hash_for: &dyn Fn(&str) -> Hash,
+) -> PageKeys {
+    let mut keys = PageKeys {
+        graph: DepGraph::default(),
+        records: Vec::new(),
+    };
+    for p in preps {
+        let rlh = resolved_links_hash(&p.source, &p.used, symbols);
+        let key = render_key(p.content_hash, rlh, cfg_hash, tmpl_hash_for(&p.template));
+        keys.graph.defines.insert(p.source.clone(), p.defines.clone());
+        keys.graph.uses.insert(p.source.clone(), p.used.clone());
+        keys.records.push((
+            p.source.clone(),
+            PageRecord {
+                content_hash: p.content_hash,
+                render_key: key,
+                output_path: p.output.clone(),
+            },
+            key,
+        ));
+    }
+    keys
+}
+
+/// Delete outputs for pages that existed last build but are gone now (spec §4.3 step 1:
+/// removed files). Their targets are already in the merged graph, so their linkers were
+/// invalidated by [`compute_rebuild_set`].
+fn remove_deleted_outputs(
+    prior: &Manifest,
+    preps: &[PagePrep],
+    listings: &[Listing],
+    out: &Utf8Path,
+) {
+    // Keyed by source path for real pages and by output path for generated listings,
+    // which is also how each records itself in the manifest. Listings have to be in
+    // this set or the cleanup would delete the file it just decided to keep — and a
+    // removed collection genuinely should have its output deleted.
+    let mut current: HashSet<&Utf8PathBuf> = preps.iter().map(|p| &p.source).collect();
+    current.extend(listings.iter().map(|l| &l.output));
+    for (key, rec) in &prior.pages {
+        if !current.contains(key) {
+            let dest = out.join(&rec.output_path);
+            let _ = fs::remove_file(&dest);
+        }
+    }
+}
+
+fn create_parent(dest: &Utf8Path) -> Result<()> {
+    if let Some(parent) = dest.parent() {
+        fs::create_dir_all(parent).with_context(|| format!("creating {parent}"))?;
+    }
+    Ok(())
+}
+
+/// RENDER + TEMPLATE + EMIT every page in `rebuild`, in parallel, and report on all of
+/// them.
+fn emit_pages(
+    renderer: &PageRenderer,
+    rebuild: &HashSet<Utf8PathBuf>,
+    out: &Utf8Path,
+) -> Result<SiteReport> {
+    // This is where a build's time actually goes (syntect highlighting and templating
+    // dominate), and each page writes only its own file, so the pages are independent.
+    //
+    // The parallel pass returns whether each page was written; the report is assembled
+    // sequentially afterwards from `preps` order. Pushing to the report from inside the
+    // parallel pass would make `rendered`/`skipped` ordering depend on thread scheduling,
+    // which would be a non-deterministic build report over a deterministic build.
+    let preps = renderer.preps;
+    let written: Vec<bool> = preps
+        .par_iter()
+        .map(|p| {
+            if !rebuild.contains(&p.source) {
+                // Skip: the on-disk output is already correct (spec §4.1). Leave it alone.
+                return Ok(false);
+            }
+            let dest = out.join(&p.output);
+            create_parent(&dest)?;
+            let html = renderer.render_page(p)?;
+            fs::write(&dest, &html).with_context(|| format!("writing {dest}"))?;
+            Ok(true)
+        })
+        .collect::<Result<Vec<_>>>()?;
+
+    let mut report = SiteReport::default();
+    for (p, was_written) in preps.iter().zip(&written) {
+        for t in &p.broken {
+            report.broken.push((p.source.clone(), t.clone()));
+        }
+        for d in &p.diagnostics {
+            report.diagnostics.push((p.source.clone(), d.clone()));
+        }
+        report.pages.push(p.output.clone());
+        if *was_written {
+            report.rendered.push(p.output.clone());
+        } else {
+            report.skipped.push(p.output.clone());
+        }
+    }
+    Ok(report)
+}
+
+/// The syntax stylesheet, the theme stylesheet, and the sitemap.
+fn write_site_files(
+    cfg: &Config,
+    preps: &[PagePrep],
+    syntax_css: &str,
+    pages: &[Utf8PathBuf],
+    out: &Utf8Path,
+) -> Result<()> {
     // The syntax stylesheet the highlighter's CSS classes refer to. Written every build
     // (it is a few KB and depends only on the theme, which lives in the config hash).
-    fs::write(out.join(SYNTAX_STYLESHEET), &syntax_css)
+    fs::write(out.join(SYNTAX_STYLESHEET), syntax_css)
         .with_context(|| format!("writing {SYNTAX_STYLESHEET} under {out}"))?;
 
     // The built-in theme, on the same terms: compiled in, written every build, and named
@@ -1195,38 +1338,30 @@ pub fn build_site(src: &Utf8Path, out: &Utf8Path, opts: &BuildOptions) -> Result
             .iter()
             .filter_map(|p| Some((p.output.as_path(), p.context.date_iso.as_deref()?)))
             .collect();
-        let xml = sitemap(&cfg.site.base_url, &report.pages, &dated);
+        let xml = sitemap(&cfg.site.base_url, pages, &dated);
         fs::write(out.join(SITEMAP), xml)
             .with_context(|| format!("writing {SITEMAP} under {out}"))?;
     }
+    Ok(())
+}
 
-    // Assets are a dumb copy in v0.3 (spec §8 Q11): copy every run. Cheap, and keeps the
-    // full-vs-incremental byte equivalence trivially true for non-`.org` files.
-    for asset in &assets {
+/// Assets are a dumb copy in v0.3 (spec §8 Q11): copy every run. Cheap, and keeps the
+/// full-vs-incremental byte equivalence trivially true for non-`.org` files.
+fn copy_assets(assets: &[Asset], out: &Utf8Path, report: &mut SiteReport) -> Result<()> {
+    for asset in assets {
         let dest = out.join(&asset.rel);
-        if let Some(parent) = dest.parent() {
-            fs::create_dir_all(parent).with_context(|| format!("creating {parent}"))?;
-        }
+        create_parent(&dest)?;
         fs::copy(&asset.from, &dest)
             .with_context(|| format!("copying {} -> {dest}", asset.from))?;
         report.assets.push(asset.rel.clone());
     }
+    Ok(())
+}
 
-    // Persist the manifest for the next build.
-    let manifest = Manifest {
-        format_version: CACHE_FORMAT_VERSION,
-        config_hash: Some(cfg_hash),
-        pages: new_records
-            .into_iter()
-            .map(|(src_path, rec, _)| (src_path, rec))
-            .collect(),
-        graph: new_graph,
-    };
-    incremental::save_manifest(out, &manifest)
-        .with_context(|| format!("writing cache manifest under {out}"))?;
-
+/// Print the build's warnings, or fail with them under `--strict`.
+fn report_warnings(report: &SiteReport, strict: bool) -> Result<()> {
     let warnings = report.warnings();
-    if opts.strict && !warnings.is_empty() {
+    if strict && !warnings.is_empty() {
         for w in &warnings {
             eprintln!("error: {w}");
         }
@@ -1240,8 +1375,7 @@ pub fn build_site(src: &Utf8Path, out: &Utf8Path, opts: &BuildOptions) -> Result
     for w in &warnings {
         eprintln!("warning: {w}");
     }
-
-    Ok(report)
+    Ok(())
 }
 
 /// The set of source files to (re)render this build (spec §4.3 invalidation algorithm),
@@ -1256,8 +1390,7 @@ pub fn build_site(src: &Utf8Path, out: &Utf8Path, opts: &BuildOptions) -> Result
 /// - any page whose **output file is missing** on disk.
 fn compute_rebuild_set(
     preps: &[PagePrep],
-    new_records: &[(Utf8PathBuf, PageRecord, Hash)],
-    new_graph: &DepGraph,
+    keys: &PageKeys,
     cfg_hash: Hash,
     out: &Utf8Path,
     prior: Option<&Manifest>,
@@ -1288,12 +1421,12 @@ fn compute_rebuild_set(
 
     // Graph expansion: changed files ∪ pages that link into a changed file's targets.
     // Merge prior `defines` so a target a changed file removed still pulls its linkers.
-    let merged = prior.graph.merged_defines_with(new_graph);
+    let merged = prior.graph.merged_defines_with(&keys.graph);
     let mut rebuild = incremental::invalidation_set(&changed, &merged);
 
     // Precise render_key delta (catches a linked target's URL change; also a belt for the
     // graph). A page whose render_key matches the cache and whose output exists is correct.
-    for (src_path, _rec, key) in new_records {
+    for (src_path, _rec, key) in &keys.records {
         let unchanged = prior
             .pages
             .get(src_path)
@@ -1392,42 +1525,8 @@ fn collect_assets(
 
     for root in &config.build.assets {
         let base = src.join(root);
-        if !base.is_dir() {
-            anyhow::bail!(
-                "build.assets lists {root}, which is not a directory (looked in {base})"
-            );
-        }
-        let base_canon = std::fs::canonicalize(&base)
-            .ok()
-            .and_then(|p| Utf8PathBuf::from_path_buf(p).ok())
-            .unwrap_or_else(|| base.clone());
-        // An asset root that contains the output directory would copy the site into
-        // itself, one build at a time.
-        let out_canon = out
-            .and_then(|out| std::fs::canonicalize(out).ok())
-            .and_then(|p| Utf8PathBuf::from_path_buf(p).ok());
-        if out_canon.is_some_and(|o| o.starts_with(&base_canon)) {
-            anyhow::bail!(
-                "build.assets lists {root}, which contains the output directory {}",
-                out.unwrap_or(Utf8Path::new("(none)"))
-            );
-        }
-        for entry in WalkDir::new(&base).sort_by_file_name() {
-            let entry = entry.with_context(|| format!("walking {base}"))?;
-            if !entry.file_type().is_file() {
-                continue;
-            }
-            let abs = Utf8PathBuf::from_path_buf(entry.into_path())
-                .map_err(|p| anyhow::anyhow!("non-UTF-8 path: {}", p.display()))?;
-            let rel = abs
-                .strip_prefix(&base)
-                .map(|p| p.to_owned())
-                .unwrap_or_else(|_| abs.clone());
-            if rel.components().any(|c| is_hidden(c.as_str())) {
-                continue;
-            }
-            assets.push(Asset { from: abs, rel });
-        }
+        check_asset_root(root, &base, out)?;
+        assets.extend(walk_asset_root(&base)?);
     }
 
     let mut seen: HashMap<&Utf8Path, &Utf8Path> = HashMap::new();
@@ -1441,6 +1540,53 @@ fn collect_assets(
         }
     }
     assets.sort_by(|a, b| a.rel.cmp(&b.rel));
+    Ok(assets)
+}
+
+/// Reject an asset root that is missing or that would copy the site into itself.
+fn check_asset_root(root: &Utf8Path, base: &Utf8Path, out: Option<&Utf8Path>) -> Result<()> {
+    if !base.is_dir() {
+        anyhow::bail!(
+            "build.assets lists {root}, which is not a directory (looked in {base})"
+        );
+    }
+    let base_canon = std::fs::canonicalize(base)
+        .ok()
+        .and_then(|p| Utf8PathBuf::from_path_buf(p).ok())
+        .unwrap_or_else(|| base.to_owned());
+    // An asset root that contains the output directory would copy the site into
+    // itself, one build at a time.
+    let out_canon = out
+        .and_then(|out| std::fs::canonicalize(out).ok())
+        .and_then(|p| Utf8PathBuf::from_path_buf(p).ok());
+    if out_canon.is_some_and(|o| o.starts_with(&base_canon)) {
+        anyhow::bail!(
+            "build.assets lists {root}, which contains the output directory {}",
+            out.unwrap_or(Utf8Path::new("(none)"))
+        );
+    }
+    Ok(())
+}
+
+/// Every non-hidden file under an asset root, relative to it, in file-name order.
+fn walk_asset_root(base: &Utf8Path) -> Result<Vec<Asset>> {
+    let mut assets = Vec::new();
+    for entry in WalkDir::new(base).sort_by_file_name() {
+        let entry = entry.with_context(|| format!("walking {base}"))?;
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        let abs = Utf8PathBuf::from_path_buf(entry.into_path())
+            .map_err(|p| anyhow::anyhow!("non-UTF-8 path: {}", p.display()))?;
+        let rel = abs
+            .strip_prefix(base)
+            .map(|p| p.to_owned())
+            .unwrap_or_else(|_| abs.clone());
+        if rel.components().any(|c| is_hidden(c.as_str())) {
+            continue;
+        }
+        assets.push(Asset { from: abs, rel });
+    }
     Ok(assets)
 }
 

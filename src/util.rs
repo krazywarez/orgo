@@ -4,7 +4,7 @@
 
 use camino::{Utf8Path, Utf8PathBuf};
 
-use crate::model::{Element, Heading, Keywords, Object, Section, TableRow};
+use crate::model::{Element, Heading, Keywords, List, Object, Section, Table, TableRow};
 
 /// The output path for a document, relative to the site root.
 ///
@@ -209,28 +209,32 @@ fn elements_text(elements: &[Element], out: &mut String) {
     for element in elements {
         match element {
             Element::Paragraph(objs) => push_words(&plain_text(objs), out),
-            Element::List(list) => {
-                for item in &list.items {
-                    if let Some(term) = &item.term {
-                        push_words(&plain_text(term), out);
-                    }
-                    elements_text(&item.content, out);
-                }
-            }
-            Element::Table(table) => {
-                for row in &table.rows {
-                    if let TableRow::Cells(cells) = row {
-                        for cell in cells {
-                            push_words(&plain_text(cell), out);
-                        }
-                    }
-                }
-            }
+            Element::List(list) => list_text(list, out),
+            Element::Table(table) => table_text(table, out),
             Element::QuoteBlock(inner) | Element::CenterBlock(inner) => elements_text(inner, out),
             Element::Figure { caption, .. } => push_words(&plain_text(caption), out),
             Element::FootnoteDefinition { content, .. } => elements_text(content, out),
             // Code, drawers, comments, keywords and raw export blocks are not prose.
             _ => {}
+        }
+    }
+}
+
+fn list_text(list: &List, out: &mut String) {
+    for item in &list.items {
+        if let Some(term) = &item.term {
+            push_words(&plain_text(term), out);
+        }
+        elements_text(&item.content, out);
+    }
+}
+
+fn table_text(table: &Table, out: &mut String) {
+    for row in &table.rows {
+        if let TableRow::Cells(cells) = row {
+            for cell in cells {
+                push_words(&plain_text(cell), out);
+            }
         }
     }
 }
@@ -377,12 +381,21 @@ pub fn iso_time(raw: &str) -> Option<String> {
     None
 }
 
+/// Whether ten bytes have the shape `YYYY-MM-DD`. Says nothing about whether the date
+/// exists.
+pub fn is_iso_date_shape(window: &[u8]) -> bool {
+    match window {
+        [y1, y2, y3, y4, b'-', m1, m2, b'-', d1, d2] => {
+            [y1, y2, y3, y4, m1, m2, d1, d2].iter().all(|b| b.is_ascii_digit())
+        }
+        _ => false,
+    }
+}
+
 pub fn iso_date(raw: &str) -> Option<String> {
     let bytes = raw.as_bytes();
     for i in 0..bytes.len().saturating_sub(9) {
-        let window = &bytes[i..i + 10];
-        let digits = |r: std::ops::Range<usize>| window[r].iter().all(u8::is_ascii_digit);
-        if digits(0..4) && window[4] == b'-' && digits(5..7) && window[7] == b'-' && digits(8..10) {
+        if is_iso_date_shape(&bytes[i..i + 10]) {
             // Must not be part of a longer number, or `123-45-6789` would parse.
             let before_ok = i == 0 || !bytes[i - 1].is_ascii_digit();
             let after_ok = i + 10 >= bytes.len() || !bytes[i + 10].is_ascii_digit();

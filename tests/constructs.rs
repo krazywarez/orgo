@@ -671,6 +671,22 @@ fn a_tables_special_column_and_marker_rows_are_dropped() {
     assert!(all_marked.contains("exp(x)"), "data survives:\n{all_marked}");
 }
 
+/// Every row above the first rule is a header row, and all of them share one `<thead>`.
+#[test]
+fn header_rows_share_one_thead() {
+    let html = html_of(
+        "| a | b |\n\
+         | c | d |\n\
+         |---+---|\n\
+         | 1 | 2 |\n",
+    );
+    assert_eq!(html.matches("<thead>").count(), 1, "{html}");
+    assert!(
+        html.contains("<thead>\n<tr><th>a</th><th>b</th></tr>\n<tr><th>c</th><th>d</th></tr>\n</thead>"),
+        "{html}"
+    );
+}
+
 /// An affiliated keyword belongs to the element *immediately* below it. Someone who
 /// writes `#+CAPTION:` under their image has captioned nothing — and captioning the next
 /// image instead would put the wrong words under the wrong picture.

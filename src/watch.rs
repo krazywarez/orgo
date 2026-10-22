@@ -155,10 +155,7 @@ impl ChangeFilter {
 /// `file.org~` backups, which do not start with a dot and would otherwise look like a
 /// content change to a tool aimed squarely at Emacs users.
 fn is_editor_scratch(name: &str) -> bool {
-    name.ends_with('~')
-        || name.ends_with(".swp")
-        || name.ends_with(".swx")
-        || name.ends_with(".tmp")
+    ["~", ".swp", ".swx", ".tmp"].iter().any(|s| name.ends_with(s))
         || (name.starts_with('#') && name.ends_with('#'))
 }
 

@@ -459,79 +459,10 @@ impl Config {
     /// Validate settings that only make sense in combination. Catching these up front
     /// beats emitting a site with a silently empty nav.
     pub fn validate(&self) -> Result<()> {
-        if self.nav.mode == NavMode::Explicit && self.nav.pages.is_empty() {
-            anyhow::bail!(
-                "nav.mode is \"explicit\" but nav.pages is empty: list the pages to \
-                 include, or use mode = \"top-level\"/\"all\"/\"none\""
-            );
-        }
-        if self.nav.mode != NavMode::Explicit && !self.nav.pages.is_empty() {
-            anyhow::bail!(
-                "nav.pages is set but nav.mode is \"{}\", so it would be ignored; set \
-                 mode = \"explicit\" to use it",
-                toml::to_string(&self.nav.mode)
-                    .unwrap_or_default()
-                    .trim()
-                    .trim_matches('"')
-            );
-        }
+        self.validate_nav()?;
         let mut seen: Vec<&Utf8PathBuf> = Vec::new();
         for collection in &self.collections {
-            let grouped = !collection.group_by.is_empty();
-            if collection.output.as_str().is_empty() && collection.index_output.as_str().is_empty()
-            {
-                anyhow::bail!("a collection has no `output`; it needs a file to write");
-            }
-            if grouped
-                && !collection.output.as_str().is_empty()
-                && !collection.output.as_str().contains(GROUP_PLACEHOLDER)
-            {
-                anyhow::bail!(
-                    "collection output {} groups by \"{}\" but has no {GROUP_PLACEHOLDER} in \
-                     its path, so every group would overwrite the same file",
-                    collection.output,
-                    collection.group_by
-                );
-            }
-            if !grouped && collection.output.as_str().contains(GROUP_PLACEHOLDER) {
-                anyhow::bail!(
-                    "collection output {} uses {GROUP_PLACEHOLDER} but sets no `group_by`",
-                    collection.output
-                );
-            }
-            if !grouped && !collection.index_output.as_str().is_empty() {
-                anyhow::bail!(
-                    "collection writes an `index_output` of {} but sets no `group_by`; \
-                     there are no groups to index",
-                    collection.index_output
-                );
-            }
-            if collection.paginate > 0 {
-                let pattern = collection.paginate_output.as_str();
-                if pattern.is_empty() {
-                    anyhow::bail!(
-                        "collection output {} sets `paginate` but no `paginate_output`;                          pages 2 and up need somewhere to go, e.g. \"blog/page/{PAGE_PLACEHOLDER}.html\"",
-                        collection.output
-                    );
-                }
-                if !pattern.contains(PAGE_PLACEHOLDER) {
-                    anyhow::bail!(
-                        "collection `paginate_output` {pattern} has no {PAGE_PLACEHOLDER},                          so every page after the first would overwrite the same file"
-                    );
-                }
-                if grouped && !pattern.contains(GROUP_PLACEHOLDER) {
-                    anyhow::bail!(
-                        "collection `paginate_output` {pattern} groups by \"{}\" but has no                          {GROUP_PLACEHOLDER}, so page 2 of one group would overwrite page 2                          of another",
-                        collection.group_by
-                    );
-                }
-            }
-            if collection.paginate == 0 && !collection.paginate_output.as_str().is_empty() {
-                anyhow::bail!(
-                    "collection sets `paginate_output` {} but `paginate` is 0, so it would                      never be used; set `paginate` to a page size",
-                    collection.paginate_output
-                );
-            }
+            collection.validate()?;
             for path in [&collection.output, &collection.index_output] {
                 if path.as_str().is_empty() || path.as_str().contains(GROUP_PLACEHOLDER) {
                     continue;
@@ -554,6 +485,30 @@ impl Config {
                 );
             }
         }
+        self.validate_site()
+    }
+
+    fn validate_nav(&self) -> Result<()> {
+        if self.nav.mode == NavMode::Explicit && self.nav.pages.is_empty() {
+            anyhow::bail!(
+                "nav.mode is \"explicit\" but nav.pages is empty: list the pages to \
+                 include, or use mode = \"top-level\"/\"all\"/\"none\""
+            );
+        }
+        if self.nav.mode != NavMode::Explicit && !self.nav.pages.is_empty() {
+            anyhow::bail!(
+                "nav.pages is set but nav.mode is \"{}\", so it would be ignored; set \
+                 mode = \"explicit\" to use it",
+                toml::to_string(&self.nav.mode)
+                    .unwrap_or_default()
+                    .trim()
+                    .trim_matches('"')
+            );
+        }
+        Ok(())
+    }
+
+    fn validate_site(&self) -> Result<()> {
         if !self.site.theme.is_empty() && crate::theme::theme_css(&self.site.theme).is_none() {
             anyhow::bail!(
                 "unknown site.theme {:?}. Available: {} — or leave it empty for no \
@@ -567,6 +522,76 @@ impl Config {
                 "site.base_url must not end with a slash (got {:?}) — URLs are joined \
                  with an explicit separator",
                 self.site.base_url
+            );
+        }
+        Ok(())
+    }
+}
+
+impl Collection {
+    /// Reject output paths that could not hold this collection's pages.
+    fn validate(&self) -> Result<()> {
+        let grouped = !self.group_by.is_empty();
+        if self.output.as_str().is_empty() && self.index_output.as_str().is_empty() {
+            anyhow::bail!("a collection has no `output`; it needs a file to write");
+        }
+        if grouped
+            && !self.output.as_str().is_empty()
+            && !self.output.as_str().contains(GROUP_PLACEHOLDER)
+        {
+            anyhow::bail!(
+                "collection output {} groups by \"{}\" but has no {GROUP_PLACEHOLDER} in \
+                 its path, so every group would overwrite the same file",
+                self.output,
+                self.group_by
+            );
+        }
+        if !grouped && self.output.as_str().contains(GROUP_PLACEHOLDER) {
+            anyhow::bail!(
+                "collection output {} uses {GROUP_PLACEHOLDER} but sets no `group_by`",
+                self.output
+            );
+        }
+        if !grouped && !self.index_output.as_str().is_empty() {
+            anyhow::bail!(
+                "collection writes an `index_output` of {} but sets no `group_by`; \
+                 there are no groups to index",
+                self.index_output
+            );
+        }
+        self.validate_pagination()
+    }
+
+    fn validate_pagination(&self) -> Result<()> {
+        let pattern = self.paginate_output.as_str();
+        if self.paginate == 0 {
+            if !pattern.is_empty() {
+                anyhow::bail!(
+                    "collection sets `paginate_output` {pattern} but `paginate` is 0, so it \
+                     would never be used; set `paginate` to a page size"
+                );
+            }
+            return Ok(());
+        }
+        if pattern.is_empty() {
+            anyhow::bail!(
+                "collection output {} sets `paginate` but no `paginate_output`; pages 2 \
+                 and up need somewhere to go, e.g. \"blog/page/{PAGE_PLACEHOLDER}.html\"",
+                self.output
+            );
+        }
+        if !pattern.contains(PAGE_PLACEHOLDER) {
+            anyhow::bail!(
+                "collection `paginate_output` {pattern} has no {PAGE_PLACEHOLDER}, so \
+                 every page after the first would overwrite the same file"
+            );
+        }
+        if !self.group_by.is_empty() && !pattern.contains(GROUP_PLACEHOLDER) {
+            anyhow::bail!(
+                "collection `paginate_output` {pattern} groups by \"{}\" but has no \
+                 {GROUP_PLACEHOLDER}, so page 2 of one group would overwrite page 2 of \
+                 another",
+                self.group_by
             );
         }
         Ok(())
@@ -696,3 +721,4 @@ index_template = "tags.html"
 index_title = "Tags"
 nav = true                   # adds the tag *index*, not every tag
 "#;
+

@@ -14,7 +14,7 @@
 use camino::Utf8Path;
 
 use crate::index::{SymbolTable, TargetId};
-use crate::model::{Document, Element, Link, LinkTarget, Object, Section, TableRow};
+use crate::model::{Document, Element, Link, LinkTarget, List, Object, Section, Table, TableRow};
 use crate::util::{normalize_link_path, output_path, output_url};
 
 /// A document whose links have been rewritten to concrete URLs.
@@ -95,26 +95,8 @@ impl Cx<'_> {
     fn element(&mut self, el: &mut Element) {
         match el {
             Element::Paragraph(objs) => self.objects(objs),
-            Element::List(list) => {
-                for item in &mut list.items {
-                    if let Some(term) = &mut item.term {
-                        self.objects(term);
-                    }
-                    for e in &mut item.content {
-                        self.element(e);
-                    }
-                }
-            }
-            Element::Table(table) => {
-                self.objects(&mut table.caption);
-                for row in &mut table.rows {
-                    if let TableRow::Cells(cells) = row {
-                        for cell in cells {
-                            self.objects(cell);
-                        }
-                    }
-                }
-            }
+            Element::List(list) => self.list(list),
+            Element::Table(table) => self.table(table),
             Element::Figure { caption, .. } => self.objects(caption),
             Element::QuoteBlock(inner)
             | Element::CenterBlock(inner)
@@ -126,6 +108,28 @@ impl Cx<'_> {
                 }
             }
             _ => {}
+        }
+    }
+
+    fn list(&mut self, list: &mut List) {
+        for item in &mut list.items {
+            if let Some(term) = &mut item.term {
+                self.objects(term);
+            }
+            for e in &mut item.content {
+                self.element(e);
+            }
+        }
+    }
+
+    fn table(&mut self, table: &mut Table) {
+        self.objects(&mut table.caption);
+        for row in &mut table.rows {
+            if let TableRow::Cells(cells) = row {
+                for cell in cells {
+                    self.objects(cell);
+                }
+            }
         }
     }
 

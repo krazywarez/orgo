@@ -338,37 +338,44 @@ fn parse_section_body(
         idx += 1;
     }
     if idx < body.len() && body[idx].trim().eq_ignore_ascii_case(":PROPERTIES:") {
-        let opened_at = base + idx;
-        let mut terminated = false;
-        idx += 1;
-        while idx < body.len() {
-            let t = body[idx].trim();
-            if t.eq_ignore_ascii_case(":END:") {
-                idx += 1;
-                terminated = true;
-                break;
-            }
-            if let Some((k, v)) = parse_property(t) {
-                if k.eq_ignore_ascii_case("CUSTOM_ID") {
-                    heading.custom_id = Some(v.clone());
-                } else if k.eq_ignore_ascii_case("ID") {
-                    heading.id = Some(v.clone());
-                }
-                heading.properties.entries.push((k, v));
-            }
-            idx += 1;
-        }
-        if !terminated {
-            diags.push(Diagnostic {
-                line: opened_at + 1,
-                message: "unterminated :PROPERTIES: drawer (no :END:); the rest of the \
-                          section was read as properties"
-                    .to_string(),
-            });
-        }
+        idx = parse_property_drawer(&mut heading, body, idx, base, diags);
     }
     let content = parse_elements(&body[idx..], base + idx, diags);
     (heading, content)
+}
+
+/// Read the `:PROPERTIES:` drawer opening at `body[open]` into `heading`, returning the
+/// index of the first line past it.
+fn parse_property_drawer(
+    heading: &mut Heading,
+    body: &[&str],
+    open: usize,
+    base: usize,
+    diags: &mut Vec<Diagnostic>,
+) -> usize {
+    let mut idx = open + 1;
+    while idx < body.len() {
+        let t = body[idx].trim();
+        if t.eq_ignore_ascii_case(":END:") {
+            return idx + 1;
+        }
+        if let Some((k, v)) = parse_property(t) {
+            if k.eq_ignore_ascii_case("CUSTOM_ID") {
+                heading.custom_id = Some(v.clone());
+            } else if k.eq_ignore_ascii_case("ID") {
+                heading.id = Some(v.clone());
+            }
+            heading.properties.entries.push((k, v));
+        }
+        idx += 1;
+    }
+    diags.push(Diagnostic {
+        line: base + open + 1,
+        message: "unterminated :PROPERTIES: drawer (no :END:); the rest of the \
+                  section was read as properties"
+            .to_string(),
+    });
+    idx
 }
 
 /// `:KEY: value` inside a drawer.
@@ -410,30 +417,10 @@ fn parse_elements(lines: &[&str], base: usize, diags: &mut Vec<Diagnostic>) -> V
             continue;
         }
         if let Some((key, value)) = keyword_kv(line) {
-            if key.eq_ignore_ascii_case("INCLUDE") {
-                // Never expanded (§"Not supported"). Expanding it means resolving paths,
-                // recursion and `:lines`/`:only-contents`; dropping it silently means a
-                // page missing content nobody was told about. Saying so is the honest
-                // middle, and `--strict` turns it into a failure.
-                diags.push(Diagnostic {
-                    line: base + i + 1,
-                    message: format!(
-                        "`#+INCLUDE: {}` is not expanded; that content will be missing \
-                         from the page",
-                        value.trim()
-                    ),
-                });
-            }
-            if key.eq_ignore_ascii_case("RESULTS") {
-                // Babel is never executed (§"Not supported"), so a checked-in `#+RESULTS:`
-                // block is output from someone else's Emacs session at some other time.
-                // Emitting it would put unverifiable content on the page dressed as
-                // real content, so the block it labels is dropped.
-                drop_next = true;
-            } else if is_affiliated(&key) {
-                affiliated.push((key, value));
-            } else {
-                out.push(Element::Keyword { key, value });
+            match keyword_role(&key, &value, base + i + 1, diags) {
+                KeywordRole::DropNext => drop_next = true,
+                KeywordRole::Affiliated => affiliated.push((key, value)),
+                KeywordRole::Standalone => out.push(Element::Keyword { key, value }),
             }
             i += 1;
             continue;
@@ -451,6 +438,46 @@ fn parse_elements(lines: &[&str], base: usize, diags: &mut Vec<Diagnostic>) -> V
     out
 }
 
+/// What a `#+KEY: value` line contributes to the elements around it.
+enum KeywordRole {
+    /// Drop the element that follows.
+    DropNext,
+    /// Attach to the element that follows.
+    Affiliated,
+    /// An element of its own.
+    Standalone,
+}
+
+/// Classify a keyword line, reporting keywords orgo does not act on. `line` is the
+/// 1-based source line.
+fn keyword_role(key: &str, value: &str, line: usize, diags: &mut Vec<Diagnostic>) -> KeywordRole {
+    if key.eq_ignore_ascii_case("INCLUDE") {
+        // Never expanded (§"Not supported"). Expanding it means resolving paths,
+        // recursion and `:lines`/`:only-contents`; dropping it silently means a
+        // page missing content nobody was told about. Saying so is the honest
+        // middle, and `--strict` turns it into a failure.
+        diags.push(Diagnostic {
+            line,
+            message: format!(
+                "`#+INCLUDE: {}` is not expanded; that content will be missing \
+                 from the page",
+                value.trim()
+            ),
+        });
+    }
+    if key.eq_ignore_ascii_case("RESULTS") {
+        // Babel is never executed (§"Not supported"), so a checked-in `#+RESULTS:`
+        // block is output from someone else's Emacs session at some other time.
+        // Emitting it would put unverifiable content on the page dressed as
+        // real content, so the block it labels is dropped.
+        KeywordRole::DropNext
+    } else if is_affiliated(key) {
+        KeywordRole::Affiliated
+    } else {
+        KeywordRole::Standalone
+    }
+}
+
 /// Build the single element starting at `lines[start]`, returning it with the index of
 /// the first line past it. `None` means the lines were consumed without producing an
 /// element. `start` is guaranteed non-blank and not an affiliated keyword.
@@ -464,8 +491,8 @@ fn parse_one_element(
     if let Some(text) = comment_text(line) {
         return (Some(Element::Comment(text)), start + 1);
     }
-    if let Some((kind, after)) = block_begin(line) {
-        let (el, next) = parse_block(lines, start, &kind, &after, base, diags);
+    if let Some(header) = block_begin(line) {
+        let (el, next) = parse_block(lines, start, &header, base, diags);
         return (Some(el), next);
     }
     if let Some(name) = drawer_begin_name(line) {
@@ -517,19 +544,23 @@ fn parse_one_element(
     (Some(Element::Paragraph(inline(&para.join(" ")))), i)
 }
 
+/// Tests for each line that starts a non-paragraph construct.
+const STRUCTURAL: [fn(&str) -> bool; 10] = [
+    |l| block_begin(l).is_some(),
+    is_block_end,
+    is_rule,
+    |l| keyword_kv(l).is_some(),
+    |l| comment_text(l).is_some(),
+    |l| drawer_begin_name(l).is_some(),
+    |l| is_list_item(l.trim_start()).is_some(),
+    |l| l.trim_start().starts_with('|'),
+    |l| footnote_def_label(l).is_some(),
+    |l| heading_level(l).is_some(),
+];
+
 /// Is this line the start of a non-paragraph construct?
 fn is_structural(line: &str) -> bool {
-    let t = line.trim_start();
-    block_begin(line).is_some()
-        || is_block_end(line)
-        || is_rule(line)
-        || keyword_kv(line).is_some()
-        || comment_text(line).is_some()
-        || drawer_begin_name(line).is_some()
-        || is_list_item(t).is_some()
-        || t.starts_with('|')
-        || footnote_def_label(line).is_some()
-        || heading_level(line).is_some()
+    STRUCTURAL.iter().any(|test| test(line))
 }
 
 // ---------------------------------------------------------------------------
@@ -542,8 +573,7 @@ fn is_structural(line: &str) -> bool {
 fn parse_block(
     lines: &[&str],
     start: usize,
-    kind: &str,
-    after: &str,
+    (kind, after): &(String, String),
     base: usize,
     diags: &mut Vec<Diagnostic>,
 ) -> (Element, usize) {
@@ -853,22 +883,7 @@ fn parse_list(
 
     let mut items = Vec::new();
     let mut i = start;
-    loop {
-        // Skip blank lines, but only stay in the list if a sibling bullet follows.
-        let mut j = i;
-        while j < lines.len() && lines[j].trim().is_empty() {
-            j += 1;
-        }
-        if j >= lines.len() || indent_of(lines[j]) != base_indent {
-            break;
-        }
-        let Some(bullet) = is_list_item(lines[j].trim_start()) else {
-            break;
-        };
-        if bullet_family(&bullet) != family {
-            break;
-        }
-
+    while let Some((j, bullet)) = next_sibling(lines, i, base_indent, &family) {
         // Body = the text after the bullet, plus every following line indented past the
         // bullet column (blank lines included, so an item can hold several paragraphs).
         let rest = item_body(lines[j].trim_start(), &bullet);
@@ -883,28 +898,8 @@ fn parse_list(
             _ => (None, rest),
         };
 
-        let mut body: Vec<String> = vec![rest.trim().to_string()];
-        i = j + 1;
-        while i < lines.len() {
-            if lines[i].trim().is_empty() {
-                // Trailing blanks belong to the item only if more of it follows.
-                let mut k = i;
-                while k < lines.len() && lines[k].trim().is_empty() {
-                    k += 1;
-                }
-                if k < lines.len() && indent_of(lines[k]) > base_indent {
-                    body.resize(body.len() + (k - i), String::new());
-                    i = k;
-                    continue;
-                }
-                break;
-            }
-            if indent_of(lines[i]) <= base_indent {
-                break;
-            }
-            body.push(lines[i].to_string());
-            i += 1;
-        }
+        let body;
+        (body, i) = item_body_lines(lines, j + 1, base_indent, rest.trim().to_string());
 
         items.push(ListItem {
             bullet,
@@ -917,6 +912,60 @@ fn parse_list(
         });
     }
     (List { kind, items }, i)
+}
+
+/// The next item of a list whose bullets sit at `base_indent`, searching from
+/// `lines[from]`: its line index and bullet. Blank lines are skipped, but the list only
+/// continues if a sibling bullet of the same family follows them.
+fn next_sibling(
+    lines: &[&str],
+    from: usize,
+    base_indent: usize,
+    family: &ListKind,
+) -> Option<(usize, Bullet)> {
+    let mut j = from;
+    while j < lines.len() && lines[j].trim().is_empty() {
+        j += 1;
+    }
+    if j >= lines.len() || indent_of(lines[j]) != base_indent {
+        return None;
+    }
+    let bullet = is_list_item(lines[j].trim_start())?;
+    (bullet_family(&bullet) == *family).then_some((j, bullet))
+}
+
+/// An item's body: `first` (the text after its bullet), then every line from
+/// `lines[from]` indented past `base_indent`. Returns the body with the index of the
+/// first line past it.
+fn item_body_lines(
+    lines: &[&str],
+    from: usize,
+    base_indent: usize,
+    first: String,
+) -> (Vec<String>, usize) {
+    let mut body: Vec<String> = vec![first];
+    let mut i = from;
+    while i < lines.len() {
+        if lines[i].trim().is_empty() {
+            // Trailing blanks belong to the item only if more of it follows.
+            let mut k = i;
+            while k < lines.len() && lines[k].trim().is_empty() {
+                k += 1;
+            }
+            if k < lines.len() && indent_of(lines[k]) > base_indent {
+                body.resize(body.len() + (k - i), String::new());
+                i = k;
+                continue;
+            }
+            break;
+        }
+        if indent_of(lines[i]) <= base_indent {
+            break;
+        }
+        body.push(lines[i].to_string());
+        i += 1;
+    }
+    (body, i)
 }
 
 /// Ordered and unordered bullets cannot share a list; description items use unordered
@@ -1132,63 +1181,44 @@ fn is_list_item(t: &str) -> Option<Bullet> {
 // Inline tokenizer (spec §3.1, R3)
 // ---------------------------------------------------------------------------
 
+/// A recognizer for one kind of inline object: a cheap test for whether it can start at
+/// `chars[i]`, and the parser that tries it.
+type ObjectParser = (
+    fn(&[char], usize) -> bool,
+    fn(&[char], usize) -> Option<(Object, usize)>,
+);
+
+/// Inline objects in the order they are tried at each position. The first that parses
+/// wins; text that none of them claims is plain text.
+const OBJECT_PARSERS: [ObjectParser; 6] = [
+    (|cs, i| cs[i] == '[' && starts_with_at(cs, i, "[fn:"), try_footnote_ref),
+    (|cs, i| cs[i] == '[' && cs.get(i + 1) == Some(&'['), try_link),
+    (|cs, i| matches!(cs[i], '<' | '['), try_timestamp),
+    (|cs, i| is_scheme_start(cs, i) && boundary_before(cs, i), try_bare_url),
+    (|cs, i| cs[i] == '\\', try_entity),
+    (|cs, i| is_marker(cs[i]), try_emphasis),
+];
+
 fn parse_inline_run(chars: &[char]) -> Vec<Object> {
     let mut out = Vec::new();
     let mut buf = String::new();
     let mut i = 0;
-    let n = chars.len();
-    while i < n {
-        let c = chars[i];
-        if c == '[' && starts_with_at(chars, i, "[fn:") {
-            if let Some((obj, next)) = try_footnote_ref(chars, i) {
+    while i < chars.len() {
+        let found = OBJECT_PARSERS
+            .iter()
+            .filter(|(applies, _)| applies(chars, i))
+            .find_map(|(_, parse)| parse(chars, i));
+        match found {
+            Some((obj, next)) => {
                 flush(&mut buf, &mut out);
                 out.push(obj);
                 i = next;
-                continue;
+            }
+            None => {
+                buf.push(chars[i]);
+                i += 1;
             }
         }
-        if c == '[' && i + 1 < n && chars[i + 1] == '[' {
-            if let Some((obj, next)) = try_link(chars, i) {
-                flush(&mut buf, &mut out);
-                out.push(obj);
-                i = next;
-                continue;
-            }
-        }
-        if c == '<' || c == '[' {
-            if let Some((obj, next)) = try_timestamp(chars, i) {
-                flush(&mut buf, &mut out);
-                out.push(obj);
-                i = next;
-                continue;
-            }
-        }
-        if is_scheme_start(chars, i) && boundary_before(chars, i) {
-            if let Some((obj, next)) = try_bare_url(chars, i) {
-                flush(&mut buf, &mut out);
-                out.push(obj);
-                i = next;
-                continue;
-            }
-        }
-        if c == '\\' {
-            if let Some((obj, next)) = try_entity(chars, i) {
-                flush(&mut buf, &mut out);
-                out.push(obj);
-                i = next;
-                continue;
-            }
-        }
-        if is_marker(c) {
-            if let Some((obj, next)) = try_emphasis(chars, i) {
-                flush(&mut buf, &mut out);
-                out.push(obj);
-                i = next;
-                continue;
-            }
-        }
-        buf.push(c);
-        i += 1;
     }
     flush(&mut buf, &mut out);
     out

@@ -41,3 +41,13 @@ name = "trufflehog"
 match.plugins = ["osv-scanner"]
 match.rules = ["osv-scanner:RUSTSEC-2025-0141", "osv-scanner:RUSTSEC-2024-0320"]
 set.ignored = true
+
+
+# Early returns are guard clauses, which keep the happy path unindented.
+[smells.return_statements]
+enabled = false
+
+# Total file complexity is the sum of its functions, which function_complexity
+# already checks.
+[smells.file_complexity]
+enabled = false
