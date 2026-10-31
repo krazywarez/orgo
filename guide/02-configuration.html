@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Configuration &middot; orgo</title>
+<meta name="description" content="Every setting in orgo.toml, what it changes, and what it costs.">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../theme.css">
+<link rel="stylesheet" href="../syntax.css">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="site">
+<a class="site-title" href="../index.html">orgo</a>
+<nav>
+<a href="../install.html">Install</a>
+<a href="../quickstart.html">Quick start</a>
+<a href="index.html">Guide</a>
+</nav>
+</header>
+<main>
+<h1>Configuration</h1>
+<p class="lede">All of it optional. A missing config is a valid config.</p>
+<nav class="toc" aria-label="On this page">
+<h2>On this page</h2>
+<ul>
+<li><a href="#the-whole-file">The whole file</a></li>
+<li><a href="#site">[site]</a>
+<ul>
+<li><a href="#theme">theme</a></li>
+<li><a href="#base-url">base_url</a></li>
+</ul></li>
+<li><a href="#nav">[nav]</a>
+<ul>
+<li><a href="#explicit">explicit</a></li>
+<li><a href="#section-landing-pages-in-the-nav">Section landing pages in the nav</a></li>
+</ul></li>
+<li><a href="#"></a>
+<ul>
+<li><a href="#which-rule-wins">Which rule wins</a></li>
+</ul></li>
+<li><a href="#templates">[templates]</a>
+<ul>
+<li><a href="#expose-page-list-costs-incremental-precision">expose_page_list costs incremental precision</a></li>
+</ul></li>
+<li><a href="#highlight">[highlight]</a></li>
+<li><a href="#build">[build]</a>
+<ul>
+<li><a href="#sitemap-xml">sitemap.xml</a></li>
+<li><a href="#static-files-that-live-elsewhere">Static files that live elsewhere</a></li>
+</ul></li>
+<li><a href="#html">[html]</a>
+<ul>
+<li><a href="#heading-offset">heading_offset</a></li>
+<li><a href="#section-numbers-differs-from-emacs-on-purpose">section_numbers differs from Emacs on purpose</a></li>
+</ul></li>
+<li><a href="#per-file-overrides">Per-file overrides</a></li>
+<li><a href="#configuration-is-a-cache-input">Configuration is a cache input</a></li>
+</ul>
+</nav>
+<p>orgo looks for <code class="verbatim">orgo.toml</code> in the source directory. Pass a different path with <code class="verbatim">--config</code>. Every field has a default, so a directory of org files with no config still builds a complete site.</p>
+<p>A <strong>missing</strong> config is normal and silent. A <strong>malformed</strong> one is an error, and an unknown key is rejected by name — a misspelled setting that silently does nothing is how people lose an afternoon.</p>
+<h2 id="the-whole-file">The whole file</h2>
+<pre><code class="language-toml highlight"><span class="source toml"><span class="punctuation definition table toml">[</span><span class="entity name section toml">site</span><span class="punctuation definition table toml">]</span>
+<span class="variable other key toml">title</span> <span class="keyword operator assignment toml">=</span> <span class="string quoted double toml"><span class="punctuation definition string begin toml">&quot;</span>orgo site<span class="punctuation definition string end toml">&quot;</span></span>
+<span class="variable other key toml">base_url</span> <span class="keyword operator assignment toml">=</span> <span class="string quoted double toml"><span class="punctuation definition string begin toml">&quot;</span><span class="punctuation definition string end toml">&quot;</span></span>
+<span class="variable other key toml">description</span> <span class="keyword operator assignment toml">=</span> <span class="string quoted double toml"><span class="punctuation definition string begin toml">&quot;</span><span class="punctuation definition string end toml">&quot;</span></span>
+<span class="variable other key toml">language</span> <span class="keyword operator assignment toml">=</span> <span class="string quoted double toml"><span class="punctuation definition string begin toml">&quot;</span>en<span class="punctuation definition string end toml">&quot;</span></span>
+<span class="variable other key toml">theme</span> <span class="keyword operator assignment toml">=</span> <span class="string quoted double toml"><span class="punctuation definition string begin toml">&quot;</span><span class="punctuation definition string end toml">&quot;</span></span>
+
+<span class="punctuation definition table toml">[</span><span class="entity name section toml">nav</span><span class="punctuation definition table toml">]</span>
+<span class="variable other key toml">mode</span> <span class="keyword operator assignment toml">=</span> <span class="string quoted double toml"><span class="punctuation definition string begin toml">&quot;</span>top-level<span class="punctuation definition string end toml">&quot;</span></span>
+<span class="comment line number-sign toml"><span class="punctuation definition comment toml">#</span> pages = [&quot;index.org&quot;, &quot;about.org&quot;]
+</span>
+<span class="punctuation definition table toml">[</span><span class="entity name section toml">templates</span><span class="punctuation definition table toml">]</span>
+<span class="variable other key toml">dir</span> <span class="keyword operator assignment toml">=</span> <span class="string quoted double toml"><span class="punctuation definition string begin toml">&quot;</span>templates<span class="punctuation definition string end toml">&quot;</span></span>
+<span class="variable other key toml">expose_page_list</span> <span class="keyword operator assignment toml">=</span> <span class="constant language toml">false</span>
+
+<span class="punctuation definition table toml">[</span><span class="entity name section toml">highlight</span><span class="punctuation definition table toml">]</span>
+<span class="variable other key toml">theme</span> <span class="keyword operator assignment toml">=</span> <span class="string quoted double toml"><span class="punctuation definition string begin toml">&quot;</span>InspiredGitHub<span class="punctuation definition string end toml">&quot;</span></span>
+<span class="variable other key toml">theme_dark</span> <span class="keyword operator assignment toml">=</span> <span class="string quoted double toml"><span class="punctuation definition string begin toml">&quot;</span><span class="punctuation definition string end toml">&quot;</span></span>
+<span class="variable other key toml">syntaxes_dir</span> <span class="keyword operator assignment toml">=</span> <span class="string quoted double toml"><span class="punctuation definition string begin toml">&quot;</span>syntaxes<span class="punctuation definition string end toml">&quot;</span></span>
+
+<span class="punctuation definition table toml">[</span><span class="entity name section toml">build</span><span class="punctuation definition table toml">]</span>
+<span class="variable other key toml">drafts</span> <span class="keyword operator assignment toml">=</span> <span class="constant language toml">false</span>
+<span class="variable other key toml">assets</span> <span class="keyword operator assignment toml">=</span> []
+<span class="variable other key toml">sitemap</span> <span class="keyword operator assignment toml">=</span> <span class="constant language toml">true</span>
+
+<span class="punctuation definition table toml">[</span><span class="entity name section toml">html</span><span class="punctuation definition table toml">]</span>
+<span class="variable other key toml">heading_offset</span> <span class="keyword operator assignment toml">=</span> <span class="constant numeric toml">1</span>
+<span class="variable other key toml">toc</span> <span class="keyword operator assignment toml">=</span> <span class="constant language toml">true</span>
+<span class="variable other key toml">section_numbers</span> <span class="keyword operator assignment toml">=</span> <span class="constant language toml">false</span></span></code></pre>
+<p>Plus any number of <code class="verbatim">[[collections]]</code> blocks, documented in <a href="03-collections.html">Collections</a>.</p>
+<h2 id="site">[site]</h2>
+<table>
+<thead>
+<tr><th>Key</th><th>Default</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code class="verbatim">title</code></td><td><code class="verbatim">"orgo site"</code></td><td>Site name. Available as <code class="verbatim">{{ site.title }}</code>.</td></tr>
+<tr><td><code class="verbatim">base_url</code></td><td>=""</td><td>Absolute origin, <strong>no trailing slash</strong>.</td></tr>
+<tr><td><code class="verbatim">description</code></td><td>=""</td><td>Available as <code class="verbatim">{{ site.description }}</code>.</td></tr>
+<tr><td><code class="verbatim">language</code></td><td><code class="verbatim">"en"</code></td><td>Goes in <code class="verbatim">&lt;html lang&gt;</code> in the built-in layout.</td></tr>
+<tr><td><code class="verbatim">theme</code></td><td>=""</td><td>A built-in stylesheet, written to the output as <code class="verbatim">theme.css</code>.</td></tr>
+</tbody>
+</table>
+<h3 id="theme">theme</h3>
+<p>Four themes are compiled into the binary. Name one and each build writes it to the output root as <code class="verbatim">theme.css</code>, which the built-in layout and the templates <code class="verbatim">orgo init</code> writes both link.</p>
+<table>
+<thead>
+<tr><th>Theme</th><th>Shape</th><th>For</th></tr>
+</thead>
+<tbody>
+<tr><td><code class="verbatim">"plain"</code></td><td>Narrow, system fonts, hairline rules.</td><td>Readable defaults to build your own CSS on.</td></tr>
+<tr><td><code class="verbatim">"blog"</code></td><td>Serif prose, a centred masthead, styled post lists.</td><td>Dated writing.</td></tr>
+<tr><td><code class="verbatim">"wiki"</code></td><td>Wide and dense, contents in the margin, TODO states as badges.</td><td>Notes, a reference site.</td></tr>
+<tr><td><code class="verbatim">"docs"</code></td><td>Narrow, a contents card, quote blocks as notes, <code class="verbatim">#+LEDE:</code>.</td><td>A guide read in order.</td></tr>
+</tbody>
+</table>
+<p>All four follow <code class="verbatim">prefers-color-scheme</code>, so a site gets a dark mode without a toggle, a setting or a line of JavaScript — and all four reflow from a 320px phone up, with tables and code blocks scrolling inside their own box rather than widening the page.</p>
+<p>The default is empty: no stylesheet is written and no page links one, so the output is unstyled HTML. That is deliberate — a site that already ships CSS of its own should not find a second stylesheet competing with it, and upgrading orgo should never restyle a site. An unknown name is an error listing the four.</p>
+<p>A theme styles the markup orgo already emits — headings, tags, TODO keywords, checkbox lists, footnotes, tables — plus the chrome the built-in layout puts around it. There is no theme-specific HTML, so switching or removing one touches no template.</p>
+<p>Every colour is a custom property on <code class="verbatim">:root</code>, named <code class="verbatim">--orgo-*</code>. To adjust rather than replace a theme, ship a stylesheet of your own as an asset, link it after <code class="verbatim">theme.css</code>, and redefine the handful you care about:</p>
+<pre><code class="language-css highlight"><span class="source css"><span class="meta selector css"><span class="entity other pseudo-class css"><span class="punctuation definition entity css">:</span>root</span> </span><span class="meta property-list css"><span class="punctuation section property-list css">{</span>
+  <span class="meta property-name css"><span class="support type custom-property css"><span class="punctuation definition custom-property css">--</span><span class="support type custom-property name css">orgo-accent</span></span></span><span class="punctuation separator key-value css">:</span><span class="meta property-value css"> </span><span class="meta property-value css"><span class="constant other color rgb-value css"><span class="punctuation definition constant css">#</span>7a1fa2</span></span><span class="punctuation terminator rule css">;</span>
+  <span class="meta property-name css"><span class="support type custom-property css"><span class="punctuation definition custom-property css">--</span><span class="support type custom-property name css">orgo-measure</span></span></span><span class="punctuation separator key-value css">:</span><span class="meta property-value css"> </span><span class="meta property-value css"><span class="constant numeric css">46<span class="keyword other unit css">rem</span></span></span><span class="punctuation terminator rule css">;</span>
+</span><span class="punctuation section property-list css">}</span></span></code></pre>
+<p>Code <em>blocks</em> are the one part a built-in theme leaves light in dark mode: <code class="verbatim">syntax.css</code> is coloured by <code class="verbatim">highlight.theme</code>, and that default is a light theme. Two pieces make a block follow <code class="verbatim">prefers-color-scheme</code> — <code class="verbatim">highlight.theme_dark</code> for the tokens, and <code class="verbatim">--orgo-code-bg</code>, <code class="verbatim">--orgo-code-fg</code> and <code class="verbatim">--orgo-code-rule</code> for the surface under them. Set both, or neither and blocks stay light in both schemes. Those three properties colour blocks only — inline <code class="verbatim">~code~</code> follows the page's own scheme, so it stays legible whichever highlight theme you use. The documentation site keeps a dark surface in both schemes instead; its <code class="verbatim">style.css</code> is those three lines and nothing else.</p>
+<p>When you outgrow a theme, drop <code class="verbatim">theme</code> from the config and write <code class="verbatim">templates/base.html</code> against your own CSS. Nothing else changes.</p>
+<h3 id="base-url">base<sub>url</sub></h3>
+<p>Leave it empty and the site is built entirely with relative URLs, which means it works from a subdirectory, from a filesystem path, and from any origin. That portability is why it is the default.</p>
+<p>Set it when you need absolute URLs, which two things require: <strong>feeds</strong>, because a feed is read away from the site that served it, and <strong>canonical links</strong>. The <code class="verbatim">absolute</code> template filter turns a site-root-relative path into a full URL, and errors if there is no base URL to build one from — rather than quietly emitting a relative URL that would make the feed invalid everywhere while looking fine.</p>
+<p>A trailing slash is rejected, because <code class="verbatim">https://example.com/</code> plus <code class="verbatim">blog/x.html</code> is <code class="verbatim">https://example.com//blog/x.html</code>.</p>
+<h2 id="nav">[nav]</h2>
+<p>The navigation shared by every page.</p>
+<table>
+<thead>
+<tr><th><code class="verbatim">mode</code></th><th>Includes</th></tr>
+</thead>
+<tbody>
+<tr><td><code class="verbatim">"top-level"</code> (default)</td><td>Pages at the site root.</td></tr>
+<tr><td><code class="verbatim">"all"</code></td><td>Every page.</td></tr>
+<tr><td><code class="verbatim">"explicit"</code></td><td>Only <code class="verbatim">nav.pages</code>, in the order listed.</td></tr>
+<tr><td><code class="verbatim">"none"</code></td><td>Nothing.</td></tr>
+</tbody>
+</table>
+<p><strong>"all" makes output quadratic.</strong> Each of <em>n</em> pages carries <em>n</em> links, so total output grows with the square of the site. On a 1,790-page site that was 284 MB of mostly navigation. It is fine for a handful of pages and a trap beyond that.</p>
+<p><code class="verbatim">"top-level"</code> keeps the nav a map of the site's top level rather than an index of its contents, so nav size does not depend on how much you write.</p>
+<h3 id="explicit">explicit</h3>
+<pre><code class="language-toml highlight"><span class="source toml"><span class="punctuation definition table toml">[</span><span class="entity name section toml">nav</span><span class="punctuation definition table toml">]</span>
+<span class="variable other key toml">mode</span> <span class="keyword operator assignment toml">=</span> <span class="string quoted double toml"><span class="punctuation definition string begin toml">&quot;</span>explicit<span class="punctuation definition string end toml">&quot;</span></span>
+<span class="variable other key toml">pages</span> <span class="keyword operator assignment toml">=</span> [<span class="string quoted double toml"><span class="punctuation definition string begin toml">&quot;</span>index.org<span class="punctuation definition string end toml">&quot;</span></span>, <span class="string quoted double toml"><span class="punctuation definition string begin toml">&quot;</span>about.org<span class="punctuation definition string end toml">&quot;</span></span>, <span class="string quoted double toml"><span class="punctuation definition string begin toml">&quot;</span>uses.org<span class="punctuation definition string end toml">&quot;</span></span>]</span></code></pre>
+<p>Paths are <strong>source</strong> paths relative to the source root, and the order given is the order rendered — a hand-written nav is a designed sequence, not an alphabetical one. Naming a page that does not exist is an error, because a silently shorter nav is a poor way to learn about a typo.</p>
+<h3 id="section-landing-pages-in-the-nav">Section landing pages in the nav</h3>
+<p>If your sections live in subdirectories, none of them are top-level pages. Put the section's <strong>generated</strong> index in the nav instead, with <code class="verbatim">nav = true</code> on its collection — that is the page a nav entry should point at anyway.</p>
+<p>A generated page has no source file, so name it in <code class="verbatim">pages</code> by its <strong>output</strong> path:</p>
+<pre><code class="language-toml highlight"><span class="source toml"><span class="punctuation definition table toml">[</span><span class="entity name section toml">nav</span><span class="punctuation definition table toml">]</span>
+<span class="variable other key toml">mode</span> <span class="keyword operator assignment toml">=</span> <span class="string quoted double toml"><span class="punctuation definition string begin toml">&quot;</span>explicit<span class="punctuation definition string end toml">&quot;</span></span>
+<span class="variable other key toml">pages</span> <span class="keyword operator assignment toml">=</span> [<span class="string quoted double toml"><span class="punctuation definition string begin toml">&quot;</span>blog/index.html<span class="punctuation definition string end toml">&quot;</span></span>, <span class="string quoted double toml"><span class="punctuation definition string begin toml">&quot;</span>garden/index.html<span class="punctuation definition string end toml">&quot;</span></span>, <span class="string quoted double toml"><span class="punctuation definition string begin toml">&quot;</span>about.org<span class="punctuation definition string end toml">&quot;</span></span>]</span></code></pre>
+<p>That is the only way to interleave the two: a collection that sets <code class="verbatim">nav = true</code> without being listed is appended after everything you did list, so <code class="verbatim">"about.org"</code> alone would put <code class="verbatim">About</code> first and the sections after it. Listing all of them puts each exactly where you said. Either spelling works for an authored page too — its source path or its output path — though the source path is the one that survives a <code class="verbatim">#+SLUG:</code>.</p>
+<h2><a href="pages">pages</a></h2>
+<p>Which layout a page renders through. Without any of these, every authored page uses <code class="verbatim">base.html</code>.</p>
+<pre><code class="language-toml highlight"><span class="source toml"><span class="punctuation definition table array toml">[[</span><span class="entity name section toml">pages</span><span class="punctuation definition table array toml">]]</span>
+<span class="variable other key toml">match</span> <span class="keyword operator assignment toml">=</span> <span class="string quoted double toml"><span class="punctuation definition string begin toml">&quot;</span>blog<span class="punctuation definition string end toml">&quot;</span></span>
+<span class="variable other key toml">template</span> <span class="keyword operator assignment toml">=</span> <span class="string quoted double toml"><span class="punctuation definition string begin toml">&quot;</span>post.html<span class="punctuation definition string end toml">&quot;</span></span></span></code></pre>
+<p><code class="verbatim">match</code> is a <strong>source</strong> path relative to the source root — a directory, covering every page beneath it however deep, or one <code class="verbatim">.org</code> file. It is matched by path component, so <code class="verbatim">blog</code> covers <code class="verbatim">blog/2026/post.org</code> and does not touch <code class="verbatim">blogroll.org</code>.</p>
+<p>A section's layout is a property of the section, which is why this is a rule and not something you write in each file: a blog post carries the same byline and reply footer as every other one, and repeating that in 200 files means maintaining one fact 200 times.</p>
+<h3 id="which-rule-wins">Which rule wins</h3>
+<p>Most specific, by path depth — <code class="verbatim">blog/notes</code> beats <code class="verbatim">blog</code>, whatever order they appear in. An empty <code class="verbatim">match</code> covers the whole site, which is how you rename the default layout.</p>
+<p>A page that differs from its section says so itself, and that wins over any rule:</p>
+<pre><code class="language-org highlight"><span class="text org"><span class="keyword other keyword org">#+TITLE:</span><span class="string unquoted org"> Colophon</span>
+<span class="keyword other keyword org">#+TEMPLATE:</span><span class="string unquoted org"> wide.html</span></span></code></pre>
+<p>Naming a template that is not in the templates directory is an error that names the page, the template and what does exist — a layout typo should not be a hunt.</p>
+<h2 id="templates">[templates]</h2>
+<table>
+<thead>
+<tr><th>Key</th><th>Default</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code class="verbatim">dir</code></td><td><code class="verbatim">"templates"</code></td><td>Directory of templates, relative to the source root.</td></tr>
+<tr><td><code class="verbatim">expose_page_list</code></td><td><code class="verbatim">false</code></td><td>Give every template a <code class="verbatim">pages</code> list of all page metadata.</td></tr>
+</tbody>
+</table>
+<h3 id="expose-page-list-costs-incremental-precision">expose<sub>page</sub><sub>list</sub> costs incremental precision</h3>
+<p>With it on, any page can read every page's metadata — so adding one page can change any page's output, and the whole site must re-render on every add, rename or retitle. That is the trade for building an index by hand in a template. Most people want a <a href="03-collections.html">collection</a> instead, which gets the same result while keeping adding a post a one-page rebuild.</p>
+<h2 id="highlight">[highlight]</h2>
+<table>
+<thead>
+<tr><th>Key</th><th>Default</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code class="verbatim">theme</code></td><td><code class="verbatim">"InspiredGitHub"</code></td><td>A syntect theme name.</td></tr>
+<tr><td><code class="verbatim">theme_dark</code></td><td><code class="verbatim">""</code></td><td>A second theme for readers in dark mode.</td></tr>
+<tr><td><code class="verbatim">syntaxes_dir</code></td><td><code class="verbatim">"syntaxes"</code></td><td>Extra <code class="verbatim">.sublime-syntax</code> files.</td></tr>
+</tbody>
+</table>
+<p>Any theme syntect ships: <code class="verbatim">InspiredGitHub</code>, <code class="verbatim">Solarized (dark)</code>, <code class="verbatim">Solarized (light)</code>, <code class="verbatim">base16-ocean.dark</code>, <code class="verbatim">base16-ocean.light</code>, <code class="verbatim">base16-eighties.dark</code>, <code class="verbatim">base16-mocha.dark</code>. An unknown name is an error listing the valid ones.</p>
+<p><code class="verbatim">theme_dark</code> is off by default, and one theme colours every reader. Name a second one and <code class="verbatim">syntax.css</code> carries both, each behind the <code class="verbatim">prefers-color-scheme</code> query it belongs to, so a reader's system picks the colours — one stylesheet, no JavaScript, nothing extra for a layout to link:</p>
+<pre><code class="language-toml highlight"><span class="source toml"><span class="punctuation definition table toml">[</span><span class="entity name section toml">highlight</span><span class="punctuation definition table toml">]</span>
+<span class="variable other key toml">theme</span> <span class="keyword operator assignment toml">=</span> <span class="string quoted double toml"><span class="punctuation definition string begin toml">&quot;</span>InspiredGitHub<span class="punctuation definition string end toml">&quot;</span></span>
+<span class="variable other key toml">theme_dark</span> <span class="keyword operator assignment toml">=</span> <span class="string quoted double toml"><span class="punctuation definition string begin toml">&quot;</span>base16-ocean.dark<span class="punctuation definition string end toml">&quot;</span></span></span></code></pre>
+<p>Only the token colours change with the scheme. The surface a block sits on is the page's, so give your dark mode a dark <code class="verbatim">pre</code> background — a dark theme's colours are chosen for one — with <code class="verbatim">--orgo-code-bg</code> under a built-in theme, or your own CSS.</p>
+<p>The two themes are separated rather than stacked because they name different scopes: a light theme's <code class="verbatim">.source.python .keyword</code> outranks a dark theme's <code class="verbatim">.keyword</code>, so appending one to the other would leave light colours on some tokens. The cost of the separation is that a browser too old to know <code class="verbatim">prefers-color-scheme</code> matches neither query and shows code unhighlighted. Leaving <code class="verbatim">theme_dark</code> empty keeps the unconditional rules of before.</p>
+<p>Highlighting emits <strong>CSS classes</strong>, never inline styles, so themes live in a stylesheet. Each build writes <code class="verbatim">syntax.css</code> into the output and every page links it.</p>
+<p>orgo bundles TOML and Org on top of syntect's built-in languages. Anything else missing is a file away: put a <code class="verbatim">.sublime-syntax</code> definition in <code class="verbatim">syntaxes_dir</code> and it is loaded. A definition that fails to parse is reported and skipped, because one bad file should not stop a site from building.</p>
+<h2 id="build">[build]</h2>
+<table>
+<thead>
+<tr><th>Key</th><th>Default</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code class="verbatim">drafts</code></td><td><code class="verbatim">false</code></td><td>Include pages marked <code class="verbatim">#+DRAFT:</code>.</td></tr>
+<tr><td><code class="verbatim">assets</code></td><td><code class="verbatim">[]</code></td><td>Extra directories copied to the <strong>site root</strong>.</td></tr>
+<tr><td><code class="verbatim">sitemap</code></td><td><code class="verbatim">true</code></td><td>Write <code class="verbatim">sitemap.xml</code>. Needs <code class="verbatim">site.base_url</code>.</td></tr>
+</tbody>
+</table>
+<p><code class="verbatim">--drafts</code> on the command line turns this on for one run. The flag can only turn drafts on; it never turns off a config that asked for them.</p>
+<h3 id="sitemap-xml">sitemap.xml</h3>
+<p>Every page the build emits, generated ones included — a crawler has no other way to learn that <code class="verbatim">/blog/</code> exists. <code class="verbatim">lastmod</code> is the page's own <code class="verbatim">#+DATE:</code> where it has one, and absent where it does not: a filesystem timestamp would say the day you cloned the repository.</p>
+<p><strong>Nothing is written until <code class="verbatim">site.base_url</code> is set.</strong> A sitemap has nowhere to put a relative URL, so a zero-config build produces no sitemap rather than an invalid one. Set a base URL and it appears; set <code class="verbatim">sitemap = false</code> and it does not.</p>
+<h3 id="static-files-that-live-elsewhere">Static files that live elsewhere</h3>
+<p>A site's static files do not always sit where its writing does. weblorg publishes <code class="verbatim">theme/static/</code> at <code class="verbatim">/</code>, and a repository migrating from it should not have to move <code class="verbatim">robots.txt</code> next to its blog posts to keep the URL:</p>
+<pre><code class="language-toml highlight"><span class="source toml"><span class="punctuation definition table toml">[</span><span class="entity name section toml">build</span><span class="punctuation definition table toml">]</span>
+<span class="variable other key toml">assets</span> <span class="keyword operator assignment toml">=</span> [<span class="string quoted double toml"><span class="punctuation definition string begin toml">&quot;</span>../theme/static<span class="punctuation definition string end toml">&quot;</span></span>]</span></code></pre>
+<p>Paths are relative to the source root and may point outside it. Each directory's <strong>contents</strong> land at the site root — <code class="verbatim">theme/static/img/logo.svg</code> publishes at <code class="verbatim">/img/logo.svg</code>, not <code class="verbatim">/static/img/logo.svg</code>.</p>
+<p>Two files claiming one URL is a build error naming both, rather than a coin flip decided by directory order. A path that is not a directory is an error too, since it is a typo.</p>
+<p>Under <code class="verbatim">watch</code> and <code class="verbatim">serve</code> these directories are watched as well, so editing a stylesheet outside the source tree still reloads the page.</p>
+<h2 id="html">[html]</h2>
+<table>
+<thead>
+<tr><th>Key</th><th>Default</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code class="verbatim">heading_offset</code></td><td><code class="verbatim">1</code></td><td>Added to every org heading level.</td></tr>
+<tr><td><code class="verbatim">toc</code></td><td><code class="verbatim">true</code></td><td>Make <code class="verbatim">page.toc</code> available to templates.</td></tr>
+<tr><td><code class="verbatim">section_numbers</code></td><td><code class="verbatim">false</code></td><td>Number headings <code class="verbatim">1.</code>, <code class="verbatim">1.1.</code>, …</td></tr>
+</tbody>
+</table>
+<h3 id="heading-offset">heading<sub>offset</sub></h3>
+<p>A level-1 org heading renders as <code class="verbatim">&lt;h2&gt;</code> by default, because the layout supplies the page title as the <code class="verbatim">&lt;h1&gt;</code>. This matches Emacs, whose <code class="verbatim">org-html-toplevel-hlevel</code> is 2 for the same reason.</p>
+<p>Set it to <code class="verbatim">0</code> if your template renders no title of its own — otherwise the document starts at <code class="verbatim">&lt;h2&gt;</code> with nothing above it.</p>
+<h3 id="section-numbers-differs-from-emacs-on-purpose">section<sub>numbers</sub> differs from Emacs on purpose</h3>
+<p><code class="verbatim">org-export-with-section-numbers</code> is on in Emacs, so an org-published site inherits numbered headings whether or not anyone chose them. Most sites do not want them, so the default here is the taste rather than the inheritance. Turning it on emits Emacs' own <code class="verbatim">section-number-N</code> classes.</p>
+<h2 id="per-file-overrides">Per-file overrides</h2>
+<p>Org's own <code class="verbatim">#+OPTIONS:</code> switches override the site setting for one document:</p>
+<pre><code class="language-org highlight"><span class="text org"><span class="keyword other keyword org">#+OPTIONS:</span><span class="string unquoted org"> toc:nil num:t</span></span></code></pre>
+<table>
+<thead>
+<tr><th>Switch</th><th>Overrides</th></tr>
+</thead>
+<tbody>
+<tr><td><code class="verbatim">toc:nil</code> / <code class="verbatim">toc:t</code></td><td><code class="verbatim">[html] toc</code></td></tr>
+<tr><td><code class="verbatim">num:t</code> / <code class="verbatim">num:nil</code></td><td><code class="verbatim">[html] section_numbers</code></td></tr>
+</tbody>
+</table>
+<p>Off is spelled <code class="verbatim">nil</code>, <code class="verbatim">false</code>, <code class="verbatim">no</code>, <code class="verbatim">0</code> or <code class="verbatim">off</code>; anything else is on.</p>
+<h2 id="configuration-is-a-cache-input">Configuration is a cache input</h2>
+<p>The resolved config is hashed into every page's render key, so editing <code class="verbatim">orgo.toml</code> re-renders exactly the pages it affects — which for most settings is all of them. You never need <code class="verbatim">--no-cache</code> after a config change.</p>
+</main>
+<footer class="site">
+Built with orgo &mdash; these docs are an orgo site.
+</footer>
+</body>
+</html>

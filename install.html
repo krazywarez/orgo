@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Install &middot; orgo</title>
+<meta name="description" content="Build orgo from source, put it on your PATH, and check that it works.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="syntax.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site">
+<a class="site-title" href="index.html">orgo</a>
+<nav>
+<a href="#">Install</a>
+<a href="quickstart.html">Quick start</a>
+<a href="guide/index.html">Guide</a>
+</nav>
+</header>
+<main>
+<h1>Install</h1>
+<p class="lede">One Rust toolchain, one command, no runtime dependencies.</p>
+<nav class="toc" aria-label="On this page">
+<h2>On this page</h2>
+<ul>
+<li><a href="#requirements">Requirements</a></li>
+<li><a href="#from-crates-io">From crates.io</a></li>
+<li><a href="#from-source">From source</a></li>
+<li><a href="#running-without-installing">Running without installing</a></li>
+<li><a href="#check-that-it-works">Check that it works</a></li>
+<li><a href="#running-the-test-suite">Running the test suite</a></li>
+<li><a href="#upgrading">Upgrading</a></li>
+<li><a href="#next">Next</a></li>
+</ul>
+</nav>
+<h2 id="requirements">Requirements</h2>
+<ul>
+<li><strong>Rust 1.88 or newer.</strong> Install from <a href="https://rustup.rs">rustup.rs</a> if you do not have it. There is no other runtime requirement: the binary is self-contained, with syntax definitions and highlighting themes compiled in.</li>
+<li><strong>Emacs (optional).</strong> Only the differential test suite uses it, to compare output against org's own exporter. Nothing about building a site needs Emacs.</li>
+</ul>
+<h2 id="from-crates-io">From crates.io</h2>
+<pre><code class="language-sh highlight"><span class="source shell bash"><span class="meta function-call shell"><span class="variable function shell">cargo</span></span><span class="meta function-call arguments shell"> install orgo</span></span></code></pre>
+<p>That is the whole thing: cargo builds it and puts <code class="verbatim">orgo</code> in <code class="verbatim">~/.cargo/bin</code>.</p>
+<h2 id="from-source">From source</h2>
+<pre><code class="language-sh highlight"><span class="source shell bash"><span class="meta function-call shell"><span class="variable function shell">git</span></span><span class="meta function-call arguments shell"> clone https://gitbay.org/krz/orgo</span>
+<span class="meta function-call shell"><span class="support function cd shell">cd</span></span><span class="meta function-call arguments shell"> orgo</span>
+<span class="meta function-call shell"><span class="variable function shell">cargo</span></span><span class="meta function-call arguments shell"> build<span class="variable parameter option shell"><span class="punctuation definition parameter shell"> --</span>release</span></span></span></code></pre>
+<p>The binary lands at <code class="verbatim">target/release/orgo</code>. Copy it somewhere on your <code class="verbatim">PATH</code>:</p>
+<pre><code class="language-sh highlight"><span class="source shell bash"><span class="meta function-call shell"><span class="variable function shell">cp</span></span><span class="meta function-call arguments shell"> target/release/orgo <span class="meta group expansion tilde"><span class="variable language tilde shell">~</span></span>/.local/bin/</span></span></code></pre>
+<p>Or let cargo do it, which puts it in <code class="verbatim">~/.cargo/bin</code>:</p>
+<pre><code class="language-sh highlight"><span class="source shell bash"><span class="meta function-call shell"><span class="variable function shell">cargo</span></span><span class="meta function-call arguments shell"> install<span class="variable parameter option shell"><span class="punctuation definition parameter shell"> --</span>path</span> .</span></span></code></pre>
+<h2 id="running-without-installing">Running without installing</h2>
+<p>Every command in this documentation works through cargo if you would rather not install anything. Replace <code class="verbatim">orgo</code> with <code class="verbatim">cargo run --</code> and add <code class="verbatim">--release</code> for a fast build:</p>
+<pre><code class="language-sh highlight"><span class="source shell bash"><span class="meta function-call shell"><span class="variable function shell">cargo</span></span><span class="meta function-call arguments shell"> run<span class="variable parameter option shell"><span class="punctuation definition parameter shell"> --</span>release</span><span class="keyword operator end-of-options shell"> --</span></span><span class="meta function-call arguments shell"> build my-site -o _site</span></span></code></pre>
+<p>The debug build is fine for small sites and noticeably slower on large ones, because syntax highlighting dominates and is not optimised in a debug profile.</p>
+<h2 id="check-that-it-works">Check that it works</h2>
+<pre><code class="language-sh highlight"><span class="source shell bash"><span class="meta function-call shell"><span class="variable function shell">orgo</span></span><span class="meta function-call arguments shell"><span class="variable parameter option shell"><span class="punctuation definition parameter shell"> --</span>version</span></span>
+<span class="meta function-call shell"><span class="variable function shell">orgo</span></span><span class="meta function-call arguments shell"> init /tmp/orgo-check</span>
+<span class="meta function-call shell"><span class="variable function shell">orgo</span></span><span class="meta function-call arguments shell"> build /tmp/orgo-check<span class="variable parameter option shell"><span class="punctuation definition parameter shell"> -</span>o</span> /tmp/orgo-check/_site</span></span></code></pre>
+<p>You should see a line reporting the pages built:</p>
+<pre>built 5 page(s) (5 rendered, 0 cached), copied 0 asset(s) ... (0 unresolved link(s), 0 diagnostic(s))</pre>
+<p>Open <code class="verbatim">/tmp/orgo-check/_site/index.html</code> in a browser, or serve it properly:</p>
+<pre><code class="language-sh highlight"><span class="source shell bash"><span class="meta function-call shell"><span class="variable function shell">orgo</span></span><span class="meta function-call arguments shell"> serve /tmp/orgo-check<span class="variable parameter option shell"><span class="punctuation definition parameter shell"> -</span>o</span> /tmp/orgo-check/_site</span></span></code></pre>
+<h2 id="running-the-test-suite">Running the test suite</h2>
+<pre><code class="language-sh highlight"><span class="source shell bash"><span class="meta function-call shell"><span class="variable function shell">cargo</span></span><span class="meta function-call arguments shell"> test</span></span></code></pre>
+<p>152 tests, covering the parser, the renderer, configuration, generated pages, the incremental cache, the watcher and the development server.</p>
+<p>The oracle suite is part of that run and compares output against Emacs:</p>
+<pre><code class="language-sh highlight"><span class="source shell bash"><span class="meta function-call shell"><span class="variable function shell">cargo</span></span><span class="meta function-call arguments shell"> test<span class="variable parameter option shell"><span class="punctuation definition parameter shell"> --</span>test</span> oracle</span></span></code></pre>
+<p>It <strong>skips cleanly</strong> when there is no <code class="verbatim">emacs</code> on your <code class="verbatim">PATH</code>, so a machine without Emacs still gets a green test run — it simply measures one thing less.</p>
+<h2 id="upgrading">Upgrading</h2>
+<p>orgo stores an incremental cache in <code class="verbatim">&lt;output&gt;/.orgo-cache.json</code>, tagged with a format version. A newer binary that changes how output is produced bumps that version, and a version it does not recognise is discarded in favour of a full rebuild. You never need to clear the cache by hand after an upgrade — but if you want to:</p>
+<pre><code class="language-sh highlight"><span class="source shell bash"><span class="meta function-call shell"><span class="variable function shell">orgo</span></span><span class="meta function-call arguments shell"> clean _site</span></span></code></pre>
+<h2 id="next">Next</h2>
+<p><a href="quickstart.html">Quick start</a> builds a real site and puts your own writing into it.</p>
+</main>
+<footer class="site">
+Built with orgo &mdash; these docs are an orgo site.
+</footer>
+</body>
+</html>

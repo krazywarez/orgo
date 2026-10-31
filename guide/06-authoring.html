@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Authoring &middot; orgo</title>
+<meta name="description" content="URLs, drafts, excerpts, tables of contents — the metadata that shapes a page.">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../theme.css">
+<link rel="stylesheet" href="../syntax.css">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="site">
+<a class="site-title" href="../index.html">orgo</a>
+<nav>
+<a href="../install.html">Install</a>
+<a href="../quickstart.html">Quick start</a>
+<a href="index.html">Guide</a>
+</nav>
+</header>
+<main>
+<h1>Authoring</h1>
+<p class="lede">What to put at the top of a file, and what each keyword buys you.</p>
+<nav class="toc" aria-label="On this page">
+<h2>On this page</h2>
+<ul>
+<li><a href="#urls">URLs</a></li>
+<li><a href="#drafts">Drafts</a></li>
+<li><a href="#dates">Dates</a></li>
+<li><a href="#excerpts">Excerpts</a></li>
+<li><a href="#reading-time">Reading time</a></li>
+<li><a href="#tags">Tags</a></li>
+<li><a href="#table-of-contents">Table of contents</a></li>
+<li><a href="#section-numbers">Section numbers</a></li>
+<li><a href="#your-own-metadata">Your own metadata</a></li>
+<li><a href="#assets">Assets</a></li>
+</ul>
+</nav>
+<h2 id="urls">URLs</h2>
+<p>By default a source path becomes the matching output path: <code class="verbatim">blog/post.org</code> → <code class="verbatim">blog/post.html</code>.</p>
+<p><code class="verbatim">#+SLUG:</code> overrides the <strong>filename</strong>, never the directory:</p>
+<pre><code class="language-org highlight"><span class="text org"><span class="keyword other keyword org">#+TITLE:</span><span class="string unquoted org"> AES Encryption</span>
+<span class="keyword other keyword org">#+SLUG:</span><span class="string unquoted org"> aes-encryption</span></span></code></pre>
+<p><code class="verbatim">blog/2018-11-28-aes-encryption.org</code> now publishes at <code class="verbatim">blog/aes-encryption.html</code>. This is how a date-prefixed filename — useful for sorting in a file manager — becomes a clean address.</p>
+<p>Slugs are reduced to a single safe path component, so a slug cannot escape the output directory however it was written. Two pages claiming one URL is a build error rather than one silently overwriting the other.</p>
+<p>Links follow slugs automatically: <code class="verbatim">[[file:blog/2018-11-28-aes-encryption.org]]</code> resolves to <code class="verbatim">blog/aes-encryption.html</code>.</p>
+<h2 id="drafts">Drafts</h2>
+<pre><code class="language-org highlight"><span class="text org"><span class="keyword other keyword org">#+DRAFT:</span><span class="string unquoted org"> t</span></span></code></pre>
+<p>The page is not written at all, and is absent from listings, tag pages and navigation — not merely unlinked.</p>
+<p>It is also out of the symbol table, so a link <strong>to</strong> a draft is reported as a broken link. That is deliberate: it is what that link would be on the published site, and better found now than by a reader.</p>
+<pre><code class="language-sh highlight"><span class="source shell bash"><span class="meta function-call shell"><span class="variable function shell">orgo</span></span><span class="meta function-call arguments shell"> serve content<span class="variable parameter option shell"><span class="punctuation definition parameter shell"> -</span>o</span> _site<span class="variable parameter option shell"><span class="punctuation definition parameter shell"> --</span>drafts</span></span></span></code></pre>
+<p>The keyword is read forgivingly. <code class="verbatim">t</code>, <code class="verbatim">yes</code>, <code class="verbatim">1</code> and a bare <code class="verbatim">#+DRAFT:</code> all mean draft, because writing the keyword at all is the signal. Only an explicit <code class="verbatim">nil</code>, <code class="verbatim">false</code>, <code class="verbatim">no</code>, <code class="verbatim">0</code> or <code class="verbatim">off</code> means published — publishing someone's unfinished post because they typed <code class="verbatim">yes</code> instead of <code class="verbatim">t</code> is the wrong way to be strict.</p>
+<h2 id="dates">Dates</h2>
+<pre><code class="language-org highlight"><span class="text org"><span class="keyword other keyword org">#+DATE:</span><span class="string unquoted org"> &lt;2026-02-02 Mon&gt;</span>
+<span class="keyword other keyword org">#+DATE:</span><span class="string unquoted org"> [2025-09-05 Fri 10:21:00]</span>
+<span class="keyword other keyword org">#+DATE:</span><span class="string unquoted org"> 2024-05-01</span></span></code></pre>
+<p>All three work. <code class="verbatim">page.date</code> keeps what you wrote, and <code class="verbatim">page.date_iso</code> is the <code class="verbatim">YYYY-MM-DD</code> inside it — the value listings sort on and templates usually print.</p>
+<p>A page with no parseable date sorts <strong>last</strong> in a dated listing, in either direction, so a draft with no date never leads an archive.</p>
+<h2 id="excerpts">Excerpts</h2>
+<p><code class="verbatim">page.excerpt</code> is <code class="verbatim">#+DESCRIPTION:</code> when the page sets one, and its first paragraph otherwise:</p>
+<pre><code class="language-org highlight"><span class="text org"><span class="keyword other keyword org">#+DESCRIPTION:</span><span class="string unquoted org"> How the borrow checker thinks about lifetimes.</span></span></code></pre>
+<p>The fallback matters more than the keyword: it means a listing has something to show whether or not the author ever thought about summaries. Use <code class="verbatim">truncate</code> in the template to cut a long paragraph to size.</p>
+<h2 id="reading-time">Reading time</h2>
+<p><code class="verbatim">page.word_count</code> and <code class="verbatim">page.reading_time</code> (minutes at 200 wpm, rounded up) count <strong>prose only</strong>. Source and example blocks are excluded, because a post that is mostly a shell transcript should not read as an hour's work. <code class="verbatim">#+TITLE:</code> is metadata rendered as chrome, so it is not counted either.</p>
+<h2 id="tags">Tags</h2>
+<pre><code class="language-org highlight"><span class="text org"><span class="keyword other keyword org">#+FILETAGS:</span><span class="string unquoted org"> :rust:web:</span></span></code></pre>
+<p>Available as <code class="verbatim">page.tags</code>, and the input to tag pages — see <a href="03-collections.html">Collections</a>.</p>
+<h2 id="table-of-contents">Table of contents</h2>
+<p>Every page's heading tree is available as <code class="verbatim">page.toc</code> without any markup in the file. Turn it off for one document the way org already does:</p>
+<pre><code class="language-org highlight"><span class="text org"><span class="keyword other keyword org">#+OPTIONS:</span><span class="string unquoted org"> toc:nil</span></span></code></pre>
+<p>Or site-wide with <code class="verbatim">[html] toc = false</code>. Rendering it is the template's business; see <a href="04-templates.html">Templates</a>.</p>
+<h2 id="section-numbers">Section numbers</h2>
+<p>Off by default, unlike Emacs. Turn them on for one document:</p>
+<pre><code class="language-org highlight"><span class="text org"><span class="keyword other keyword org">#+OPTIONS:</span><span class="string unquoted org"> num:t</span></span></code></pre>
+<p>Or site-wide with <code class="verbatim">[html] section_numbers = true</code>.</p>
+<h2 id="your-own-metadata">Your own metadata</h2>
+<p>Every <code class="verbatim">#+KEYWORD:</code> reaches templates under its lowercased name:</p>
+<pre><code class="language-org highlight"><span class="text org"><span class="keyword other keyword org">#+SUBTITLE:</span><span class="string unquoted org"> A closer look</span>
+<span class="keyword other keyword org">#+REVIEWED_BY:</span><span class="string unquoted org"> someone</span></span></code></pre>
+<pre><code class="language-html highlight"><span class="text html basic">{% if page.keywords.subtitle %}<span class="meta tag block any html"><span class="punctuation definition tag begin html">&lt;</span><span class="entity name tag block any html">p</span> <span class="meta attribute-with-value class html"><span class="entity other attribute-name class html">class</span><span class="punctuation separator key-value html">=</span></span><span class="meta attribute-with-value class html"><span class="string quoted double html"><span class="punctuation definition string begin html">&quot;</span></span></span><span class="meta attribute-with-value class html"><span class="string quoted double html"><span class="meta class-name html">subtitle</span><span class="punctuation definition string end html">&quot;</span></span></span><span class="punctuation definition tag end html">&gt;</span></span>{{ page.keywords.subtitle }}<span class="meta tag block any html"><span class="punctuation definition tag begin html">&lt;/</span><span class="entity name tag block any html">p</span><span class="punctuation definition tag end html">&gt;</span></span>{% endif %}</span></code></pre>
+<p>Nothing needs to be registered, and orgo needs no release to support a keyword you invented.</p>
+<h2 id="assets">Assets</h2>
+<p>Any non-<code class="verbatim">.org</code> file in the source directory is copied to the output, preserving layout: <code class="verbatim">content/img/diagram.png</code> → <code class="verbatim">_site/img/diagram.png</code>. Reference it from a page with an ordinary relative link, and from a template with <code class="verbatim">{{ root }}img/diagram.png</code>.</p>
+<p>Four things are <strong>never</strong> published:</p>
+<ul>
+<li>Dot-entries such as <code class="verbatim">.git</code> and <code class="verbatim">.env</code>. A source directory is often a repository, and publishing its history next to the homepage is a real way to leak a project.</li>
+<li><code class="verbatim">orgo.toml</code>, which is a build input.</li>
+<li>The templates directory, likewise.</li>
+<li>The output directory, when it lives inside the source — so <code class="verbatim">orgo build . -o _site</code> does the obvious thing rather than copying its own output back into itself.</li>
+</ul>
+<p>Note that excluding dot-entries also means <code class="verbatim">.well-known/</code> cannot be published.</p>
+</main>
+<footer class="site">
+Built with orgo &mdash; these docs are an orgo site.
+</footer>
+</body>
+</html>

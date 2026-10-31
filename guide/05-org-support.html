@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Org support &middot; orgo</title>
+<meta name="description" content="Exactly which org syntax is handled, which is not, and how the rest degrades.">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../theme.css">
+<link rel="stylesheet" href="../syntax.css">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="site">
+<a class="site-title" href="../index.html">orgo</a>
+<nav>
+<a href="../install.html">Install</a>
+<a href="../quickstart.html">Quick start</a>
+<a href="index.html">Guide</a>
+</nav>
+</header>
+<main>
+<h1>Org support</h1>
+<p class="lede">A deliberate subset, with the boundary enforced by tests rather than by hope.</p>
+<nav class="toc" aria-label="On this page">
+<h2>On this page</h2>
+<ul>
+<li><a href="#supported">Supported</a>
+<ul>
+<li><a href="#headings">Headings</a></li>
+<li><a href="#text-and-inline-markup">Text and inline markup</a>
+<ul>
+<li><a href="#text-conversions">Text conversions</a></li>
+<li><a href="#heading-levels-are-relative">Heading levels are relative</a></li>
+</ul></li>
+<li><a href="#lists">Lists</a></li>
+<li><a href="#blocks">Blocks</a>
+<ul>
+<li><a href="#which-languages-highlight">Which languages highlight</a></li>
+<li><a href="#the-comma-escape">The comma escape</a></li>
+</ul></li>
+<li><a href="#tables-and-footnotes">Tables and footnotes</a></li>
+<li><a href="#images">Images</a></li>
+</ul></li>
+<li><a href="#keywords-with-meaning">Keywords with meaning</a></li>
+<li><a href="#not-supported-and-what-happens-instead">Not supported, and what happens instead</a>
+<ul>
+<li><a href="#why-results-is-dropped-rather-than-rendered">Why #+RESULTS: is dropped rather than rendered</a></li>
+</ul></li>
+<li><a href="#diagnostics">Diagnostics</a></li>
+<li><a href="#measured-against-emacs">Measured against Emacs</a></li>
+</ul>
+</nav>
+<p>orgo parses a defined slice of org. The boundary is not aspirational: every supported construct has a golden-file test, and every excluded one has a test asserting how it degrades. That is what stops the parser drifting toward all-of-org.</p>
+<h2 id="supported">Supported</h2>
+<h3 id="headings">Headings</h3>
+<p>Nesting by star count, with TODO keywords, priority cookies and tags:</p>
+<pre><code class="language-org highlight"><span class="text org"><span class="markup heading org"><span class="punctuation definition heading org">*</span> <span class="keyword other todo org">TODO</span> <span class="constant other priority org">[#A]</span> Write the parser                                        <span class="entity name tag org">:work:rust:
+</span></span>,:PROPERTIES:
+,:CUSTOM_ID: write-parser
+,:END:</span></code></pre>
+<p>The keyword set is Emacs' default — <code class="verbatim">TODO</code> and <code class="verbatim">DONE</code> — matched on a word boundary, so a heading beginning "TODOs are great" is a plain title. Keyword and priority markup uses Emacs' own export classes.</p>
+<p>Every heading gets an <code class="verbatim">id</code>: its <code class="verbatim">:CUSTOM_ID:</code> if it has one, else its <code class="verbatim">:ID:</code>, else a slug of its text.</p>
+<h3 id="text-and-inline-markup">Text and inline markup</h3>
+<p><code class="verbatim">*bold*</code>, <code class="verbatim">/italic/</code>, <code class="verbatim">_underline_</code>, <code class="verbatim">+strike+</code>, <code>=verbatim=</code> and <code class="verbatim">~code~</code>. Links in every org form — external, <code class="verbatim">[[*Heading]]</code>, <code class="verbatim">[[#custom-id]]</code>, <code class="verbatim">[[id:...]]</code>, <code class="verbatim">[[file:other.org]]</code> — plus bare URLs in running text.</p>
+<p>Timestamps, active and inactive, with times and ranges, render as <code class="verbatim">&lt;time&gt;</code> with a machine-readable <code class="verbatim">datetime</code>.</p>
+<h4 id="text-conversions">Text conversions</h4>
+<p>Org rewrites some prose on export, and so does orgo:</p>
+<table>
+<thead>
+<tr><th>Written</th><th>Published</th></tr>
+</thead>
+<tbody>
+<tr><td><code class="verbatim">--</code></td><td>–</td></tr>
+<tr><td><code class="verbatim">---</code></td><td>—</td></tr>
+<tr><td><code class="verbatim">...</code></td><td>…</td></tr>
+<tr><td><code class="verbatim">x^2</code></td><td>x superscript 2</td></tr>
+<tr><td><code class="verbatim">H_{2}O</code></td><td>H subscript 2 O</td></tr>
+<tr><td><code class="verbatim">\alpha</code>, <code class="verbatim">\rarr</code>, <code class="verbatim">20\deg</code></td><td>α, →, 20°</td></tr>
+</tbody>
+</table>
+<p>The entity table is org's own, generated from Emacs' <code class="verbatim">org-entities</code> rather than transcribed, so all 412 names behave as they do in Emacs. A name org does not know — <code class="verbatim">\notanentity</code> — stays as the literal text you typed, and <code class="verbatim">\alphabet</code> is a word rather than α followed by "bet". <code class="verbatim">#+OPTIONS: e:nil</code> turns the whole table off.</p>
+<p>Neither reaches inside verbatim, code, a source block or a LaTeX fragment — <code class="verbatim">--verbose</code> in a shell transcript stays a flag, and <code class="verbatim">$x^2$</code> stays mathematics.</p>
+<p><strong>Braceless subscripts catch people out.</strong> Org's default converts <code class="verbatim">a_b</code>, so <code class="verbatim">snake_case</code> in prose publishes as snake with a subscript. That is what Emacs does with the same file. Turn it off per document with <code class="verbatim">#+OPTIONS: ^:nil</code>, restrict it to the braced form with <code class="verbatim">^:{}</code>, or set <code class="verbatim">[html] sub_superscript</code> for the site. <code class="verbatim">#+OPTIONS: -:nil</code> turns off the dashes and ellipsis.</p>
+<h4 id="heading-levels-are-relative">Heading levels are relative</h4>
+<p>A file whose shallowest heading is <code class="verbatim">**</code> is a file of top-level sections that happen to be indented, not a file of subsections — org exports levels relative to the document, so that subtree exports the same whether it was cut from a larger file or written on its own.</p>
+<h3 id="lists">Lists</h3>
+<p>Unordered, ordered and description lists, nested by indentation, with checkboxes and multi-paragraph items:</p>
+<pre><code class="language-org highlight"><span class="text org"><span class="punctuation definition list org">- </span>outer item
+<span class="punctuation definition list org">  - </span>inner item
+<span class="punctuation definition list org">- </span><span class="constant language checkbox org">[X]</span> a checked item
+<span class="punctuation definition list org">- </span><span class="constant language checkbox org">[-]</span> a partly-done item
+<span class="punctuation definition list org">- </span>term :: definition
+<span class="punctuation definition list org">1. </span>[@4] an item numbered from 4</span></code></pre>
+<p>Checkboxes render as org writes them — <code class="verbatim">&lt;code&gt;[X]&lt;/code&gt;</code> with the state as a class on the item — rather than as a disabled <code class="verbatim">&lt;input&gt;</code>, which has no way to say "partly done".</p>
+<h3 id="blocks">Blocks</h3>
+<p><code class="verbatim">SRC</code> (syntax highlighted), <code class="verbatim">EXAMPLE</code>, <code class="verbatim">QUOTE</code>, <code class="verbatim">CENTER</code>, <code class="verbatim">VERSE</code> and <code class="verbatim">EXPORT</code>. A source block inside a quote block works, because block ends match their own kind.</p>
+<p>An <code class="verbatim">html</code> export block passes through verbatim; every other backend is dropped, because emitting LaTeX into an HTML page is worse than emitting nothing.</p>
+<p><strong>Any other name is a special block</strong>: <code class="verbatim">#+BEGIN_NOTE</code> becomes <code class="verbatim">&lt;div class</code>"note"&gt;= holding <strong>parsed org</strong>, which is what makes the convention usable without orgo knowing the word "note". A <code class="verbatim">COMMENT</code> block is not published.</p>
+<h4 id="which-languages-highlight">Which languages highlight</h4>
+<p>Highlighting uses the syntax definitions <a href="https://docs.rs/syntect">syntect</a> bundles. A language it does not know is not an error — the block renders as escaped <code class="verbatim">&lt;pre&gt;&lt;code class</code>"language-…"&gt;= with its content intact, just uncoloured.</p>
+<p>Recognised, among others: <code class="verbatim">bash</code> / <code class="verbatim">sh</code>, <code class="verbatim">c</code>, <code class="verbatim">c++</code>, <code class="verbatim">css</code>, <code class="verbatim">clojure</code>, <code class="verbatim">diff</code>, <code class="verbatim">erlang</code>, <code class="verbatim">go</code>, <code class="verbatim">haskell</code>, <code class="verbatim">html</code>, <code class="verbatim">java</code>, <code class="verbatim">javascript</code>, <code class="verbatim">json</code>, <code class="verbatim">latex</code>, <code class="verbatim">lisp</code>, <code class="verbatim">lua</code>, <code class="verbatim">makefile</code>, <code class="verbatim">markdown</code>, <code class="verbatim">matlab</code>, <code class="verbatim">objective-c</code>, <code class="verbatim">ocaml</code>, <code class="verbatim">perl</code>, <code class="verbatim">php</code>, <code class="verbatim">python</code>, <code class="verbatim">r</code>, <code class="verbatim">ruby</code>, <code class="verbatim">rust</code>, <code class="verbatim">scala</code>, <code class="verbatim">sql</code>, <code class="verbatim">tcl</code>, <code class="verbatim">xml</code>, <code class="verbatim">yaml</code>.</p>
+<p>orgo adds two syntect does not ship: <strong>TOML</strong> and <strong>Org</strong>. Both are what this project's own documentation needed on its first page — every config example is TOML, and a tool for org users gets written about in org — so they are compiled into the binary and work with no setup.</p>
+<p>Still missing, and worth knowing before you write a page full of them: <strong>INI</strong> and <strong>Emacs Lisp</strong>. For those, drop a <code class="verbatim">.sublime-syntax</code> file into the directory named by <code class="verbatim">[highlight] syntaxes_dir</code> (default <code class="verbatim">syntaxes/</code>) and it is picked up. A file that fails to parse is reported and skipped rather than failing the build.</p>
+<h4 id="the-comma-escape">The comma escape</h4>
+<p>A line inside a block that would otherwise look like document structure is written with a leading comma — <code class="verbatim">,* heading</code>, <code class="verbatim">,#+KEYWORD:</code> — and orgo removes exactly one comma on output, as Emacs does. Every org example in this documentation relies on it.</p>
+<p>The escape is not optional politeness: an unescaped <code class="verbatim">*</code> at column zero <strong>ends the block</strong>, in Emacs as much as here. If a code block seems to stop early, that is why.</p>
+<h3 id="tables-and-footnotes">Tables and footnotes</h3>
+<p>Pipe tables, with the rule row establishing a header band and an affiliated <code class="verbatim">#+CAPTION:</code> becoming a numbered <code class="verbatim">&lt;caption&gt;</code>. Org's <strong>special column</strong> is honoured: a first column holding only export markers (<code class="verbatim">/</code>, <code class="verbatim">#</code>, <code class="verbatim">!</code>, <code class="verbatim">^</code>, <code class="verbatim">_</code>, <code class="verbatim">$</code>) is dropped, and rows marked <code class="verbatim">/</code>, <code class="verbatim">!</code>, <code class="verbatim">^</code>, <code class="verbatim">_</code> or <code class="verbatim">$</code> are instructions to org rather than content, so they never reach the page.</p>
+<p>Footnotes in all three forms — <code class="verbatim">[fn:1]</code> references, <code class="verbatim">[fn:1]</code> definitions and <code class="verbatim">[fn:1:inline text]</code> — rendered as a numbered, back-linked notes section.</p>
+<h3 id="images">Images</h3>
+<p>A description-less link to an image file renders as <code class="verbatim">&lt;img&gt;</code>. With an affiliated <code class="verbatim">#+CAPTION:</code> or <code class="verbatim">#+ATTR_HTML:</code> it becomes a <code class="verbatim">&lt;figure&gt;</code> with the caption as both <code class="verbatim">&lt;figcaption&gt;</code> and alt text:</p>
+<pre><code class="language-org highlight"><span class="text org"><span class="keyword other keyword org">#+CAPTION:</span><span class="string unquoted org"> The pipeline, end to end</span>
+<span class="keyword other keyword org">#+ATTR_HTML:</span><span class="string unquoted org"> :width 640 :class diagram</span>
+<span class="punctuation definition link org">[[</span><span class="markup underline link org">file:pipeline.svg</span><span class="punctuation definition link org">]</span><span class="punctuation definition link org">]</span></span></code></pre>
+<p>Links to non-<code class="verbatim">.org</code> files are understood as asset links: neither resolved nor reported as broken.</p>
+<h2 id="keywords-with-meaning">Keywords with meaning</h2>
+<table>
+<thead>
+<tr><th>Keyword</th><th>Effect</th></tr>
+</thead>
+<tbody>
+<tr><td><code class="verbatim">#+TITLE:</code></td><td>Page title. Falls back to the filename stem.</td></tr>
+<tr><td><code class="verbatim">#+DATE:</code></td><td>Sorts listings. Any org date syntax.</td></tr>
+<tr><td><code class="verbatim">#+DESCRIPTION:</code></td><td>The excerpt shown in listings.</td></tr>
+<tr><td><code class="verbatim">#+FILETAGS:</code></td><td>Tags, for grouping and <code class="verbatim">page.tags</code>.</td></tr>
+<tr><td><code class="verbatim">#+SLUG:</code></td><td>Sets the output filename.</td></tr>
+<tr><td><code class="verbatim">#+DRAFT:</code></td><td>Keeps the page out of the build.</td></tr>
+<tr><td><code class="verbatim">#+TEMPLATE:</code></td><td>The layout this page renders through.</td></tr>
+<tr><td><code class="verbatim">#+OPTIONS:</code></td><td>Per-file export switches.</td></tr>
+<tr><td><code class="verbatim">#+CAPTION:</code>, <code class="verbatim">#+ATTR_HTML:</code></td><td>Attach to the image <strong>directly</strong> below them — a blank line in between attaches to nothing, as in org. A captioned image is numbered <code class="verbatim">Figure N:</code>.</td></tr>
+<tr><td><code class="verbatim">#+TBLFM:</code></td><td>Kept inert, and that matches org: the HTML exporter does not recalculate formulas either, so both emit the cells as written. Recalculate in Emacs (<code class="verbatim">C-c C-c</code>) to change them.</td></tr>
+</tbody>
+</table>
+<p>Every other <code class="verbatim">#+KEYWORD:</code> is available to templates as <code class="verbatim">{{ page.keywords.that_keyword }}</code>, so metadata orgo has never heard of still reaches your layout.</p>
+<h2 id="not-supported-and-what-happens-instead">Not supported, and what happens instead</h2>
+<p>The contract is not that these work — it is that they degrade predictably and never crash a build.</p>
+<table>
+<thead>
+<tr><th>Construct</th><th>What happens</th></tr>
+</thead>
+<tbody>
+<tr><td>Babel execution, <code class="verbatim">:results</code></td><td>The source block renders as code. A checked-in <code class="verbatim">#+RESULTS:</code> block is <strong>dropped</strong>.</td></tr>
+<tr><td><code class="verbatim">#+INCLUDE:</code></td><td>Never expanded, and <strong>reported</strong>: the build prints <code class="verbatim">file:line: `#+INCLUDE: …` is not expanded</code>, so a page is never quietly missing content. <code class="verbatim">--strict</code> makes it a failure.</td></tr>
+<tr><td>LaTeX, MathJax</td><td>Survives as the literal text you typed.</td></tr>
+<tr><td>Macros <code class="verbatim">{{{name}}}</code>, radio targets</td><td>Literal text.</td></tr>
+<tr><td>Drawers other than <code class="verbatim">PROPERTIES</code></td><td>Captured and dropped, including <code class="verbatim">LOGBOOK</code>.</td></tr>
+<tr><td>Non-HTML export blocks</td><td>Dropped entirely.</td></tr>
+<tr><td><code class="verbatim">#+TODO:</code> sequences</td><td>Not read; the default keyword set is used.</td></tr>
+<tr><td>Planning lines, =: = fixed-width</td><td>Render as ordinary paragraphs.</td></tr>
+</tbody>
+</table>
+<h3 id="why-results-is-dropped-rather-than-rendered">Why #+RESULTS: is dropped rather than rendered</h3>
+<p>Babel is never executed, so a checked-in results block is output from someone else's Emacs session at some other time. Emitting it would put unverifiable content on the page dressed as real content. The source block renders; its stale output does not.</p>
+<h2 id="diagnostics">Diagnostics</h2>
+<p>Malformed input degrades rather than failing — but not <strong>silently</strong>, because the worst cases are severe. An unterminated <code class="verbatim">#+BEGIN_SRC</code> reads the rest of the file as block content, and an unterminated drawer does the same but renders to nothing, so one missing line can delete most of a page.</p>
+<pre>warning: post.org:42: unterminated `#+BEGIN_SRC` block (no `#+END_SRC`); everything to
+the end of the file was read as block content</pre>
+<p>Diagnostics carry exact line numbers through arbitrarily nested constructs, and <code class="verbatim">--strict</code> turns them into a non-zero exit.</p>
+<h2 id="measured-against-emacs">Measured against Emacs</h2>
+<p><code class="verbatim">cargo test --test oracle</code> exports each fixture with org's own exporter via <code class="verbatim">emacs --batch</code> and snapshots the disagreement. Heading structure, list nesting and source-block text are asserted to match exactly.</p>
+<p>The rest differs deliberately:</p>
+<table>
+<thead>
+<tr><th></th><th>orgo</th><th>Emacs</th></tr>
+</thead>
+<tbody>
+<tr><td>emphasis</td><td><code class="verbatim">&lt;em&gt;</code> / <code class="verbatim">&lt;strong&gt;</code></td><td><code class="verbatim">&lt;i&gt;</code> / <code class="verbatim">&lt;b&gt;</code></td></tr>
+<tr><td>captioned image</td><td><code class="verbatim">&lt;figure&gt;</code> / <code class="verbatim">&lt;figcaption&gt;</code></td><td><code class="verbatim">&lt;p&gt;</code> + "Figure 1: …"</td></tr>
+<tr><td>timestamp</td><td><code class="verbatim">&lt;time datetime</code>"…"&gt;=</td><td>literal <code class="verbatim">&lt;2024-01-15 Mon&gt;</code></td></tr>
+<tr><td>footnotes</td><td><code class="verbatim">&lt;section&gt;&lt;ol&gt;</code></td><td><code class="verbatim">&lt;h2&gt;Footnotes:&lt;/h2&gt;</code></td></tr>
+<tr><td>heading anchor</td><td>slug of the text</td><td><code class="verbatim">org1a2b3c4</code></td></tr>
+<tr><td>code</td><td><code class="verbatim">&lt;pre&gt;&lt;code&gt;</code></td><td><code class="verbatim">&lt;pre&gt;</code></td></tr>
+</tbody>
+</table>
+<p>One genuine semantic difference: org treats a single blank line between a <code class="verbatim">1.</code> list and a following <code class="verbatim">-</code> list as <strong>one</strong> list, keeping the first item's bullet type. orgo starts a second list. That was kept on measurement — the pattern occurred zero times across a 179-file reference corpus — rather than on taste.</p>
+</main>
+<footer class="site">
+Built with orgo &mdash; these docs are an orgo site.
+</footer>
+</body>
+</html>
