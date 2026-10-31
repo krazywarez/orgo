@@ -15,6 +15,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use anyhow::{Context, Result};
 use camino::Utf8Path;
+use minijinja::value::Serde;
 use minijinja::{context, Environment};
 use serde::Serialize;
 
@@ -265,17 +266,17 @@ impl Templater {
             .get_template(template)
             .map_err(|e| TemplateError::Render(e.to_string()))?;
         tmpl.render(context! {
-            site => ctx.site,
-            page => ctx.page,
+            site => Serde(ctx.site),
+            page => Serde(ctx.page),
             body => ctx.body,
-            nav => ctx.nav,
+            nav => Serde(ctx.nav),
             stylesheet => ctx.stylesheet,
             theme => ctx.theme,
             root => ctx.root,
-            pages => ctx.pages,
-            group => ctx.group,
-            groups => ctx.groups,
-            paginator => ctx.paginator,
+            pages => Serde(ctx.pages),
+            group => Serde(ctx.group),
+            groups => Serde(ctx.groups),
+            paginator => Serde(ctx.paginator),
         })
         .map_err(|e| TemplateError::Render(render_error_detail(e)))
     }
@@ -644,10 +645,10 @@ fn string_literal(tag: &str) -> Option<String> {
 /// Auto-escaping itself stays on: page titles come from `#+TITLE:` and are user content.
 fn html_formatter(
     out: &mut minijinja::Output,
-    state: &minijinja::State,
+    state: &mut minijinja::State,
     value: &minijinja::Value,
 ) -> Result<(), minijinja::Error> {
-    if state.auto_escape() == minijinja::AutoEscape::Html && !value.is_safe() {
+    if *state.auto_escape() == minijinja::AutoEscape::Html && !value.is_safe() {
         if let Some(text) = value.as_str() {
             let mut escaped = String::with_capacity(text.len());
             for c in text.chars() {

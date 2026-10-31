@@ -39,7 +39,7 @@ camino = { version = "1", features = ["serde1"] }
 # Pipeline
 walkdir = "2"
 syntect = "5"
-minijinja = "2"
+minijinja = { version = "3", features = ["serde"] }
 blake3 = "1"
 
 # CLI / errors
