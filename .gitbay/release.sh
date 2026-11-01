@@ -50,10 +50,10 @@ done
 # Notes come from the annotated tag, so the person cutting the release writes
 # them at the moment they decide to cut it (`git tag -a "$tag" -F notes.md`).
 git tag -l --format='%(contents)' "$tag" |
-	$SSH "$GITBAY_SSH" release create "$repo" "$tag" --title "${tag#v}" --file -
+	bot_ssh "$GITBAY_SSH" release create "$repo" "$tag" --title "${tag#v}" --file -
 
 for f in "$dist"/*; do
-	$SSH "$GITBAY_SSH" release asset add "$repo" "$tag" "$(basename "$f")" <"$f"
+	bot_ssh "$GITBAY_SSH" release asset add "$repo" "$tag" "$(basename "$f")" <"$f"
 	echo "attached $(basename "$f")"
 done
 

@@ -13,4 +13,5 @@
 		"$PWD/.bot_key" "$PWD/.known_hosts" >"$PWD/.ssh_config"
 )
 SSH="ssh -F $PWD/.ssh_config"
+bot_ssh() { ssh -F "$PWD/.ssh_config" "$@"; }
 export GIT_SSH_COMMAND="$SSH"
