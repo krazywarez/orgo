@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Versioning and upgrades &middot; orgo</title>
+<meta name="description" content="What a version number promises, what it does not, and how to upgrade safely.">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../theme.css">
+<link rel="stylesheet" href="../syntax.css">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="site">
+<a class="site-title" href="../index.html">orgo</a>
+<nav>
+<a href="../install.html">Install</a>
+<a href="../quickstart.html">Quick start</a>
+<a href="index.html">Guide</a>
+</nav>
+</header>
+<main>
+<h1>Versioning and upgrades</h1>
+<p class="lede">The stable surface is what you build a site against, not what the code happens to do.</p>
+<nav class="toc" aria-label="On this page">
+<h2>On this page</h2>
+<ul>
+<li><a href="#the-stable-surface">The stable surface</a></li>
+<li><a href="#what-is-not-stable">What is not stable</a>
+<ul>
+<li><a href="#the-incremental-cache">The incremental cache</a></li>
+<li><a href="#rendered-html-details">Rendered HTML details</a></li>
+<li><a href="#what-a-built-in-theme-looks-like">What a built-in theme looks like</a></li>
+<li><a href="#the-rust-api">The Rust API</a></li>
+</ul></li>
+<li><a href="#the-compiler-floor">The compiler floor</a></li>
+<li><a href="#upgrading">Upgrading</a></li>
+</ul>
+</nav>
+<p>A generator you point at ten years of writing needs to be boring about compatibility. This page says exactly what is promised.</p>
+<h2 id="the-stable-surface">The stable surface</h2>
+<p>Changing any of this incompatibly requires a major version.</p>
+<table>
+<thead>
+<tr><th>Stable</th><th>What that covers</th></tr>
+</thead>
+<tbody>
+<tr><td><code class="verbatim">orgo.toml</code> keys</td><td>Their names, types and meaning.</td></tr>
+<tr><td>Template context</td><td><code class="verbatim">page</code>, <code class="verbatim">site</code>, <code class="verbatim">nav</code>, <code class="verbatim">root</code>, <code class="verbatim">pages</code>, <code class="verbatim">group</code>, <code class="verbatim">groups</code>, <code class="verbatim">paginator</code>, <code class="verbatim">stylesheet</code>, <code class="verbatim">theme</code>, and the <code class="verbatim">absolute</code>, <code class="verbatim">rfc822</code> and <code class="verbatim">truncate</code> filters.</td></tr>
+<tr><td>The CLI</td><td>Command names, flags and exit codes.</td></tr>
+<tr><td>URLs</td><td>How a source path becomes an output path, <code class="verbatim">#+SLUG:</code> included.</td></tr>
+</tbody>
+</table>
+<p><strong>URLs are on that list deliberately.</strong> A generator that quietly moves your pages breaks every link anyone has ever made to you, and no upgrade note fixes an inbound link.</p>
+<p>Adding things — a new config key, a new template variable — is a minor release. Nothing you already wrote stops working.</p>
+<h2 id="what-is-not-stable">What is not stable</h2>
+<p>Three things move freely, so the list above can hold still.</p>
+<h3 id="the-incremental-cache">The incremental cache</h3>
+<p><code class="verbatim">&lt;output&gt;/.orgo-cache.json</code> is versioned and discards itself on a mismatch. A cache format bump means one full rebuild, and nothing else. It is never a correctness dependency: a missing, stale or corrupt cache produces exactly the same site, more slowly.</p>
+<h3 id="rendered-html-details">Rendered HTML details</h3>
+<p>orgo aims at what Emacs exports from the same file, and closing a gap changes markup. That is the product working rather than a regression — but it is called out in the release notes every time, because your stylesheet is downstream of it.</p>
+<p>The class names the documentation names are the ones to write CSS against: <code class="verbatim">post-list</code>, <code class="verbatim">post-list-item</code>, <code class="verbatim">figure-number</code>, <code class="verbatim">table-number</code>, <code class="verbatim">section-number-N</code>, <code class="verbatim">footnote-ref</code>, <code class="verbatim">verbatim</code>, and the <code class="verbatim">on=/=off=/=trans</code> classes on checkbox items.</p>
+<h3 id="what-a-built-in-theme-looks-like">What a built-in theme looks like</h3>
+<p>The names — <code class="verbatim">plain</code>, <code class="verbatim">blog</code>, <code class="verbatim">wiki</code>, <code class="verbatim">docs</code> — and the fact that the chosen one is written to <code class="verbatim">theme.css</code> are stable. Its CSS is not: a theme is a starting point that improves between releases, and a site that cannot afford that should copy the stylesheet it likes into its own assets and stop naming a theme.</p>
+<h3 id="the-rust-api">The Rust API</h3>
+<p>The crate is on crates.io so the binary can be installed with <code class="verbatim">cargo install</code>. The library exists to serve the binary, and its types move as the tool does.</p>
+<h2 id="the-compiler-floor">The compiler floor</h2>
+<p>The MSRV is <strong>1.88</strong>, measured rather than assumed — which is how it came to be 1.88 rather than the 1.82 orgo's own code needs. The floor is set by dependencies, and a dependency raising its own is invisible until someone on an older compiler tries to build.</p>
+<p>Raising it is a minor version, never a patch.</p>
+<h2 id="upgrading">Upgrading</h2>
+<pre><code class="language-sh highlight"><span class="source shell bash"><span class="meta function-call shell"><span class="variable function shell">cargo</span></span><span class="meta function-call arguments shell"> install orgo          <span class="comment line number-sign shell"><span class="punctuation definition comment begin shell">#</span></span><span class="comment line number-sign shell"> or download a release binary</span><span class="comment line number-sign shell">
+</span></span><span class="meta function-call shell"><span class="variable function shell">orgo</span></span><span class="meta function-call arguments shell"> build content<span class="variable parameter option shell"><span class="punctuation definition parameter shell"> -</span>o</span> _site<span class="variable parameter option shell"><span class="punctuation definition parameter shell"> --</span>no-cache</span><span class="variable parameter option shell"><span class="punctuation definition parameter shell"> --</span>strict</span></span></span></code></pre>
+<p><code class="verbatim">--no-cache</code> makes the first build after an upgrade a full one, so you are comparing the new version's output to the old version's output rather than to a cache written by a mixture of both. <code class="verbatim">--strict</code> turns a link that stopped resolving into a failure.</p>
+<p>If you keep your built site in version control, the diff after that command <strong>is</strong> the upgrade report, and the most useful review a generator can give you.</p>
+</main>
+<footer class="site">
+Built with orgo &mdash; these docs are an orgo site.
+</footer>
+</body>
+</html>

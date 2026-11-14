@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- An org outline: three headings, indented. Drawn plainly enough to survive 16px,
+       and coloured from the same accent the stylesheet uses, in both schemes. -->
+  <style>
+    :root { fill: #0b5fa5; }
+    @media (prefers-color-scheme: dark) { :root { fill: #79b8ff; } }
+  </style>
+  <circle cx="6" cy="8" r="2.5"/>
+  <rect x="12" y="6.5" width="14" height="3" rx="1.5"/>
+  <circle cx="12" cy="16" r="2.5"/>
+  <rect x="18" y="14.5" width="8" height="3" rx="1.5"/>
+  <circle cx="12" cy="24" r="2.5"/>
+  <rect x="18" y="22.5" width="8" height="3" rx="1.5"/>
+</svg>

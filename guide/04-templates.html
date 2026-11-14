@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Templates &middot; orgo</title>
+<meta name="description" content="Layouts, inheritance, every variable and filter available to a template.">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../theme.css">
+<link rel="stylesheet" href="../syntax.css">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="site">
+<a class="site-title" href="../index.html">orgo</a>
+<nav>
+<a href="../install.html">Install</a>
+<a href="../quickstart.html">Quick start</a>
+<a href="index.html">Guide</a>
+</nav>
+</header>
+<main>
+<h1>Templates</h1>
+<p class="lede">minijinja layouts loaded from disk, hashed into the cache, replaceable entirely.</p>
+<nav class="toc" aria-label="On this page">
+<h2>On this page</h2>
+<ul>
+<li><a href="#base-html-replaces-the-layout">base.html replaces the layout</a></li>
+<li><a href="#pages-can-render-through-a-different-layout">Pages can render through a different layout</a></li>
+<li><a href="#names-are-full-filenames">Names are full filenames</a>
+<ul>
+<li><a href="#partials-keep-a-snippet-out-of-a-layout">Partials keep a snippet out of a layout</a></li>
+</ul></li>
+<li><a href="#variables">Variables</a>
+<ul>
+<li><a href="#body">body</a></li>
+<li><a href="#page">page</a></li>
+<li><a href="#site">site</a></li>
+<li><a href="#nav">nav</a></li>
+<li><a href="#root">root</a></li>
+<li><a href="#stylesheet">stylesheet</a></li>
+<li><a href="#theme">theme</a></li>
+<li><a href="#pages-group-groups-paginator">pages, group, groups, paginator</a></li>
+<li><a href="#page-toc">page.toc</a></li>
+</ul></li>
+<li><a href="#filters">Filters</a>
+<ul>
+<li><a href="#absolute">absolute</a></li>
+<li><a href="#truncate">truncate</a></li>
+</ul></li>
+<li><a href="#escaping">Escaping</a></li>
+<li><a href="#templates-are-a-cache-input">Templates are a cache input</a></li>
+</ul>
+</nav>
+<p>Templates live in the directory named by <code class="verbatim">[templates] dir</code>, default <code class="verbatim">templates/</code>. They are <a href="https://docs.rs/minijinja">minijinja</a> templates — Jinja2 syntax — loaded at build time, so editing one and rebuilding is the whole edit cycle.</p>
+<h2 id="base-html-replaces-the-layout">base.html replaces the layout</h2>
+<p>A file called <code class="verbatim">base.html</code> becomes the page layout. Without one, a built-in layout is used — which is what makes a bare directory of org files build into a real site.</p>
+<pre><code class="language-html highlight"><span class="text html basic"><span class="meta tag sgml html"><span class="punctuation definition tag html">&lt;!</span><span class="meta tag sgml doctype html"><span class="entity name tag doctype html">DOCTYPE</span> html</span><span class="punctuation definition tag html">&gt;</span></span>
+<span class="meta tag structure any html"><span class="punctuation definition tag begin html">&lt;</span><span class="entity name tag structure any html">html</span> <span class="meta attribute-with-value html"><span class="entity other attribute-name html">lang</span><span class="punctuation separator key-value html">=</span></span><span class="meta attribute-with-value html"><span class="string quoted double html"><span class="punctuation definition string begin html">&quot;</span>{{ site.language }}<span class="punctuation definition string end html">&quot;</span></span></span><span class="punctuation definition tag end html">&gt;</span></span>
+<span class="meta tag structure any html"><span class="punctuation definition tag begin html">&lt;</span><span class="entity name tag structure any html">head</span><span class="punctuation definition tag end html">&gt;</span></span>
+  <span class="meta tag inline any html"><span class="punctuation definition tag begin html">&lt;</span><span class="entity name tag inline any html">meta</span> <span class="meta attribute-with-value html"><span class="entity other attribute-name html">charset</span><span class="punctuation separator key-value html">=</span></span><span class="meta attribute-with-value html"><span class="string quoted double html"><span class="punctuation definition string begin html">&quot;</span>utf-8<span class="punctuation definition string end html">&quot;</span></span></span><span class="punctuation definition tag end html">&gt;</span></span>
+  <span class="meta tag inline any html"><span class="punctuation definition tag begin html">&lt;</span><span class="entity name tag inline any html">meta</span> <span class="meta attribute-with-value html"><span class="entity other attribute-name html">name</span><span class="punctuation separator key-value html">=</span></span><span class="meta attribute-with-value html"><span class="string quoted double html"><span class="punctuation definition string begin html">&quot;</span>viewport<span class="punctuation definition string end html">&quot;</span></span></span> <span class="meta attribute-with-value html"><span class="entity other attribute-name html">content</span><span class="punctuation separator key-value html">=</span></span><span class="meta attribute-with-value html"><span class="string quoted double html"><span class="punctuation definition string begin html">&quot;</span>width=device-width, initial-scale=1<span class="punctuation definition string end html">&quot;</span></span></span><span class="punctuation definition tag end html">&gt;</span></span>
+  <span class="meta tag inline any html"><span class="punctuation definition tag begin html">&lt;</span><span class="entity name tag inline any html">title</span><span class="punctuation definition tag end html">&gt;</span></span>{{ page.title }} — {{ site.title }}<span class="meta tag inline any html"><span class="punctuation definition tag begin html">&lt;/</span><span class="entity name tag inline any html">title</span><span class="punctuation definition tag end html">&gt;</span></span>
+  <span class="meta tag inline any html"><span class="punctuation definition tag begin html">&lt;</span><span class="entity name tag inline any html">link</span> <span class="meta attribute-with-value html"><span class="entity other attribute-name html">rel</span><span class="punctuation separator key-value html">=</span></span><span class="meta attribute-with-value html"><span class="string quoted double html"><span class="punctuation definition string begin html">&quot;</span>stylesheet<span class="punctuation definition string end html">&quot;</span></span></span> <span class="meta attribute-with-value html"><span class="entity other attribute-name html">href</span><span class="punctuation separator key-value html">=</span></span><span class="meta attribute-with-value html"><span class="string quoted double html"><span class="punctuation definition string begin html">&quot;</span>{{ root }}style.css<span class="punctuation definition string end html">&quot;</span></span></span><span class="punctuation definition tag end html">&gt;</span></span>
+  {% if stylesheet %}<span class="meta tag inline any html"><span class="punctuation definition tag begin html">&lt;</span><span class="entity name tag inline any html">link</span> <span class="meta attribute-with-value html"><span class="entity other attribute-name html">rel</span><span class="punctuation separator key-value html">=</span></span><span class="meta attribute-with-value html"><span class="string quoted double html"><span class="punctuation definition string begin html">&quot;</span>stylesheet<span class="punctuation definition string end html">&quot;</span></span></span> <span class="meta attribute-with-value html"><span class="entity other attribute-name html">href</span><span class="punctuation separator key-value html">=</span></span><span class="meta attribute-with-value html"><span class="string quoted double html"><span class="punctuation definition string begin html">&quot;</span>{{ stylesheet }}<span class="punctuation definition string end html">&quot;</span></span></span><span class="punctuation definition tag end html">&gt;</span></span>{% endif %}
+<span class="meta tag structure any html"><span class="punctuation definition tag begin html">&lt;/</span><span class="entity name tag structure any html">head</span><span class="punctuation definition tag end html">&gt;</span></span>
+<span class="meta tag structure any html"><span class="punctuation definition tag begin html">&lt;</span><span class="entity name tag structure any html">body</span><span class="punctuation definition tag end html">&gt;</span></span>
+  <span class="meta tag block any html"><span class="punctuation definition tag begin html">&lt;</span><span class="entity name tag block any html">nav</span><span class="punctuation definition tag end html">&gt;</span></span>{% for item in nav %}<span class="meta tag inline a html"><span class="punctuation definition tag begin html">&lt;</span><span class="entity name tag inline a html">a</span> <span class="meta attribute-with-value html"><span class="entity other attribute-name html">href</span><span class="punctuation separator key-value html">=</span></span><span class="meta attribute-with-value html"><span class="string quoted double html"><span class="punctuation definition string begin html">&quot;</span>{{ item.url }}<span class="punctuation definition string end html">&quot;</span></span></span><span class="punctuation definition tag end html">&gt;</span></span>{{ item.title }}<span class="meta tag inline a html"><span class="punctuation definition tag begin html">&lt;/</span><span class="entity name tag inline a html">a</span><span class="punctuation definition tag end html">&gt;</span></span>{% endfor %}<span class="meta tag block any html"><span class="punctuation definition tag begin html">&lt;/</span><span class="entity name tag block any html">nav</span><span class="punctuation definition tag end html">&gt;</span></span>
+  <span class="meta tag other html"><span class="punctuation definition tag begin html">&lt;</span><span class="entity name tag other html">main</span><span class="punctuation definition tag end html">&gt;</span></span>
+    <span class="meta tag block any html"><span class="punctuation definition tag begin html">&lt;</span><span class="entity name tag block any html">h1</span><span class="punctuation definition tag end html">&gt;</span></span>{{ page.title }}<span class="meta tag block any html"><span class="punctuation definition tag begin html">&lt;/</span><span class="entity name tag block any html">h1</span><span class="punctuation definition tag end html">&gt;</span></span>
+    {{ body | safe }}
+  <span class="meta tag other html"><span class="punctuation definition tag begin html">&lt;/</span><span class="entity name tag other html">main</span><span class="punctuation definition tag end html">&gt;</span></span>
+<span class="meta tag structure any html"><span class="punctuation definition tag begin html">&lt;/</span><span class="entity name tag structure any html">body</span><span class="punctuation definition tag end html">&gt;</span></span>
+<span class="meta tag structure any html"><span class="punctuation definition tag begin html">&lt;/</span><span class="entity name tag structure any html">html</span><span class="punctuation definition tag end html">&gt;</span></span></span></code></pre>
+<p>A template that does not compile is a <strong>build error</strong>, not a fallback to the default — someone editing a layout should see the mistake, not output that looks like their edit did nothing.</p>
+<h2 id="pages-can-render-through-a-different-layout">Pages can render through a different layout</h2>
+<p><code class="verbatim">base.html</code> is the default, not the only option. A <code class="verbatim">[[pages]]</code> rule gives a section its own layout, and <code class="verbatim">#+TEMPLATE:</code> gives one page its own:</p>
+<pre><code class="language-toml highlight"><span class="source toml"><span class="punctuation definition table array toml">[[</span><span class="entity name section toml">pages</span><span class="punctuation definition table array toml">]]</span>
+<span class="variable other key toml">match</span> <span class="keyword operator assignment toml">=</span> <span class="string quoted double toml"><span class="punctuation definition string begin toml">&quot;</span>blog<span class="punctuation definition string end toml">&quot;</span></span>
+<span class="variable other key toml">template</span> <span class="keyword operator assignment toml">=</span> <span class="string quoted double toml"><span class="punctuation definition string begin toml">&quot;</span>post.html<span class="punctuation definition string end toml">&quot;</span></span></span></code></pre>
+<pre><code class="language-org highlight"><span class="text org"><span class="keyword other keyword org">#+TEMPLATE:</span><span class="string unquoted org"> wide.html</span></span></code></pre>
+<p>The page's own keyword wins over any rule, and the most specific rule wins over a broader one. A second layout almost always wants the first one's chrome, so it extends it:</p>
+<pre><code class="language-html highlight"><span class="text html basic">{% extends &quot;base.html&quot; %}
+{% block content %}
+{{ body | safe }}
+<span class="meta tag block any html"><span class="punctuation definition tag begin html">&lt;</span><span class="entity name tag block any html">p</span><span class="punctuation definition tag end html">&gt;</span></span><span class="meta tag inline a html"><span class="punctuation definition tag begin html">&lt;</span><span class="entity name tag inline a html">a</span> <span class="meta attribute-with-value html"><span class="entity other attribute-name html">href</span><span class="punctuation separator key-value html">=</span></span><span class="meta attribute-with-value html"><span class="string quoted double html"><span class="punctuation definition string begin html">&quot;</span>mailto:you@example.com<span class="punctuation definition string end html">&quot;</span></span></span><span class="punctuation definition tag end html">&gt;</span></span>Reply by email <span class="constant character entity html"><span class="punctuation definition entity html">&amp;</span>rarr<span class="punctuation definition entity html">;</span></span><span class="meta tag inline a html"><span class="punctuation definition tag begin html">&lt;/</span><span class="entity name tag inline a html">a</span><span class="punctuation definition tag end html">&gt;</span></span><span class="meta tag block any html"><span class="punctuation definition tag begin html">&lt;/</span><span class="entity name tag block any html">p</span><span class="punctuation definition tag end html">&gt;</span></span>
+{% endblock %}</span></code></pre>
+<p>Full rules in <a href="02-configuration.html">Configuration</a>.</p>
+<h2 id="names-are-full-filenames">Names are full filenames</h2>
+<p>Templates are registered under their full relative filename: <code class="verbatim">base.html</code>, <code class="verbatim">partials/head.html</code>, <code class="verbatim">feed.xml</code>. That is what <code class="verbatim">{% extends "base.html" %}</code> names, and it is why a template can have any extension — which is how an RSS feed is just a listing page.</p>
+<pre><code class="language-html highlight"><span class="text html basic">{% extends &quot;base.html&quot; %}
+{% block content %}<span class="meta tag block any html"><span class="punctuation definition tag begin html">&lt;</span><span class="entity name tag block any html">p</span><span class="punctuation definition tag end html">&gt;</span></span>Only this part differs.<span class="meta tag block any html"><span class="punctuation definition tag begin html">&lt;/</span><span class="entity name tag block any html">p</span><span class="punctuation definition tag end html">&gt;</span></span>{% endblock %}</span></code></pre>
+<p>Subdirectories work, so <code class="verbatim">{% include "partials/header.html" %}</code> does what you expect.</p>
+<h3 id="partials-keep-a-snippet-out-of-a-layout">Partials keep a snippet out of a layout</h3>
+<p>A block of content that is not really layout — an invitation to reply, a licence line, a donation ask — is better as its own file than as a line inside <code class="verbatim">base.html</code>:</p>
+<pre><code class="language-html highlight"><span class="text html basic">{% extends &quot;base.html&quot; %}
+{% block content %}
+{{ body | safe }}
+{% include &quot;reply.html&quot; %}
+{% endblock %}</span></code></pre>
+<p>Emptying <code class="verbatim">reply.html</code> removes it everywhere; editing it re-renders exactly the pages that include it, because the render key follows includes. And because the <strong>page</strong> chooses its layout, an individual page opts in with <code class="verbatim">#+TEMPLATE: post.html</code> or out with <code class="verbatim">#+TEMPLATE: base.html</code>, without a rule deciding for a whole directory.</p>
+<h2 id="variables">Variables</h2>
+<h3 id="body">body</h3>
+<p>The rendered page HTML. Always use <code class="verbatim">{{ body | safe }}</code> — it is already HTML, and escaping it would print tags at the reader.</p>
+<p>Empty on generated pages, which build their content from <code class="verbatim">pages</code> or <code class="verbatim">groups</code> instead.</p>
+<h3 id="page">page</h3>
+<table>
+<thead>
+<tr><th>Field</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code class="verbatim">title</code></td><td><code class="verbatim">#+TITLE:</code>, or the filename stem.</td></tr>
+<tr><td><code class="verbatim">url</code></td><td>Output path relative to the site root, e.g. <code class="verbatim">blog/post.html</code>.</td></tr>
+<tr><td><code class="verbatim">source</code></td><td>Source path relative to the source root, e.g. <code class="verbatim">blog/post.org</code>.</td></tr>
+<tr><td><code class="verbatim">date</code></td><td><code class="verbatim">#+DATE:</code> verbatim, in whatever org syntax was written.</td></tr>
+<tr><td><code class="verbatim">date_iso</code></td><td>The <code class="verbatim">YYYY-MM-DD</code> inside it, or <code class="verbatim">none</code>.</td></tr>
+<tr><td><code class="verbatim">year</code></td><td>The year from that date, for grouping a listing.</td></tr>
+<tr><td><code class="verbatim">tags</code></td><td><code class="verbatim">#+FILETAGS:</code>, split.</td></tr>
+<tr><td><code class="verbatim">excerpt</code></td><td><code class="verbatim">#+DESCRIPTION:</code>, or the first paragraph.</td></tr>
+<tr><td><code class="verbatim">word_count</code></td><td>Words of prose, excluding code blocks.</td></tr>
+<tr><td><code class="verbatim">reading_time</code></td><td>Minutes at 200 wpm, rounded up.</td></tr>
+<tr><td><code class="verbatim">toc</code></td><td>The heading tree. See below.</td></tr>
+<tr><td><code class="verbatim">keywords</code></td><td><strong>Every</strong> <code class="verbatim">#+KEYWORD:</code>, by lowercased name.</td></tr>
+</tbody>
+</table>
+<p><code class="verbatim">page.keywords</code> is the escape hatch: <code class="verbatim">#+CUSTOM_THING: x</code> is <code class="verbatim">{{ page.keywords.custom_thing }}</code>, so your own metadata works without orgo knowing it exists.</p>
+<h3 id="site">site</h3>
+<p><code class="verbatim">site.title</code>, <code class="verbatim">site.base_url</code>, <code class="verbatim">site.description</code>, <code class="verbatim">site.language</code> — straight from <code class="verbatim">[site]</code> in the config.</p>
+<h3 id="nav">nav</h3>
+<p>A list of <code class="verbatim">{title, url}</code>, with URLs relative to the current page.</p>
+<h3 id="root">root</h3>
+<p>The <code class="verbatim">../</code> prefix back to the site root from this page: empty at the top level, <code class="verbatim">../</code> one level down. Prefix it to any site-root-relative path so the same template works at any depth:</p>
+<pre><code class="language-html highlight"><span class="text html basic"><span class="meta tag inline any html"><span class="punctuation definition tag begin html">&lt;</span><span class="entity name tag inline any html">link</span> <span class="meta attribute-with-value html"><span class="entity other attribute-name html">rel</span><span class="punctuation separator key-value html">=</span></span><span class="meta attribute-with-value html"><span class="string quoted double html"><span class="punctuation definition string begin html">&quot;</span>stylesheet<span class="punctuation definition string end html">&quot;</span></span></span> <span class="meta attribute-with-value html"><span class="entity other attribute-name html">href</span><span class="punctuation separator key-value html">=</span></span><span class="meta attribute-with-value html"><span class="string quoted double html"><span class="punctuation definition string begin html">&quot;</span>{{ root }}style.css<span class="punctuation definition string end html">&quot;</span></span></span><span class="punctuation definition tag end html">&gt;</span></span>
+<span class="meta tag inline a html"><span class="punctuation definition tag begin html">&lt;</span><span class="entity name tag inline a html">a</span> <span class="meta attribute-with-value html"><span class="entity other attribute-name html">href</span><span class="punctuation separator key-value html">=</span></span><span class="meta attribute-with-value html"><span class="string quoted double html"><span class="punctuation definition string begin html">&quot;</span>{{ root }}{{ post.url }}<span class="punctuation definition string end html">&quot;</span></span></span><span class="punctuation definition tag end html">&gt;</span></span>{{ post.title }}<span class="meta tag inline a html"><span class="punctuation definition tag begin html">&lt;/</span><span class="entity name tag inline a html">a</span><span class="punctuation definition tag end html">&gt;</span></span></span></code></pre>
+<h3 id="stylesheet">stylesheet</h3>
+<p>URL of the generated <code class="verbatim">syntax.css</code>, relative to this page. Link it or code blocks are unstyled.</p>
+<h3 id="theme">theme</h3>
+<p>URL of <code class="verbatim">theme.css</code>, relative to this page — the <a href="02-configuration.html">built-in theme</a> named by <code class="verbatim">site.theme</code>. Empty when there is none, which is the default, so guard it and link it <strong>before</strong> <code class="verbatim">stylesheet</code> or the theme's code colours would override the highlighter's:</p>
+<pre><code class="language-html highlight"><span class="text html basic">{% if theme %}<span class="meta tag inline any html"><span class="punctuation definition tag begin html">&lt;</span><span class="entity name tag inline any html">link</span> <span class="meta attribute-with-value html"><span class="entity other attribute-name html">rel</span><span class="punctuation separator key-value html">=</span></span><span class="meta attribute-with-value html"><span class="string quoted double html"><span class="punctuation definition string begin html">&quot;</span>stylesheet<span class="punctuation definition string end html">&quot;</span></span></span> <span class="meta attribute-with-value html"><span class="entity other attribute-name html">href</span><span class="punctuation separator key-value html">=</span></span><span class="meta attribute-with-value html"><span class="string quoted double html"><span class="punctuation definition string begin html">&quot;</span>{{ theme }}<span class="punctuation definition string end html">&quot;</span></span></span><span class="punctuation definition tag end html">&gt;</span></span>{% endif %}
+{% if stylesheet %}<span class="meta tag inline any html"><span class="punctuation definition tag begin html">&lt;</span><span class="entity name tag inline any html">link</span> <span class="meta attribute-with-value html"><span class="entity other attribute-name html">rel</span><span class="punctuation separator key-value html">=</span></span><span class="meta attribute-with-value html"><span class="string quoted double html"><span class="punctuation definition string begin html">&quot;</span>stylesheet<span class="punctuation definition string end html">&quot;</span></span></span> <span class="meta attribute-with-value html"><span class="entity other attribute-name html">href</span><span class="punctuation separator key-value html">=</span></span><span class="meta attribute-with-value html"><span class="string quoted double html"><span class="punctuation definition string begin html">&quot;</span>{{ stylesheet }}<span class="punctuation definition string end html">&quot;</span></span></span><span class="punctuation definition tag end html">&gt;</span></span>{% endif %}</span></code></pre>
+<p>A layout that ignores it is a layout with its own CSS, which is the point at which you have outgrown the setting.</p>
+<h3 id="pages-group-groups-paginator">pages, group, groups, paginator</h3>
+<p>Present on generated pages; see <a href="03-collections.html">Collections</a>. <code class="verbatim">pages</code> is also available on every page when <code class="verbatim">[templates] expose_page_list = true</code>.</p>
+<h3 id="page-toc">page.toc</h3>
+<p>The page's headings as a <strong>tree</strong> — a table of contents is one, and rebuilding a tree from a flat list of levels inside a template is what Jinja is worst at.</p>
+<p>Each entry has <code class="verbatim">title</code>, <code class="verbatim">anchor</code>, <code class="verbatim">level</code>, <code class="verbatim">number</code> and <code class="verbatim">children</code>:</p>
+<pre><code class="language-html highlight"><span class="text html basic">{% macro toc_list(entries) %}
+<span class="meta tag block any html"><span class="punctuation definition tag begin html">&lt;</span><span class="entity name tag block any html">ul</span><span class="punctuation definition tag end html">&gt;</span></span>{% for e in entries %}
+  <span class="meta tag inline any html"><span class="punctuation definition tag begin html">&lt;</span><span class="entity name tag inline any html">li</span><span class="punctuation definition tag end html">&gt;</span></span><span class="meta tag inline a html"><span class="punctuation definition tag begin html">&lt;</span><span class="entity name tag inline a html">a</span> <span class="meta attribute-with-value html"><span class="entity other attribute-name html">href</span><span class="punctuation separator key-value html">=</span></span><span class="meta attribute-with-value html"><span class="string quoted double html"><span class="punctuation definition string begin html">&quot;</span>#{{ e.anchor }}<span class="punctuation definition string end html">&quot;</span></span></span><span class="punctuation definition tag end html">&gt;</span></span>{{ e.number }} {{ e.title }}<span class="meta tag inline a html"><span class="punctuation definition tag begin html">&lt;/</span><span class="entity name tag inline a html">a</span><span class="punctuation definition tag end html">&gt;</span></span>
+  {%- if e.children %}{{ toc_list(e.children) }}{% endif %}<span class="meta tag inline any html"><span class="punctuation definition tag begin html">&lt;/</span><span class="entity name tag inline any html">li</span><span class="punctuation definition tag end html">&gt;</span></span>
+{% endfor %}<span class="meta tag block any html"><span class="punctuation definition tag begin html">&lt;/</span><span class="entity name tag block any html">ul</span><span class="punctuation definition tag end html">&gt;</span></span>
+{% endmacro %}
+
+{% if page.toc | length &gt; 1 %}{{ toc_list(page.toc) }}{% endif %}</span></code></pre>
+<p><code class="verbatim">number</code> is the section number — <code class="verbatim">1.</code>, <code class="verbatim">3.1.</code> — always computed and printed only if you ask for it. Print it when <code class="verbatim">[html] section_numbers</code> is on, or the contents will number what the headings do not.</p>
+<p>Anchors come from the same function that emits heading <code class="verbatim">id</code> attributes, so a TOC link cannot drift from the heading it points at. The tree is empty when the page has no headings, when <code class="verbatim">[html] toc = false</code>, or when the document says <code class="verbatim">#+OPTIONS: toc:nil</code>.</p>
+<h2 id="filters">Filters</h2>
+<p>Beyond minijinja's built-ins:</p>
+<table>
+<thead>
+<tr><th>Filter</th><th>Does</th></tr>
+</thead>
+<tbody>
+<tr><td><code class="verbatim">absolute</code></td><td>Site-root-relative path → absolute URL, using <code class="verbatim">site.base_url</code>.</td></tr>
+<tr><td><code class="verbatim">rfc822</code></td><td>Any org or ISO date → the format RSS <code class="verbatim">pubDate</code> requires.</td></tr>
+<tr><td><code class="verbatim">truncate(n)</code></td><td>Shorten to at most <em>n</em> characters on a word boundary, with an ellipsis.</td></tr>
+</tbody>
+</table>
+<h3 id="absolute">absolute</h3>
+<pre><code class="language-html highlight"><span class="text html basic"><span class="meta tag inline any html"><span class="punctuation definition tag begin html">&lt;</span><span class="entity name tag inline any html">link</span><span class="punctuation definition tag end html">&gt;</span></span>{{ post.url | absolute }}<span class="meta tag inline any html"><span class="punctuation definition tag begin html">&lt;/</span><span class="entity name tag inline any html">link</span><span class="punctuation definition tag end html">&gt;</span></span></span></code></pre>
+<p>Apply it to the <strong>site-root-relative</strong> values — <code class="verbatim">page.url</code>, <code class="verbatim">pages[].url</code>, <code class="verbatim">group.url</code> — and not to <code class="verbatim">nav[].url</code>, <code class="verbatim">paginator.*_url</code>, <code class="verbatim">stylesheet</code> or <code class="verbatim">root</code>, which are relative to the page carrying them and already correct there.</p>
+<p>An already-absolute URL passes through, so a template can apply it uniformly to internal paths and external links. With no <code class="verbatim">base_url</code> it is an <strong>error</strong> naming the setting, rather than a relative URL that would make a feed invalid.</p>
+<h3 id="truncate">truncate</h3>
+<p>minijinja ships no truncate, and an excerpt is usually a whole paragraph — so without one a listing's only options are the full paragraph or nothing.</p>
+<h2 id="escaping">Escaping</h2>
+<p>Output is HTML-escaped by default, because titles and text are author content. <code class="verbatim">{{ body | safe }}</code> is the deliberate exception.</p>
+<p>Unlike stock minijinja, <code class="verbatim">/</code> is <strong>not</strong> escaped. Escaping it is a defence for values interpolated into JavaScript, and since <code class="verbatim">&lt;</code> is escaped anyway it buys nothing in an HTML document — while making every URL read <code class="verbatim">..&amp;#x2f;index.html</code>. Templates emit a lot of URLs.</p>
+<h2 id="templates-are-a-cache-input">Templates are a cache input</h2>
+<p>Every template's source is hashed, so editing a layout re-renders the pages that use it. A design change never leaves a site half-updated.</p>
+</main>
+<footer class="site">
+Built with orgo &mdash; these docs are an orgo site.
+</footer>
+</body>
+</html>

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deploying &middot; orgo</title>
+<meta name="description" content="Producing a production build, and putting it somewhere.">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../theme.css">
+<link rel="stylesheet" href="../syntax.css">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="site">
+<a class="site-title" href="../index.html">orgo</a>
+<nav>
+<a href="../install.html">Install</a>
+<a href="../quickstart.html">Quick start</a>
+<a href="index.html">Guide</a>
+</nav>
+</header>
+<main>
+<h1>Deploying</h1>
+<p class="lede">The output is a directory of files. Everything after that is your host&#x27;s problem.</p>
+<nav class="toc" aria-label="On this page">
+<h2>On this page</h2>
+<ul>
+<li><a href="#the-production-build">The production build</a></li>
+<li><a href="#set-base-url-for-production">Set base_url for production</a></li>
+<li><a href="#one-thing-to-exclude">One thing to exclude</a></li>
+<li><a href="#continuous-integration">Continuous integration</a>
+<ul>
+<li><a href="#caching-between-runs">Caching between runs</a></li>
+</ul></li>
+<li><a href="#static-hosts">Static hosts</a>
+<ul>
+<li><a href="#urls-end-in-html">URLs end in .html</a></li>
+</ul></li>
+<li><a href="#checking-a-build-before-shipping">Checking a build before shipping</a></li>
+<li><a href="#what-a-clean-build-looks-like">What a clean build looks like</a></li>
+<li><a href="#do-not-publish-the-cache">Do not publish the cache</a></li>
+<li><a href="#telling-a-search-engine-where-things-are">Telling a search engine where things are</a></li>
+<li><a href="#after-an-upgrade">After an upgrade</a></li>
+</ul>
+</nav>
+<h2 id="the-production-build">The production build</h2>
+<pre><code class="language-sh highlight"><span class="source shell bash"><span class="meta function-call shell"><span class="variable function shell">orgo</span></span><span class="meta function-call arguments shell"> build content<span class="variable parameter option shell"><span class="punctuation definition parameter shell"> -</span>o</span> _site<span class="variable parameter option shell"><span class="punctuation definition parameter shell"> --</span>strict</span></span></span></code></pre>
+<p>Two differences from the build you run while writing:</p>
+<ul>
+<li><code class="verbatim">--strict</code> turns broken internal links and parse diagnostics into a non-zero exit, so a bad build fails rather than shipping.</li>
+<li>No <code class="verbatim">--drafts</code>, so pages marked <code class="verbatim">#+DRAFT:</code> stay out.</li>
+</ul>
+<p>Everything in <code class="verbatim">_site</code> is the site: HTML, the generated <code class="verbatim">syntax.css</code>, <code class="verbatim">theme.css</code> if the config names a <a href="02-configuration.html">theme</a>, and every asset copied from the source. There is no runtime, no server requirement and no build step downstream.</p>
+<h2 id="set-base-url-for-production">Set base<sub>url</sub> for production</h2>
+<pre><code class="language-toml highlight"><span class="source toml"><span class="punctuation definition table toml">[</span><span class="entity name section toml">site</span><span class="punctuation definition table toml">]</span>
+<span class="variable other key toml">base_url</span> <span class="keyword operator assignment toml">=</span> <span class="string quoted double toml"><span class="punctuation definition string begin toml">&quot;</span>https://example.com<span class="punctuation definition string end toml">&quot;</span></span></span></code></pre>
+<p>Relative URLs work anywhere, which is why the default is empty — but two things need absolute ones: <strong>feeds</strong>, because a feed is read away from the site that served it, and <strong>canonical links</strong>. Without a base URL the <code class="verbatim">absolute</code> filter is an error rather than a quietly relative link, so a feed template will tell you.</p>
+<p>No trailing slash.</p>
+<h2 id="one-thing-to-exclude">One thing to exclude</h2>
+<p>The build writes <code class="verbatim">.orgo-cache.json</code> into the output directory. It is a dot-file, so most static hosts ignore it, but it is not part of the site — exclude it if your host uploads everything:</p>
+<pre><code class="language-sh highlight"><span class="source shell bash"><span class="meta function-call shell"><span class="variable function shell">rsync</span></span><span class="meta function-call arguments shell"><span class="variable parameter option shell"><span class="punctuation definition parameter shell"> -</span>a</span><span class="variable parameter option shell"><span class="punctuation definition parameter shell"> --</span>delete</span><span class="variable parameter option shell"><span class="punctuation definition parameter shell"> --</span>exclude</span> <span class="string quoted single shell"><span class="punctuation definition string begin shell">&#39;</span>.orgo-cache.json<span class="punctuation definition string end shell">&#39;</span></span> _site/ user@host:/var/www/site/</span></span></code></pre>
+<p>Keeping the cache <strong>between</strong> deploys, where the CI runner can see it, is what makes CI builds incremental. Keeping it on the <strong>server</strong> achieves nothing.</p>
+<h2 id="continuous-integration">Continuous integration</h2>
+<pre><code class="language-yaml highlight"><span class="source yaml"><span class="string unquoted plain out yaml"><span class="entity name tag yaml">name</span></span><span class="punctuation separator key-value mapping yaml">:</span> <span class="string unquoted plain out yaml">build</span>
+<span class="constant language boolean yaml">on</span><span class="punctuation separator key-value mapping yaml">:</span> <span class="meta flow-sequence yaml"><span class="punctuation definition sequence begin yaml">[</span><span class="string unquoted plain in yaml">push</span><span class="punctuation definition sequence end yaml">]</span></span>
+<span class="string unquoted plain out yaml"><span class="entity name tag yaml">jobs</span></span><span class="punctuation separator key-value mapping yaml">:</span>
+  <span class="string unquoted plain out yaml"><span class="entity name tag yaml">build</span></span><span class="punctuation separator key-value mapping yaml">:</span>
+    <span class="string unquoted plain out yaml"><span class="entity name tag yaml">runs-on</span></span><span class="punctuation separator key-value mapping yaml">:</span> <span class="string unquoted plain out yaml">ubuntu-latest</span>
+    <span class="string unquoted plain out yaml"><span class="entity name tag yaml">steps</span></span><span class="punctuation separator key-value mapping yaml">:</span>
+      <span class="punctuation definition block sequence item yaml">-</span> <span class="string unquoted plain out yaml"><span class="entity name tag yaml">uses</span></span><span class="punctuation separator key-value mapping yaml">:</span> <span class="string unquoted plain out yaml">actions/checkout@v4</span>
+      <span class="punctuation definition block sequence item yaml">-</span> <span class="string unquoted plain out yaml"><span class="entity name tag yaml">uses</span></span><span class="punctuation separator key-value mapping yaml">:</span> <span class="string unquoted plain out yaml">dtolnay/rust-toolchain@stable</span>
+      <span class="punctuation definition block sequence item yaml">-</span> <span class="string unquoted plain out yaml"><span class="entity name tag yaml">run</span></span><span class="punctuation separator key-value mapping yaml">:</span> <span class="string unquoted plain out yaml">cargo install --path .</span>
+      <span class="punctuation definition block sequence item yaml">-</span> <span class="string unquoted plain out yaml"><span class="entity name tag yaml">run</span></span><span class="punctuation separator key-value mapping yaml">:</span> <span class="string unquoted plain out yaml">orgo build content -o _site --strict</span>
+      <span class="punctuation definition block sequence item yaml">-</span> <span class="string unquoted plain out yaml"><span class="entity name tag yaml">uses</span></span><span class="punctuation separator key-value mapping yaml">:</span> <span class="string unquoted plain out yaml">actions/upload-artifact@v4</span>
+        <span class="string unquoted plain out yaml"><span class="entity name tag yaml">with</span></span><span class="punctuation separator key-value mapping yaml">:</span>
+          <span class="string unquoted plain out yaml"><span class="entity name tag yaml">name</span></span><span class="punctuation separator key-value mapping yaml">:</span> <span class="string unquoted plain out yaml">site</span>
+          <span class="string unquoted plain out yaml"><span class="entity name tag yaml">path</span></span><span class="punctuation separator key-value mapping yaml">:</span> <span class="string unquoted plain out yaml">_site</span></span></code></pre>
+<p><code class="verbatim">--strict</code> is the point of running this in CI at all: it turns a broken link into a failed build.</p>
+<h3 id="caching-between-runs">Caching between runs</h3>
+<p>Cache <code class="verbatim">_site/.orgo-cache.json</code> <strong>and</strong> <code class="verbatim">_site</code> together, or not at all. The manifest describes files it expects to find; a cache without its outputs simply triggers a full rebuild, which is correct but pointless.</p>
+<p>Given how fast a full build is — a 179-page site in well under a second — caching CI builds is rarely worth the configuration.</p>
+<h2 id="static-hosts">Static hosts</h2>
+<p>Nothing here is orgo-specific; a built site is ordinary static files.</p>
+<ul>
+<li><strong>Netlify, Vercel, Cloudflare Pages</strong>: publish directory <code class="verbatim">_site</code>, build command <code class="verbatim">cargo install --path . &amp;&amp; orgo build content -o _site --strict</code>.</li>
+<li><strong>GitHub Pages</strong>: upload <code class="verbatim">_site</code> as the Pages artifact.</li>
+<li><strong>Any web server</strong>: copy <code class="verbatim">_site</code> to the document root.</li>
+</ul>
+<h3 id="urls-end-in-html">URLs end in .html</h3>
+<p>orgo writes <code class="verbatim">blog/post.html</code> and links to it that way, so the site works with no server configuration at all — including opening it from a filesystem path.</p>
+<p>If you prefer extensionless URLs, that is a server-side rewrite, and you should also set <code class="verbatim">base_url</code> and check that your rewrite rules do not break the relative links in the pages.</p>
+<h2 id="checking-a-build-before-shipping">Checking a build before shipping</h2>
+<pre><code class="language-sh highlight"><span class="source shell bash"><span class="meta function-call shell"><span class="variable function shell">orgo</span></span><span class="meta function-call arguments shell"> build content<span class="variable parameter option shell"><span class="punctuation definition parameter shell"> -</span>o</span> _site<span class="variable parameter option shell"><span class="punctuation definition parameter shell"> --</span>strict</span></span>
+<span class="meta function-call shell"><span class="variable function shell">orgo</span></span><span class="meta function-call arguments shell"> serve content<span class="variable parameter option shell"><span class="punctuation definition parameter shell"> -</span>o</span> _site</span></span></code></pre>
+<p>Serving the production build locally is the last check worth doing: it catches a missing asset or a broken relative link in the browser, where you would notice.</p>
+<h2 id="what-a-clean-build-looks-like">What a clean build looks like</h2>
+<pre>built 182 page(s) (182 rendered, 0 cached), copied 3 asset(s) from content -&gt; _site (0 unresolved link(s), 0 diagnostic(s))</pre>
+<p>Both zeros matter. Unresolved links are internal links pointing at nothing; diagnostics are malformed org that degraded rather than failing. With <code class="verbatim">--strict</code> neither can reach this line, because either would have failed the build.</p>
+<h2 id="do-not-publish-the-cache">Do not publish the cache</h2>
+<p><code class="verbatim">&lt;output&gt;/.orgo-cache.json</code> is a build artefact that happens to live in the output directory, because it describes exactly that directory. Nothing breaks if it is served — it holds hashes and paths, not secrets — but it is not part of your site, so leave it behind:</p>
+<pre><code class="language-sh highlight"><span class="source shell bash"><span class="meta function-call shell"><span class="variable function shell">rsync</span></span><span class="meta function-call arguments shell"><span class="variable parameter option shell"><span class="punctuation definition parameter shell"> -</span>r</span><span class="variable parameter option shell"><span class="punctuation definition parameter shell"> --</span>delete-before</span><span class="variable parameter option shell"><span class="punctuation definition parameter shell"> --</span>exclude</span> <span class="string quoted single shell"><span class="punctuation definition string begin shell">&#39;</span>.orgo-cache.json<span class="punctuation definition string end shell">&#39;</span></span> _site/ server:/var/www/example.com/</span></span></code></pre>
+<p>Anything that uploads a directory wholesale needs the same exclusion. A deploy that <strong>deletes</strong> it on the far side is worse than one that copies it: the next build then has no cache to reuse and re-renders everything.</p>
+<h2 id="telling-a-search-engine-where-things-are">Telling a search engine where things are</h2>
+<p>A build with <code class="verbatim">site.base_url</code> set writes <code class="verbatim">sitemap.xml</code> at the site root, listing every page. Point a <code class="verbatim">robots.txt</code> at it if you want one:</p>
+<pre>Sitemap: https://example.com/sitemap.xml</pre>
+<p><code class="verbatim">robots.txt</code> is an ordinary file — put it beside your org files, or in a directory named by <code class="verbatim">[build] assets</code>, and it is copied through.</p>
+<h2 id="after-an-upgrade">After an upgrade</h2>
+<p>The first build on a new version is worth running with <code class="verbatim">--no-cache</code>, so you compare the new output to the old rather than to a cache written by both. What a version number promises — and what it does not — is in <a href="11-versioning.html">Versioning and upgrades</a>.</p>
+</main>
+<footer class="site">
+Built with orgo &mdash; these docs are an orgo site.
+</footer>
+</body>
+</html>

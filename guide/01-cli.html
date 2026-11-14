@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Command reference &middot; orgo</title>
+<meta name="description" content="Every command and flag, and what each is actually for.">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../theme.css">
+<link rel="stylesheet" href="../syntax.css">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="site">
+<a class="site-title" href="../index.html">orgo</a>
+<nav>
+<a href="../install.html">Install</a>
+<a href="../quickstart.html">Quick start</a>
+<a href="index.html">Guide</a>
+</nav>
+</header>
+<main>
+<h1>Command reference</h1>
+<p class="lede">Six commands: build, serve, watch, audit, init, clean.</p>
+<nav class="toc" aria-label="On this page">
+<h2>On this page</h2>
+<ul>
+<li><a href="#the-two-paths">The two paths</a></li>
+<li><a href="#build">build</a>
+<ul>
+<li><a href="#strict-is-for-ci">--strict is for CI</a></li>
+</ul></li>
+<li><a href="#serve">serve</a></li>
+<li><a href="#watch">watch</a></li>
+<li><a href="#audit">audit</a></li>
+<li><a href="#init">init</a></li>
+<li><a href="#clean">clean</a></li>
+<li><a href="#exit-codes">Exit codes</a></li>
+</ul>
+</nav>
+<h2 id="the-two-paths">The two paths</h2>
+<p><code class="verbatim">build</code>, <code class="verbatim">serve</code> and <code class="verbatim">watch</code> all take the same pair:</p>
+<pre><code class="language-sh highlight"><span class="source shell bash"><span class="meta function-call shell"><span class="variable function shell">orgo</span></span><span class="meta function-call arguments shell"> <span class="keyword operator assignment redirection shell">&lt;</span>command<span class="keyword operator assignment redirection shell">&gt;</span> <span class="keyword operator assignment redirection shell">&lt;</span>SOURCE<span class="keyword operator assignment redirection shell">&gt;</span> <span class="punctuation terminator file-descriptor shell">-</span>o <span class="keyword operator assignment redirection shell">&lt;</span>OUTPUT<span class="keyword operator assignment redirection shell">&gt;</span></span></span></code></pre>
+<p><strong>SOURCE is the URL root</strong>, not "the project". <code class="verbatim">SOURCE/blog/post.org</code> is published at <code class="verbatim">/blog/post.html</code>, so if your writing lives in a <code class="verbatim">content/</code> subdirectory you point at <code class="verbatim">content/</code> and not at the repository around it. Choosing the directory above the one you meant still builds — it just prefixes every URL with that directory's name and copies your build scripts in as assets. <a href="../quickstart.html">Quick start</a> works through it.</p>
+<p><strong>OUTPUT</strong> may live inside the source; it is recognised and skipped, so a build never consumes its own output.</p>
+<h2 id="build">build</h2>
+<pre><code class="language-sh highlight"><span class="source shell bash"><span class="meta function-call shell"><span class="variable function shell">orgo</span></span><span class="meta function-call arguments shell"> build <span class="keyword operator assignment redirection shell">&lt;</span>INPUT<span class="keyword operator assignment redirection shell">&gt;</span> <span class="punctuation terminator file-descriptor shell">-</span>o <span class="keyword operator assignment redirection shell">&lt;</span>OUTPUT<span class="keyword operator assignment redirection shell">&gt;</span> <span class="keyword control regexp set begin shell">[</span>-<span class="keyword operator word shell">-</span>no<span class="keyword operator word shell">-</span>cache<span class="keyword control regexp set end shell">]</span> <span class="keyword control regexp set begin shell">[</span>-<span class="keyword operator word shell">-</span>strict<span class="keyword control regexp set end shell">]</span> <span class="keyword control regexp set begin shell">[</span>-<span class="keyword operator word shell">-</span>drafts<span class="keyword control regexp set end shell">]</span> <span class="keyword control regexp set begin shell">[</span>-<span class="keyword operator word shell">-</span>config FILE<span class="keyword control regexp set end shell">]</span></span></span></code></pre>
+<p>If <code class="verbatim">INPUT</code> is a directory, it is walked and built into a linked site at <code class="verbatim">OUTPUT</code>. If it is a single <code class="verbatim">.org</code> file, one HTML file is written — useful for one-off conversions, though with no other documents to resolve against, internal links keep a best-effort URL.</p>
+<table>
+<thead>
+<tr><th>Flag</th><th>Effect</th></tr>
+</thead>
+<tbody>
+<tr><td><code class="verbatim">-o, --output</code></td><td>Output directory (or <code class="verbatim">.html</code> file for single-file input). Required for a site.</td></tr>
+<tr><td><code class="verbatim">--no-cache</code></td><td>Ignore the incremental cache and re-render every page.</td></tr>
+<tr><td><code class="verbatim">--strict</code></td><td>Broken internal links and parse diagnostics become a non-zero exit.</td></tr>
+<tr><td><code class="verbatim">--drafts</code></td><td>Include pages marked <code class="verbatim">#+DRAFT:</code>.</td></tr>
+<tr><td><code class="verbatim">--config FILE</code></td><td>Use this config instead of <code class="verbatim">orgo.toml</code> in the source directory.</td></tr>
+</tbody>
+</table>
+<p>The summary line reports what happened:</p>
+<pre>built 182 page(s) (4 rendered, 178 cached), copied 3 asset(s) from src -&gt; _site (0 unresolved link(s), 0 diagnostic(s))</pre>
+<p><code class="verbatim">rendered</code> is the invalidation set — the pages that actually needed rewriting. On a second build with nothing changed it is zero.</p>
+<h3 id="strict-is-for-ci">–strict is for CI</h3>
+<p>Without it, a broken link is a warning and the build succeeds. With it, the build fails and names every problem. Use it wherever a bad build should not ship:</p>
+<pre><code class="language-sh highlight"><span class="source shell bash"><span class="meta function-call shell"><span class="variable function shell">orgo</span></span><span class="meta function-call arguments shell"> build content<span class="variable parameter option shell"><span class="punctuation definition parameter shell"> -</span>o</span> _site<span class="variable parameter option shell"><span class="punctuation definition parameter shell"> --</span>strict</span></span></span></code></pre>
+<h2 id="serve">serve</h2>
+<pre><code class="language-sh highlight"><span class="source shell bash"><span class="meta function-call shell"><span class="variable function shell">orgo</span></span><span class="meta function-call arguments shell"> serve <span class="keyword operator assignment redirection shell">&lt;</span>INPUT<span class="keyword operator assignment redirection shell">&gt;</span> <span class="punctuation terminator file-descriptor shell">-</span>o <span class="keyword operator assignment redirection shell">&lt;</span>OUTPUT<span class="keyword operator assignment redirection shell">&gt;</span> <span class="keyword control regexp set begin shell">[</span>-p PORT<span class="keyword control regexp set end shell">]</span> <span class="keyword control regexp set begin shell">[</span>-<span class="keyword operator word shell">-</span>host HOST<span class="keyword control regexp set end shell">]</span> <span class="keyword control regexp set begin shell">[</span>-<span class="keyword operator word shell">-</span>drafts<span class="keyword control regexp set end shell">]</span> <span class="keyword control regexp set begin shell">[</span>-<span class="keyword operator word shell">-</span>config FILE<span class="keyword control regexp set end shell">]</span></span></span></code></pre>
+<p>Builds, watches, serves, and reloads the browser when a rebuild lands. This is the command to use while writing.</p>
+<table>
+<thead>
+<tr><th>Flag</th><th>Default</th><th>Effect</th></tr>
+</thead>
+<tbody>
+<tr><td><code class="verbatim">-p, --port</code></td><td><code class="verbatim">3000</code></td><td>Port to listen on.</td></tr>
+<tr><td><code class="verbatim">--host</code></td><td><code class="verbatim">127.0.0.1</code></td><td>Address to bind.</td></tr>
+<tr><td><code class="verbatim">--drafts</code></td><td>off</td><td>Include <code class="verbatim">#+DRAFT:</code> pages, so you can see what you are writing.</td></tr>
+</tbody>
+</table>
+<p><strong>It binds loopback on purpose.</strong> A development server serves unreviewed drafts off your laptop, so reaching the local network is something you ask for:</p>
+<pre><code class="language-sh highlight"><span class="source shell bash"><span class="meta function-call shell"><span class="variable function shell">orgo</span></span><span class="meta function-call arguments shell"> serve content<span class="variable parameter option shell"><span class="punctuation definition parameter shell"> -</span>o</span> _site<span class="variable parameter option shell"><span class="punctuation definition parameter shell"> --</span>host</span> 0.0.0.0</span></span></code></pre>
+<p>The live-reload script is injected into responses and never written to disk, so what you deploy stays clean. Details in <a href="08-workflow.html">Watching and serving</a>.</p>
+<h2 id="watch">watch</h2>
+<pre><code class="language-sh highlight"><span class="source shell bash"><span class="meta function-call shell"><span class="variable function shell">orgo</span></span><span class="meta function-call arguments shell"> watch <span class="keyword operator assignment redirection shell">&lt;</span>INPUT<span class="keyword operator assignment redirection shell">&gt;</span> <span class="punctuation terminator file-descriptor shell">-</span>o <span class="keyword operator assignment redirection shell">&lt;</span>OUTPUT<span class="keyword operator assignment redirection shell">&gt;</span> <span class="keyword control regexp set begin shell">[</span>-<span class="keyword operator word shell">-</span>no<span class="keyword operator word shell">-</span>cache<span class="keyword control regexp set end shell">]</span> <span class="keyword control regexp set begin shell">[</span>-<span class="keyword operator word shell">-</span>strict<span class="keyword control regexp set end shell">]</span> <span class="keyword control regexp set begin shell">[</span>-<span class="keyword operator word shell">-</span>drafts<span class="keyword control regexp set end shell">]</span> <span class="keyword control regexp set begin shell">[</span>-<span class="keyword operator word shell">-</span>config FILE<span class="keyword control regexp set end shell">]</span></span></span></code></pre>
+<p>Rebuilds on filesystem events with no server — for when something else is already serving the output, or you just want the build to keep up as you write.</p>
+<h2 id="audit">audit</h2>
+<pre><code class="language-sh highlight"><span class="source shell bash"><span class="meta function-call shell"><span class="variable function shell">orgo</span></span><span class="meta function-call arguments shell"> audit <span class="keyword operator assignment redirection shell">&lt;</span>INPUT<span class="keyword operator assignment redirection shell">&gt;</span></span></span></code></pre>
+<p>Reports which org constructs a corpus uses and how they land against what orgo supports, plus a census of every keyword, block type, drawer and link scheme seen. Point it at your notes before trusting a tool with them. See <a href="09-auditing.html">Auditing a corpus</a>.</p>
+<p>It prints names, counts and <code class="verbatim">file:line</code> locations — never document text — so an audit of private notes is safe to share.</p>
+<h2 id="init">init</h2>
+<pre><code class="language-sh highlight"><span class="source shell bash"><span class="meta function-call shell"><span class="variable function shell">orgo</span></span><span class="meta function-call arguments shell"> init <span class="keyword control regexp set begin shell">[</span>DIRECTORY<span class="keyword control regexp set end shell">]</span></span></span></code></pre>
+<p>Scaffolds a working site: a fully commented config, an editable copy of the built-in layout, listing and tag templates, an RSS template, a home page and a first post. Defaults to the current directory.</p>
+<p>Only files that do not already exist are written, so it is safe to run inside a directory that already has content — it fills in what is missing and leaves the rest alone.</p>
+<h2 id="clean">clean</h2>
+<pre><code class="language-sh highlight"><span class="source shell bash"><span class="meta function-call shell"><span class="variable function shell">orgo</span></span><span class="meta function-call arguments shell"> clean <span class="keyword operator assignment redirection shell">&lt;</span>OUTPUT<span class="keyword operator assignment redirection shell">&gt;</span></span></span></code></pre>
+<p>Removes the output directory, including the incremental cache manifest inside it. You rarely need this: the cache is versioned and discards itself when it stops being valid.</p>
+<h2 id="exit-codes">Exit codes</h2>
+<table>
+<thead>
+<tr><th>Code</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code class="verbatim">0</code></td><td>Success. Warnings may still have been printed.</td></tr>
+<tr><td><code class="verbatim">1</code></td><td>The build failed, or <code class="verbatim">--strict</code> found problems.</td></tr>
+</tbody>
+</table>
+<p>Diagnostics are printed as <code class="verbatim">file:line: message</code>, the form an editor can jump to:</p>
+<pre>warning: blog/post.org:42: unterminated `#+BEGIN_SRC` block (no `#+END_SRC`); everything to the end of the file was read as block content
+warning: index.org: unresolved link [[#setup]]</pre>
+</main>
+<footer class="site">
+Built with orgo &mdash; these docs are an orgo site.
+</footer>
+</body>
+</html>
