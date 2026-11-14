@@ -1,5 +1,7 @@
 # orgo
 
+Support orgo through [GitHub Sponsors](https://github.com/sponsors/ccleberg).
+
 Turn a folder of org files into a website.
 
 You write posts the way you already do — an `.org` file per page, in whatever directory
